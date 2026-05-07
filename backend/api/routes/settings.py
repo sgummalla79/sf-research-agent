@@ -2,13 +2,14 @@
 Settings routes — API key management.
 
 GET  /api/settings/keys   → which keys are configured (booleans, never values)
-POST /api/settings/keys   → save/update one or more keys (empty fields are skipped)
+POST /api/settings/keys   → validate then save/update one or more keys
 """
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 
 from utils.api_keys import encrypt, decrypt, populate_cache, KEY_NAMES
+from utils.key_validator import validate_keys
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -29,7 +30,7 @@ async def get_keys_status(request: Request) -> dict:
 
 @router.post("/keys")
 async def save_keys(payload: KeysPayload, request: Request) -> dict:
-    """Encrypt and persist provided keys. Empty strings are ignored (partial update)."""
+    """Validate then encrypt and persist provided keys. Empty strings are skipped."""
     db = request.app.state.db
 
     incoming = {
@@ -37,14 +38,20 @@ async def save_keys(payload: KeysPayload, request: Request) -> dict:
         "perplexity": payload.perplexity.strip(),
         "google":     payload.google.strip(),
     }
+    new_keys = {k: v for k, v in incoming.items() if v}
+
+    # Validate every key that was provided before touching the DB
+    if new_keys:
+        errors = await validate_keys(new_keys)
+        if errors:
+            raise HTTPException(status_code=422, detail={"validation_errors": errors})
 
     saved = []
-    for key_name, value in incoming.items():
-        if value:
-            await db.save_api_key(key_name, encrypt(value))
-            saved.append(key_name)
+    for key_name, value in new_keys.items():
+        await db.save_api_key(key_name, encrypt(value))
+        saved.append(key_name)
 
-    # Refresh in-memory cache with all stored keys after save
+    # Refresh in-memory cache
     stored = await db.get_all_api_keys()
     decrypted: dict[str, str] = {}
     for k, enc in stored.items():

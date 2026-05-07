@@ -447,8 +447,9 @@
                 </span>
               </div>
               <p class="sk-desc">Intake · Discovery · Research (writing) · Review · Approver</p>
-              <input v-model="settingsKeys.anthropic" class="sk-input" type="password"
+              <input v-model="settingsKeys.anthropic" class="sk-input" :class="{ 'sk-input-err': settingsKeyErrors.anthropic }" type="password"
                 :placeholder="keysConfigured.anthropic ? 'Enter new key to update…' : 'sk-ant-…'" autocomplete="off" />
+              <p v-if="settingsKeyErrors.anthropic" class="sk-err">{{ settingsKeyErrors.anthropic }}</p>
             </div>
 
             <!-- Perplexity -->
@@ -460,8 +461,9 @@
                 </span>
               </div>
               <p class="sk-desc">Research Agent — live web search (Sonar Pro)</p>
-              <input v-model="settingsKeys.perplexity" class="sk-input" type="password"
+              <input v-model="settingsKeys.perplexity" class="sk-input" :class="{ 'sk-input-err': settingsKeyErrors.perplexity }" type="password"
                 :placeholder="keysConfigured.perplexity ? 'Enter new key to update…' : 'pplx-…'" autocomplete="off" />
+              <p v-if="settingsKeyErrors.perplexity" class="sk-err">{{ settingsKeyErrors.perplexity }}</p>
             </div>
 
             <!-- Google -->
@@ -473,8 +475,9 @@
                 </span>
               </div>
               <p class="sk-desc">Research Agent — architectural patterns (Gemini 2.5 Pro)</p>
-              <input v-model="settingsKeys.google" class="sk-input" type="password"
+              <input v-model="settingsKeys.google" class="sk-input" :class="{ 'sk-input-err': settingsKeyErrors.google }" type="password"
                 :placeholder="keysConfigured.google ? 'Enter new key to update…' : 'AIza…'" autocomplete="off" />
+              <p v-if="settingsKeyErrors.google" class="sk-err">{{ settingsKeyErrors.google }}</p>
             </div>
 
             <div v-if="settingsSaveMsg" class="settings-msg" :class="settingsSaveMsg.type">
@@ -484,7 +487,7 @@
 
           <div class="settings-footer">
             <button class="btn-primary" :disabled="settingsSaving" @click="saveSettings">
-              {{ settingsSaving ? 'Saving…' : 'Save Keys' }}
+              {{ settingsSaving ? 'Validating…' : 'Save Keys' }}
             </button>
           </div>
         </div>
@@ -575,8 +578,9 @@ const usageOpen       = ref(false)
 const globalUsage     = reactive({ totals: { input_tokens: 0, output_tokens: 0, cost_usd: 0 }, breakdown: [], session_count: 0, loading: false })
 const settingsKeys    = reactive({ anthropic: '', perplexity: '', google: '' })
 const keysConfigured  = reactive({ anthropic: false, perplexity: false, google: false })
-const settingsSaving  = ref(false)
-const settingsSaveMsg = ref(null)
+const settingsSaving   = ref(false)
+const settingsSaveMsg  = ref(null)
+const settingsKeyErrors = reactive({ anthropic: '', perplexity: '', google: '' })
 const briefText       = ref('')
 const correctionText  = ref('')
 const replyAnswers    = ref([])
@@ -639,13 +643,19 @@ function openSettings() {
   settingsKeys.perplexity = ''
   settingsKeys.google     = ''
   settingsSaveMsg.value   = null
+  settingsKeyErrors.anthropic  = ''
+  settingsKeyErrors.perplexity = ''
+  settingsKeyErrors.google     = ''
   settingsOpen.value      = true
   fetchKeyStatus()
 }
 
 async function saveSettings() {
-  settingsSaving.value  = true
-  settingsSaveMsg.value = null
+  settingsSaving.value         = true
+  settingsSaveMsg.value        = null
+  settingsKeyErrors.anthropic  = ''
+  settingsKeyErrors.perplexity = ''
+  settingsKeyErrors.google     = ''
   try {
     const res = await fetch('/api/settings/keys', {
       method: 'POST',
@@ -664,7 +674,13 @@ async function saveSettings() {
       settingsKeys.anthropic  = ''
       settingsKeys.perplexity = ''
       settingsKeys.google     = ''
-      settingsSaveMsg.value = { type: 'ok', text: `Saved: ${data.saved.join(', ') || 'no changes'}` }
+      settingsSaveMsg.value = { type: 'ok', text: `Keys verified and saved.${data.saved.length ? '' : ' No changes.'}` }
+    } else if (res.status === 422 && data.detail?.validation_errors) {
+      const errs = data.detail.validation_errors
+      settingsKeyErrors.anthropic  = errs.anthropic  || ''
+      settingsKeyErrors.perplexity = errs.perplexity || ''
+      settingsKeyErrors.google     = errs.google     || ''
+      settingsSaveMsg.value = { type: 'err', text: 'One or more keys are invalid — see details above.' }
     } else {
       settingsSaveMsg.value = { type: 'err', text: data.detail || 'Save failed.' }
     }
@@ -708,7 +724,16 @@ function agentUsage(key) {
   }
 }
 
-function handleNewChat()        { newChat(); currentView.value = 'chat' }
+async function handleNewChat() {
+  const missing = Object.entries(keysConfigured).filter(([, v]) => !v).map(([k]) => k)
+  if (missing.length) {
+    openSettings()
+    settingsSaveMsg.value = { type: 'err', text: `Please save your API keys before starting a session. Missing: ${missing.join(', ')}.` }
+    return
+  }
+  newChat()
+  currentView.value = 'chat'
+}
 function openChatsView()       { searchQuery.value = ''; currentView.value = 'chats' }
 function selectChat(threadId)  { restoreSession(threadId); currentView.value = 'chat' }
 async function submitBrief()        { if (!briefText.value.trim()) return; await startSession(briefText.value.trim()); briefText.value = '' }
@@ -956,8 +981,10 @@ function doPDF() {
   font-size: 13px; font-family: monospace; background: var(--surf2);
   color: var(--tx); outline: none; transition: border-color .15s;
 }
-.sk-input:focus { border-color: var(--ifocus); }
+.sk-input:focus    { border-color: var(--ifocus); }
+.sk-input-err      { border-color: #ef4444 !important; }
 .sk-input::placeholder { font-family: inherit; color: var(--muted); }
+.sk-err { font-size: 12px; color: #ef4444; margin: 3px 0 0; }
 
 .settings-msg { font-size: 13px; font-weight: 500; padding: 10px 14px; border-radius: 8px; }
 .settings-msg.ok  { background: var(--pass-bg); color: var(--pass-tx); }
