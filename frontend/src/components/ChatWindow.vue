@@ -68,6 +68,7 @@
 
           <!-- Recent -->
           <template v-if="sidebar.recent.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase())).length">
+            <div class="sb-divider"/>
             <div class="sb-section-hdr">Recent</div>
             <div v-for="s in sidebar.recent.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase()))"
               :key="s.thread_id"
@@ -1100,6 +1101,7 @@ function doPDF() {
   flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 6px 8px;
 }
 .sb-section-hdr { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--sb-muted); padding: 10px 8px 3px; }
+.sb-divider { height: 1px; background: rgba(255,255,255,0.07); margin: 6px 8px; }
 .sb-empty        { font-size: 12px; color: var(--sb-muted); padding: 8px 6px; }
 .sb-loading      { font-size: 12px; color: var(--sb-muted); padding: 10px 6px; }
 

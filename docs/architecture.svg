@@ -1,89 +1,89 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" font-family="'Segoe UI',system-ui,-apple-system,sans-serif">
   <defs>
-    <!-- Background gradient -->
+    <!-- Background -->
     <linearGradient id="g-bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#0d1117"/>
       <stop offset="100%" stop-color="#161b22"/>
     </linearGradient>
 
-    <!-- Component gradients -->
-    <linearGradient id="g-frontend" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#312e81"/>
-      <stop offset="100%" stop-color="#4f46e5"/>
+    <!-- Muted dark box gradients — subtle color tint only -->
+    <linearGradient id="g-frontend" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0e0d1f"/>
+      <stop offset="100%" stop-color="#181632"/>
     </linearGradient>
-    <linearGradient id="g-backend" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1e3a8a"/>
-      <stop offset="100%" stop-color="#2563eb"/>
+    <linearGradient id="g-backend" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#081422"/>
+      <stop offset="100%" stop-color="#0f2038"/>
     </linearGradient>
     <linearGradient id="g-intake" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1e3a8a"/>
-      <stop offset="100%" stop-color="#3b82f6"/>
+      <stop offset="0%" stop-color="#081422"/>
+      <stop offset="100%" stop-color="#0d2040"/>
     </linearGradient>
     <linearGradient id="g-discovery" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#312e81"/>
-      <stop offset="100%" stop-color="#6366f1"/>
+      <stop offset="0%" stop-color="#0c0b22"/>
+      <stop offset="100%" stop-color="#151338"/>
     </linearGradient>
     <linearGradient id="g-researcher" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#7f1d1d"/>
-      <stop offset="100%" stop-color="#ef4444"/>
+      <stop offset="0%" stop-color="#180808"/>
+      <stop offset="100%" stop-color="#2a1010"/>
     </linearGradient>
     <linearGradient id="g-reviewer" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#78350f"/>
-      <stop offset="100%" stop-color="#f59e0b"/>
+      <stop offset="0%" stop-color="#180e00"/>
+      <stop offset="100%" stop-color="#2a1e00"/>
     </linearGradient>
     <linearGradient id="g-approver" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#064e3b"/>
-      <stop offset="100%" stop-color="#10b981"/>
+      <stop offset="0%" stop-color="#041610"/>
+      <stop offset="100%" stop-color="#08261c"/>
     </linearGradient>
     <linearGradient id="g-claude" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#7c2d12"/>
-      <stop offset="100%" stop-color="#f97316"/>
+      <stop offset="0%" stop-color="#180a00"/>
+      <stop offset="100%" stop-color="#281800"/>
     </linearGradient>
     <linearGradient id="g-haiku" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#92400e"/>
-      <stop offset="100%" stop-color="#fbbf24"/>
+      <stop offset="0%" stop-color="#181000"/>
+      <stop offset="100%" stop-color="#281e00"/>
     </linearGradient>
     <linearGradient id="g-perplexity" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#134e4a"/>
-      <stop offset="100%" stop-color="#14b8a6"/>
+      <stop offset="0%" stop-color="#041614"/>
+      <stop offset="100%" stop-color="#082420"/>
     </linearGradient>
     <linearGradient id="g-gemini" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1e3a8a"/>
-      <stop offset="100%" stop-color="#60a5fa"/>
+      <stop offset="0%" stop-color="#080f20"/>
+      <stop offset="100%" stop-color="#101c38"/>
     </linearGradient>
-    <linearGradient id="g-db" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#2e1065"/>
-      <stop offset="100%" stop-color="#7c3aed"/>
+    <linearGradient id="g-db" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0e0820"/>
+      <stop offset="100%" stop-color="#180e38"/>
     </linearGradient>
 
-    <!-- Arrowhead markers -->
+    <!-- Arrowhead markers — muted colors -->
     <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0,1 L8,5 L0,9 Z" fill="#4b6fa0"/>
+      <path d="M0,1 L8,5 L0,9 Z" fill="#334155"/>
     </marker>
-    <marker id="arr-w" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0,1 L8,5 L0,9 Z" fill="#94a3b8"/>
+    <marker id="arr-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,1 L8,5 L0,9 Z" fill="#3b82f6" opacity="0.7"/>
     </marker>
     <marker id="arr-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0,1 L8,5 L0,9 Z" fill="#10b981"/>
+      <path d="M0,1 L8,5 L0,9 Z" fill="#34d399" opacity="0.8"/>
     </marker>
     <marker id="arr-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0,1 L8,5 L0,9 Z" fill="#f59e0b"/>
+      <path d="M0,1 L8,5 L0,9 Z" fill="#fbbf24" opacity="0.7"/>
     </marker>
     <marker id="arr-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M0,1 L8,5 L0,9 Z" fill="#ef4444"/>
+      <path d="M0,1 L8,5 L0,9 Z" fill="#f87171" opacity="0.7"/>
     </marker>
 
-    <!-- Shadows -->
+    <!-- Subtle shadow -->
     <filter id="shadow">
-      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity="0.5"/>
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.5"/>
     </filter>
     <filter id="shadow-sm">
-      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.4"/>
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000" flood-opacity="0.4"/>
     </filter>
 
-    <!-- Subtle dot grid pattern -->
+    <!-- Dot grid -->
     <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-      <circle cx="1" cy="1" r="0.8" fill="#21262d"/>
+      <circle cx="1" cy="1" r="0.7" fill="#1e2530"/>
     </pattern>
   </defs>
 
@@ -92,196 +92,184 @@
   <rect width="1000" height="700" fill="url(#dots)" rx="14"/>
 
   <!-- ═══ TITLE ════════════════════════════════════════════════════════════ -->
-  <text x="500" y="38" text-anchor="middle" fill="white" font-size="22" font-weight="700" letter-spacing="-0.5">SF Research Agent</text>
-  <text x="500" y="60" text-anchor="middle" fill="#6b7f99" font-size="13">Multi-Agent Architecture — 5-Stage Pipeline</text>
+  <text x="500" y="38" text-anchor="middle" fill="#e2e8f0" font-size="21" font-weight="700" letter-spacing="-0.5">SF Research Agent</text>
+  <text x="500" y="60" text-anchor="middle" fill="#475569" font-size="12.5">Multi-Agent Architecture — 5-Stage Pipeline</text>
 
   <!-- ═══ FRONTEND ══════════════════════════════════════════════════════════ -->
-  <rect x="90" y="82" width="235" height="72" rx="12" fill="url(#g-frontend)" filter="url(#shadow)"/>
-  <rect x="90" y="82" width="235" height="72" rx="12" fill="none" stroke="#6366f1" stroke-width="1.5" opacity="0.7"/>
-  <text x="207" y="108" text-anchor="middle" fill="white" font-size="14" font-weight="700">Vue 3 Frontend</text>
-  <text x="207" y="126" text-anchor="middle" fill="#c7d2fe" font-size="10.5">ChatWindow.vue · useAgentChat.js</text>
-  <text x="207" y="143" text-anchor="middle" fill="#a5b4fc" font-size="9.5">Vite · marked · native SSE fetch</text>
+  <rect x="90" y="82" width="235" height="72" rx="11" fill="url(#g-frontend)" filter="url(#shadow)"/>
+  <rect x="90" y="82" width="235" height="72" rx="11" fill="none" stroke="#4338ca" stroke-width="1" opacity="0.5"/>
+  <text x="207" y="107" text-anchor="middle" fill="#e2e8f0" font-size="13.5" font-weight="700">Vue 3 Frontend</text>
+  <text x="207" y="124" text-anchor="middle" fill="#94a3b8" font-size="10">ChatWindow.vue · useAgentChat.js</text>
+  <text x="207" y="141" text-anchor="middle" fill="#64748b" font-size="9.5">Vite · marked · native SSE fetch</text>
 
   <!-- HTTP / SSE double arrow -->
-  <line x1="328" y1="112" x2="493" y2="112" stroke="#334155" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
-  <line x1="493" y1="122" x2="328" y2="122" stroke="#334155" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr)"/>
-  <rect x="365" y="101" width="100" height="20" rx="4" fill="#1a2535"/>
-  <text x="415" y="115" text-anchor="middle" fill="#64748b" font-size="10" font-weight="600">HTTP / SSE</text>
+  <line x1="328" y1="112" x2="493" y2="112" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+  <line x1="493" y1="122" x2="328" y2="122" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+  <rect x="360" y="101" width="110" height="20" rx="4" fill="#0f1923"/>
+  <text x="415" y="115" text-anchor="middle" fill="#475569" font-size="10" font-weight="600">HTTP / SSE</text>
 
   <!-- ═══ BACKEND ═══════════════════════════════════════════════════════════ -->
-  <rect x="493" y="82" width="415" height="72" rx="12" fill="url(#g-backend)" filter="url(#shadow)"/>
-  <rect x="493" y="82" width="415" height="72" rx="12" fill="none" stroke="#2563eb" stroke-width="1.5" opacity="0.7"/>
-  <text x="700" y="108" text-anchor="middle" fill="white" font-size="14" font-weight="700">FastAPI Backend</text>
-  <text x="700" y="126" text-anchor="middle" fill="#bfdbfe" font-size="10.5">/api/chat/*  ·  /api/settings/*  ·  /api/usage/*</text>
-  <text x="700" y="143" text-anchor="middle" fill="#93c5fd" font-size="9.5">SSE streaming · Fernet encryption · Token tracking</text>
+  <rect x="493" y="82" width="415" height="72" rx="11" fill="url(#g-backend)" filter="url(#shadow)"/>
+  <rect x="493" y="82" width="415" height="72" rx="11" fill="none" stroke="#1d4ed8" stroke-width="1" opacity="0.5"/>
+  <text x="700" y="107" text-anchor="middle" fill="#e2e8f0" font-size="13.5" font-weight="700">FastAPI Backend</text>
+  <text x="700" y="124" text-anchor="middle" fill="#94a3b8" font-size="10">/api/chat/*  ·  /api/settings/*  ·  /api/usage/*</text>
+  <text x="700" y="141" text-anchor="middle" fill="#64748b" font-size="9.5">SSE streaming · Fernet encryption · Token tracking</text>
 
-  <!-- Backend → LangGraph connector -->
-  <line x1="700" y1="154" x2="700" y2="182" stroke="#1d4ed8" stroke-width="1.5" marker-end="url(#arr)"/>
-  <text x="714" y="171" fill="#3b82f6" font-size="9">LangGraph</text>
+  <!-- Backend → LangGraph -->
+  <line x1="700" y1="154" x2="700" y2="182" stroke="#1d3461" stroke-width="1.5" marker-end="url(#arr)"/>
+  <text x="714" y="171" fill="#334155" font-size="9">LangGraph</text>
 
   <!-- ═══ LANGGRAPH CONTAINER ═══════════════════════════════════════════════ -->
-  <rect x="48" y="186" width="904" height="255" rx="16" fill="#080f1a" stroke="#1d4ed8" stroke-width="1" stroke-dasharray="6,3" opacity="0.9"/>
-  <rect x="48" y="186" width="904" height="255" rx="16" fill="none" stroke="#0d2855" stroke-width="3" opacity="0.5"/>
-  <text x="72" y="206" fill="#1d4ed8" font-size="10.5" font-weight="700" letter-spacing="1.5" opacity="0.9">LANGGRAPH  STATEGRAPH  —  5-NODE  PIPELINE</text>
+  <rect x="48" y="186" width="904" height="255" rx="14" fill="#080e18" stroke="#1e2d45" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="72" y="205" fill="#2d4a6e" font-size="10" font-weight="700" letter-spacing="1.5">LANGGRAPH  STATEGRAPH  —  5-NODE  PIPELINE</text>
 
-  <!-- ═══ AGENT NODES (y=216, h=90) ════════════════════════════════════════ -->
+  <!-- ═══ AGENT NODES ════════════════════════════════════════════════════════ -->
 
-  <!-- INTAKE -->
-  <rect x="66" y="216" width="140" height="90" rx="10" fill="url(#g-intake)" filter="url(#shadow-sm)"/>
-  <rect x="66" y="216" width="140" height="90" rx="10" fill="none" stroke="#3b82f6" stroke-width="1.5"/>
-  <text x="136" y="238" text-anchor="middle" fill="#93c5fd" font-size="9" font-weight="700" letter-spacing="1.5">INTAKE</text>
-  <text x="136" y="256" text-anchor="middle" fill="white" font-size="12.5" font-weight="700">Intake Agent</text>
-  <text x="136" y="273" text-anchor="middle" fill="#bfdbfe" font-size="9.5">Brief · Doc · Image</text>
-  <text x="136" y="288" text-anchor="middle" fill="#93c5fd" font-size="9">Claude Sonnet 4.6</text>
-  <text x="136" y="301" text-anchor="middle" fill="#60a5fa" font-size="8.5">+Vision for images</text>
+  <!-- INTAKE (blue tint) -->
+  <rect x="66" y="214" width="140" height="92" rx="9" fill="url(#g-intake)" filter="url(#shadow-sm)"/>
+  <rect x="66" y="214" width="140" height="92" rx="9" fill="none" stroke="#2563eb" stroke-width="1" opacity="0.45"/>
+  <text x="136" y="235" text-anchor="middle" fill="#3b82f6" font-size="8.5" font-weight="700" letter-spacing="1.5" opacity="0.8">INTAKE</text>
+  <text x="136" y="253" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">Intake Agent</text>
+  <text x="136" y="269" text-anchor="middle" fill="#94a3b8" font-size="9.5">Brief · Doc · Image</text>
+  <text x="136" y="284" text-anchor="middle" fill="#64748b" font-size="9">Claude Sonnet 4.6</text>
+  <text x="136" y="299" text-anchor="middle" fill="#4b6fa0" font-size="8.5">+Vision for images</text>
 
-  <!-- → intake→discovery -->
-  <line x1="207" y1="261" x2="222" y2="261" stroke="#3b82f6" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="207" y1="260" x2="222" y2="260" stroke="#2563eb" stroke-width="1.5" opacity="0.6" marker-end="url(#arr-blue)"/>
 
-  <!-- DISCOVERY -->
-  <rect x="222" y="216" width="140" height="90" rx="10" fill="url(#g-discovery)" filter="url(#shadow-sm)"/>
-  <rect x="222" y="216" width="140" height="90" rx="10" fill="none" stroke="#6366f1" stroke-width="1.5"/>
-  <text x="292" y="238" text-anchor="middle" fill="#c7d2fe" font-size="9" font-weight="700" letter-spacing="1.5">DISCOVERY</text>
-  <text x="292" y="256" text-anchor="middle" fill="white" font-size="12.5" font-weight="700">Discovery Agent</text>
-  <text x="292" y="273" text-anchor="middle" fill="#c7d2fe" font-size="9.5">Dynamic Q&amp;A rounds</text>
-  <text x="292" y="288" text-anchor="middle" fill="#a5b4fc" font-size="9">Claude Sonnet 4.6</text>
-  <text x="292" y="301" text-anchor="middle" fill="#818cf8" font-size="8.5">&#x21ba; interrupt / resume</text>
+  <!-- DISCOVERY (indigo tint) -->
+  <rect x="222" y="214" width="140" height="92" rx="9" fill="url(#g-discovery)" filter="url(#shadow-sm)"/>
+  <rect x="222" y="214" width="140" height="92" rx="9" fill="none" stroke="#4f46e5" stroke-width="1" opacity="0.45"/>
+  <text x="292" y="235" text-anchor="middle" fill="#6366f1" font-size="8.5" font-weight="700" letter-spacing="1.5" opacity="0.8">DISCOVERY</text>
+  <text x="292" y="253" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">Discovery Agent</text>
+  <text x="292" y="269" text-anchor="middle" fill="#94a3b8" font-size="9.5">Dynamic Q&amp;A rounds</text>
+  <text x="292" y="284" text-anchor="middle" fill="#64748b" font-size="9">Claude Sonnet 4.6</text>
+  <text x="292" y="299" text-anchor="middle" fill="#3d3f7a" font-size="8.5">&#x21ba; interrupt / resume</text>
 
-  <!-- → discovery→researcher -->
-  <line x1="363" y1="261" x2="378" y2="261" stroke="#6366f1" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="363" y1="260" x2="378" y2="260" stroke="#4f46e5" stroke-width="1.5" opacity="0.6" marker-end="url(#arr-blue)"/>
 
-  <!-- RESEARCHER (wider) -->
-  <rect x="378" y="216" width="156" height="90" rx="10" fill="url(#g-researcher)" filter="url(#shadow-sm)"/>
-  <rect x="378" y="216" width="156" height="90" rx="10" fill="none" stroke="#ef4444" stroke-width="1.5"/>
-  <text x="456" y="238" text-anchor="middle" fill="#fca5a5" font-size="9" font-weight="700" letter-spacing="1.5">RESEARCHER</text>
-  <text x="456" y="256" text-anchor="middle" fill="white" font-size="12.5" font-weight="700">Research Agent</text>
-  <text x="456" y="273" text-anchor="middle" fill="#fca5a5" font-size="9.5">Perplexity &#x2225; Gemini</text>
-  <text x="456" y="288" text-anchor="middle" fill="#fca5a5" font-size="9">&#x2192; Claude (writing)</text>
-  <text x="456" y="301" text-anchor="middle" fill="#f87171" font-size="8.5">Parallel ThreadPoolExecutor</text>
+  <!-- RESEARCHER (red tint) — wider -->
+  <rect x="378" y="214" width="156" height="92" rx="9" fill="url(#g-researcher)" filter="url(#shadow-sm)"/>
+  <rect x="378" y="214" width="156" height="92" rx="9" fill="none" stroke="#dc2626" stroke-width="1" opacity="0.45"/>
+  <text x="456" y="235" text-anchor="middle" fill="#ef4444" font-size="8.5" font-weight="700" letter-spacing="1.5" opacity="0.8">RESEARCHER</text>
+  <text x="456" y="253" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">Research Agent</text>
+  <text x="456" y="269" text-anchor="middle" fill="#94a3b8" font-size="9.5">Perplexity &#x2225; Gemini</text>
+  <text x="456" y="284" text-anchor="middle" fill="#64748b" font-size="9">&#x2192; Claude (writing)</text>
+  <text x="456" y="299" text-anchor="middle" fill="#6b2020" font-size="8.5">Parallel ThreadPoolExecutor</text>
 
-  <!-- → researcher→reviewer -->
-  <line x1="535" y1="261" x2="548" y2="261" stroke="#ef4444" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="535" y1="260" x2="548" y2="260" stroke="#dc2626" stroke-width="1.5" opacity="0.6" marker-end="url(#arr-blue)"/>
 
-  <!-- REVIEWER -->
-  <rect x="548" y="216" width="140" height="90" rx="10" fill="url(#g-reviewer)" filter="url(#shadow-sm)"/>
-  <rect x="548" y="216" width="140" height="90" rx="10" fill="none" stroke="#f59e0b" stroke-width="1.5"/>
-  <text x="618" y="238" text-anchor="middle" fill="#fde68a" font-size="9" font-weight="700" letter-spacing="1.5">REVIEWER</text>
-  <text x="618" y="256" text-anchor="middle" fill="white" font-size="12.5" font-weight="700">Review Agent</text>
-  <text x="618" y="273" text-anchor="middle" fill="#fde68a" font-size="9.5">30-item checklist</text>
-  <text x="618" y="288" text-anchor="middle" fill="#fcd34d" font-size="9">Claude Sonnet 4.6</text>
-  <text x="618" y="301" text-anchor="middle" fill="#fbbf24" font-size="8.5">PASSED / FAILED</text>
+  <!-- REVIEWER (amber tint) -->
+  <rect x="548" y="214" width="140" height="92" rx="9" fill="url(#g-reviewer)" filter="url(#shadow-sm)"/>
+  <rect x="548" y="214" width="140" height="92" rx="9" fill="none" stroke="#d97706" stroke-width="1" opacity="0.45"/>
+  <text x="618" y="235" text-anchor="middle" fill="#d97706" font-size="8.5" font-weight="700" letter-spacing="1.5" opacity="0.8">REVIEWER</text>
+  <text x="618" y="253" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">Review Agent</text>
+  <text x="618" y="269" text-anchor="middle" fill="#94a3b8" font-size="9.5">30-item checklist</text>
+  <text x="618" y="284" text-anchor="middle" fill="#64748b" font-size="9">Claude Sonnet 4.6</text>
+  <text x="618" y="299" text-anchor="middle" fill="#6b4a00" font-size="8.5">PASSED / FAILED</text>
 
-  <!-- → reviewer→approver -->
-  <line x1="689" y1="261" x2="702" y2="261" stroke="#f59e0b" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="689" y1="260" x2="702" y2="260" stroke="#d97706" stroke-width="1.5" opacity="0.6" marker-end="url(#arr-blue)"/>
 
-  <!-- APPROVER -->
-  <rect x="702" y="216" width="140" height="90" rx="10" fill="url(#g-approver)" filter="url(#shadow-sm)"/>
-  <rect x="702" y="216" width="140" height="90" rx="10" fill="none" stroke="#10b981" stroke-width="1.5"/>
-  <text x="772" y="238" text-anchor="middle" fill="#6ee7b7" font-size="9" font-weight="700" letter-spacing="1.5">APPROVER</text>
-  <text x="772" y="256" text-anchor="middle" fill="white" font-size="12.5" font-weight="700">Approver Gate</text>
-  <text x="772" y="273" text-anchor="middle" fill="#6ee7b7" font-size="9.5">7-lens strategic review</text>
-  <text x="772" y="288" text-anchor="middle" fill="#6ee7b7" font-size="9">Claude Sonnet 4.6</text>
-  <text x="772" y="301" text-anchor="middle" fill="#34d399" font-size="8.5">APPROVED / REJECTED</text>
+  <!-- APPROVER (green tint) -->
+  <rect x="702" y="214" width="140" height="92" rx="9" fill="url(#g-approver)" filter="url(#shadow-sm)"/>
+  <rect x="702" y="214" width="140" height="92" rx="9" fill="none" stroke="#059669" stroke-width="1" opacity="0.45"/>
+  <text x="772" y="235" text-anchor="middle" fill="#059669" font-size="8.5" font-weight="700" letter-spacing="1.5" opacity="0.8">APPROVER</text>
+  <text x="772" y="253" text-anchor="middle" fill="#e2e8f0" font-size="12" font-weight="700">Approver Gate</text>
+  <text x="772" y="269" text-anchor="middle" fill="#94a3b8" font-size="9.5">7-lens strategic review</text>
+  <text x="772" y="284" text-anchor="middle" fill="#64748b" font-size="9">Claude Sonnet 4.6</text>
+  <text x="772" y="299" text-anchor="middle" fill="#0a4a35" font-size="8.5">APPROVED / REJECTED</text>
 
-  <!-- → approver→END -->
-  <line x1="843" y1="261" x2="868" y2="261" stroke="#10b981" stroke-width="2" marker-end="url(#arr-green)"/>
+  <!-- Approver → END -->
+  <line x1="843" y1="260" x2="866" y2="260" stroke="#059669" stroke-width="1.5" opacity="0.7" marker-end="url(#arr-green)"/>
 
   <!-- END marker -->
-  <circle cx="893" cy="261" r="22" fill="#064e3b" stroke="#10b981" stroke-width="2"/>
-  <text x="893" y="258" text-anchor="middle" fill="#10b981" font-size="10" font-weight="700">END</text>
-  <text x="893" y="272" text-anchor="middle" fill="#34d399" font-size="8">&#x2713;</text>
+  <circle cx="890" cy="260" r="22" fill="#08201a" stroke="#059669" stroke-width="1.5" opacity="0.7"/>
+  <text x="890" y="257" text-anchor="middle" fill="#34d399" font-size="10" font-weight="700">END</text>
+  <text x="890" y="271" text-anchor="middle" fill="#059669" font-size="10">&#x2713;</text>
 
   <!-- ═══ REVISION LOOPS ════════════════════════════════════════════════════ -->
+  <path d="M618,307 C618,352 456,352 456,307"
+    fill="none" stroke="#b45309" stroke-width="1.2" stroke-dasharray="5,3" opacity="0.6" marker-end="url(#arr-amber)"/>
+  <rect x="490" y="349" width="108" height="16" rx="4" fill="#100c00"/>
+  <text x="544" y="361" text-anchor="middle" fill="#92400e" font-size="9.5">FAILED — revise</text>
 
-  <!-- Reviewer FAILED → Researcher -->
-  <path d="M618,307 C618,350 456,350 456,307"
-    fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-amber)"/>
-  <rect x="490" y="347" width="102" height="16" rx="4" fill="#1a1000"/>
-  <text x="541" y="359" text-anchor="middle" fill="#f59e0b" font-size="9.5" font-weight="600">FAILED — revise</text>
-
-  <!-- Approver REJECTED → Researcher -->
   <path d="M772,307 C772,395 456,395 456,307"
-    fill="none" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-red)"/>
-  <rect x="510" y="392" width="176" height="16" rx="4" fill="#1a0000"/>
-  <text x="598" y="404" text-anchor="middle" fill="#ef4444" font-size="9.5" font-weight="600">REJECTED — revise (max 5 cycles)</text>
+    fill="none" stroke="#991b1b" stroke-width="1.2" stroke-dasharray="5,3" opacity="0.6" marker-end="url(#arr-red)"/>
+  <rect x="508" y="392" width="184" height="16" rx="4" fill="#100000"/>
+  <text x="600" y="404" text-anchor="middle" fill="#7f1d1d" font-size="9.5">REJECTED — revise (max 5 cycles)</text>
 
   <!-- ═══ LLM MODEL BOXES ═══════════════════════════════════════════════════ -->
-
-  <!-- Vertical connectors from LangGraph to models -->
-  <line x1="175" y1="441" x2="175" y2="456" stroke="#f97316" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>
-  <line x1="385" y1="441" x2="385" y2="456" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>
-  <line x1="595" y1="441" x2="530" y2="456" stroke="#14b8a6" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>
-  <line x1="795" y1="441" x2="750" y2="456" stroke="#60a5fa" stroke-width="1" stroke-dasharray="3,2" opacity="0.6"/>
+  <line x1="175" y1="441" x2="175" y2="456" stroke="#432000" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
+  <line x1="385" y1="441" x2="385" y2="456" stroke="#432800" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
+  <line x1="560" y1="441" x2="540" y2="456" stroke="#0a3830" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
+  <line x1="795" y1="441" x2="760" y2="456" stroke="#0a1e3a" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
 
   <!-- Claude Sonnet 4.6 -->
-  <rect x="80" y="458" width="195" height="82" rx="10" fill="url(#g-claude)" filter="url(#shadow-sm)"/>
-  <rect x="80" y="458" width="195" height="82" rx="10" fill="none" stroke="#f97316" stroke-width="1.5"/>
-  <text x="177" y="478" text-anchor="middle" fill="#fed7aa" font-size="9.5" font-weight="700" letter-spacing="0.5">CLAUDE SONNET 4.6</text>
-  <text x="177" y="496" text-anchor="middle" fill="white" font-size="12" font-weight="700">Anthropic</text>
-  <text x="177" y="513" text-anchor="middle" fill="#fed7aa" font-size="9">Intake · Discovery · Research (writing)</text>
-  <text x="177" y="529" text-anchor="middle" fill="#fed7aa" font-size="9">Review · Approval   $3/$15 per 1M</text>
+  <rect x="80" y="458" width="195" height="80" rx="9" fill="url(#g-claude)" filter="url(#shadow-sm)"/>
+  <rect x="80" y="458" width="195" height="80" rx="9" fill="none" stroke="#c2410c" stroke-width="1" opacity="0.4"/>
+  <text x="177" y="477" text-anchor="middle" fill="#c2410c" font-size="9" font-weight="700" letter-spacing="0.5" opacity="0.9">CLAUDE SONNET 4.6</text>
+  <text x="177" y="494" text-anchor="middle" fill="#e2e8f0" font-size="11.5" font-weight="700">Anthropic</text>
+  <text x="177" y="511" text-anchor="middle" fill="#94a3b8" font-size="9">Intake · Discovery · Research</text>
+  <text x="177" y="527" text-anchor="middle" fill="#64748b" font-size="9">Review · Approval   $3/$15 /1M</text>
 
   <!-- Claude Haiku 4.5 -->
-  <rect x="295" y="458" width="195" height="82" rx="10" fill="url(#g-haiku)" filter="url(#shadow-sm)"/>
-  <rect x="295" y="458" width="195" height="82" rx="10" fill="none" stroke="#fbbf24" stroke-width="1.5"/>
-  <text x="392" y="478" text-anchor="middle" fill="#fef3c7" font-size="9.5" font-weight="700" letter-spacing="0.5">CLAUDE HAIKU 4.5</text>
-  <text x="392" y="496" text-anchor="middle" fill="white" font-size="12" font-weight="700">Anthropic</text>
-  <text x="392" y="513" text-anchor="middle" fill="#fef3c7" font-size="9">Session title generation</text>
-  <text x="392" y="529" text-anchor="middle" fill="#fde68a" font-size="9">Background · Fast   $0.80/$4 per 1M</text>
+  <rect x="295" y="458" width="195" height="80" rx="9" fill="url(#g-haiku)" filter="url(#shadow-sm)"/>
+  <rect x="295" y="458" width="195" height="80" rx="9" fill="none" stroke="#b45309" stroke-width="1" opacity="0.4"/>
+  <text x="392" y="477" text-anchor="middle" fill="#b45309" font-size="9" font-weight="700" letter-spacing="0.5" opacity="0.9">CLAUDE HAIKU 4.5</text>
+  <text x="392" y="494" text-anchor="middle" fill="#e2e8f0" font-size="11.5" font-weight="700">Anthropic</text>
+  <text x="392" y="511" text-anchor="middle" fill="#94a3b8" font-size="9">Session title generation</text>
+  <text x="392" y="527" text-anchor="middle" fill="#64748b" font-size="9">Background · Fast   $0.80/$4 /1M</text>
 
   <!-- Perplexity Sonar Pro -->
-  <rect x="510" y="458" width="195" height="82" rx="10" fill="url(#g-perplexity)" filter="url(#shadow-sm)"/>
-  <rect x="510" y="458" width="195" height="82" rx="10" fill="none" stroke="#14b8a6" stroke-width="1.5"/>
-  <text x="607" y="478" text-anchor="middle" fill="#99f6e4" font-size="9.5" font-weight="700" letter-spacing="0.5">PERPLEXITY SONAR PRO</text>
-  <text x="607" y="496" text-anchor="middle" fill="white" font-size="12" font-weight="700">Perplexity AI</text>
-  <text x="607" y="513" text-anchor="middle" fill="#99f6e4" font-size="9">Live web search · SF limits</text>
-  <text x="607" y="529" text-anchor="middle" fill="#5eead4" font-size="9">Release notes · Citations   $3/$15 per 1M</text>
+  <rect x="510" y="458" width="195" height="80" rx="9" fill="url(#g-perplexity)" filter="url(#shadow-sm)"/>
+  <rect x="510" y="458" width="195" height="80" rx="9" fill="none" stroke="#0d9488" stroke-width="1" opacity="0.4"/>
+  <text x="607" y="477" text-anchor="middle" fill="#0d9488" font-size="9" font-weight="700" letter-spacing="0.5" opacity="0.9">PERPLEXITY SONAR PRO</text>
+  <text x="607" y="494" text-anchor="middle" fill="#e2e8f0" font-size="11.5" font-weight="700">Perplexity AI</text>
+  <text x="607" y="511" text-anchor="middle" fill="#94a3b8" font-size="9">Live web search · SF limits</text>
+  <text x="607" y="527" text-anchor="middle" fill="#64748b" font-size="9">Release notes · Citations   $3/$15 /1M</text>
 
   <!-- Gemini 2.5 Pro -->
-  <rect x="725" y="458" width="195" height="82" rx="10" fill="url(#g-gemini)" filter="url(#shadow-sm)"/>
-  <rect x="725" y="458" width="195" height="82" rx="10" fill="none" stroke="#60a5fa" stroke-width="1.5"/>
-  <text x="822" y="478" text-anchor="middle" fill="#bfdbfe" font-size="9.5" font-weight="700" letter-spacing="0.5">GEMINI 2.5 PRO</text>
-  <text x="822" y="496" text-anchor="middle" fill="white" font-size="12" font-weight="700">Google AI</text>
-  <text x="822" y="513" text-anchor="middle" fill="#bfdbfe" font-size="9">Architectural patterns · Reasoning</text>
-  <text x="822" y="529" text-anchor="middle" fill="#93c5fd" font-size="9">1M context window   $1.25/$10 per 1M</text>
+  <rect x="725" y="458" width="195" height="80" rx="9" fill="url(#g-gemini)" filter="url(#shadow-sm)"/>
+  <rect x="725" y="458" width="195" height="80" rx="9" fill="none" stroke="#1d4ed8" stroke-width="1" opacity="0.4"/>
+  <text x="822" y="477" text-anchor="middle" fill="#3b82f6" font-size="9" font-weight="700" letter-spacing="0.5" opacity="0.8">GEMINI 2.5 PRO</text>
+  <text x="822" y="494" text-anchor="middle" fill="#e2e8f0" font-size="11.5" font-weight="700">Google AI</text>
+  <text x="822" y="511" text-anchor="middle" fill="#94a3b8" font-size="9">Architectural patterns · Reasoning</text>
+  <text x="822" y="527" text-anchor="middle" fill="#64748b" font-size="9">1M context window   $1.25/$10 /1M</text>
 
   <!-- ═══ DATABASE ═══════════════════════════════════════════════════════════ -->
-  <!-- Connector -->
-  <line x1="500" y1="540" x2="500" y2="558" stroke="#7c3aed" stroke-width="1" stroke-dasharray="3,2" opacity="0.7"/>
+  <line x1="500" y1="538" x2="500" y2="556" stroke="#2e1065" stroke-width="1" stroke-dasharray="3,2" opacity="0.5"/>
 
-  <rect x="48" y="560" width="904" height="114" rx="12" fill="url(#g-db)" filter="url(#shadow)"/>
-  <rect x="48" y="560" width="904" height="114" rx="12" fill="none" stroke="#7c3aed" stroke-width="1.5" opacity="0.6"/>
-  <text x="500" y="580" text-anchor="middle" fill="#ddd6fe" font-size="12" font-weight="700" letter-spacing="1">SQLite / PostgreSQL  —  Persistent Storage</text>
+  <rect x="48" y="558" width="904" height="114" rx="11" fill="url(#g-db)" filter="url(#shadow)"/>
+  <rect x="48" y="558" width="904" height="114" rx="11" fill="none" stroke="#5b21b6" stroke-width="1" opacity="0.4"/>
+  <text x="500" y="577" text-anchor="middle" fill="#7c3aed" font-size="11.5" font-weight="700" letter-spacing="0.5" opacity="0.9">SQLite / PostgreSQL — Persistent Storage</text>
 
   <!-- 4 table chips -->
-  <rect x="72" y="590" width="195" height="38" rx="8" fill="rgba(109,40,217,0.35)" stroke="#7c3aed" stroke-width="1"/>
-  <text x="169" y="610" text-anchor="middle" fill="#ddd6fe" font-size="10.5" font-weight="700">checkpoints</text>
-  <text x="169" y="622" text-anchor="middle" fill="#c4b5fd" font-size="9">LangGraph state snapshots</text>
+  <rect x="72" y="588" width="195" height="38" rx="7" fill="rgba(91,33,182,0.15)" stroke="#5b21b6" stroke-width="1" opacity="0.5"/>
+  <text x="169" y="609" text-anchor="middle" fill="#c4b5fd" font-size="10.5" font-weight="600">checkpoints</text>
+  <text x="169" y="622" text-anchor="middle" fill="#64748b" font-size="9">LangGraph state snapshots</text>
 
-  <rect x="285" y="590" width="195" height="38" rx="8" fill="rgba(109,40,217,0.35)" stroke="#7c3aed" stroke-width="1"/>
-  <text x="382" y="610" text-anchor="middle" fill="#ddd6fe" font-size="10.5" font-weight="700">agent_sessions</text>
-  <text x="382" y="622" text-anchor="middle" fill="#c4b5fd" font-size="9">Titles · pinned · last_modified</text>
+  <rect x="285" y="588" width="195" height="38" rx="7" fill="rgba(91,33,182,0.15)" stroke="#5b21b6" stroke-width="1" opacity="0.5"/>
+  <text x="382" y="609" text-anchor="middle" fill="#c4b5fd" font-size="10.5" font-weight="600">agent_sessions</text>
+  <text x="382" y="622" text-anchor="middle" fill="#64748b" font-size="9">Titles · pinned · last_modified</text>
 
-  <rect x="498" y="590" width="195" height="38" rx="8" fill="rgba(109,40,217,0.35)" stroke="#7c3aed" stroke-width="1"/>
-  <text x="595" y="610" text-anchor="middle" fill="#ddd6fe" font-size="10.5" font-weight="700">app_settings</text>
-  <text x="595" y="622" text-anchor="middle" fill="#c4b5fd" font-size="9">Fernet-encrypted API keys</text>
+  <rect x="498" y="588" width="195" height="38" rx="7" fill="rgba(91,33,182,0.15)" stroke="#5b21b6" stroke-width="1" opacity="0.5"/>
+  <text x="595" y="609" text-anchor="middle" fill="#c4b5fd" font-size="10.5" font-weight="600">app_settings</text>
+  <text x="595" y="622" text-anchor="middle" fill="#64748b" font-size="9">Fernet-encrypted API keys</text>
 
-  <rect x="711" y="590" width="213" height="38" rx="8" fill="rgba(109,40,217,0.35)" stroke="#7c3aed" stroke-width="1"/>
-  <text x="817" y="610" text-anchor="middle" fill="#ddd6fe" font-size="10.5" font-weight="700">token_usage</text>
-  <text x="817" y="622" text-anchor="middle" fill="#c4b5fd" font-size="9">Per-model tokens + cost_usd</text>
+  <rect x="711" y="588" width="213" height="38" rx="7" fill="rgba(91,33,182,0.15)" stroke="#5b21b6" stroke-width="1" opacity="0.5"/>
+  <text x="817" y="609" text-anchor="middle" fill="#c4b5fd" font-size="10.5" font-weight="600">token_usage</text>
+  <text x="817" y="622" text-anchor="middle" fill="#64748b" font-size="9">Per-model tokens + cost_usd</text>
 
-  <!-- Bottom labels in DB -->
-  <text x="169" y="647" text-anchor="middle" fill="#6d28d9" font-size="8.5" opacity="0.9">managed by LangGraph</text>
-  <text x="382" y="647" text-anchor="middle" fill="#6d28d9" font-size="8.5" opacity="0.9">app table · TTL 15 days</text>
-  <text x="595" y="647" text-anchor="middle" fill="#6d28d9" font-size="8.5" opacity="0.9">SETTINGS_SECRET key</text>
-  <text x="817" y="647" text-anchor="middle" fill="#6d28d9" font-size="8.5" opacity="0.9">grouped by model, cost estimate</text>
+  <text x="169" y="645" text-anchor="middle" fill="#3b2a6e" font-size="8.5">managed by LangGraph</text>
+  <text x="382" y="645" text-anchor="middle" fill="#3b2a6e" font-size="8.5">app table · TTL 15 days</text>
+  <text x="595" y="645" text-anchor="middle" fill="#3b2a6e" font-size="8.5">SETTINGS_SECRET key</text>
+  <text x="817" y="645" text-anchor="middle" fill="#3b2a6e" font-size="8.5">grouped by model, cost estimate</text>
 
   <!-- ═══ LEGEND ════════════════════════════════════════════════════════════ -->
-  <text x="52" y="688" fill="#334155" font-size="9.5">
-    <tspan fill="#4b6fa0">&#x2192; pipeline flow   </tspan>
-    <tspan fill="#f59e0b">- - &#x2192; reviewer fails   </tspan>
-    <tspan fill="#ef4444">- - &#x2192; approver rejects   </tspan>
-    <tspan fill="#6366f1">&#x21ba; human-in-the-loop interrupt   </tspan>
-    <tspan fill="#6b7f99">&#x2225; parallel execution</tspan>
+  <text x="52" y="688" fill="#2d3d54" font-size="9.5">
+    <tspan>&#x2192; pipeline flow   </tspan>
+    <tspan fill="#6b4a00" opacity="0.8">- - &#x2192; reviewer fails   </tspan>
+    <tspan fill="#7f1d1d" opacity="0.8">- - &#x2192; approver rejects   </tspan>
+    <tspan fill="#312e81" opacity="0.7">&#x21ba; human-in-the-loop interrupt   </tspan>
+    <tspan fill="#2d3d54">&#x2225; parallel execution</tspan>
   </text>
 </svg>
