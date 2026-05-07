@@ -370,15 +370,12 @@
         <span class="ub-tokens">↑ {{ fmtTokens(sessionUsage.input_tokens) }} &nbsp;↓ {{ fmtTokens(sessionUsage.output_tokens) }}</span>
         <span class="ub-cost">{{ fmtCost(sessionUsage.cost_usd) }}</span>
       </div>
-      <template v-for="key in ['intake','discovery','researcher','reviewer','approver']" :key="key">
+      <template v-for="row in sessionUsage.breakdown" :key="row.model">
         <div class="ub-sep"/>
         <div class="ub-cell">
-          <span class="ub-name">{{ AGENT_SHORT[key] }}</span>
-          <template v-if="agentUsage(key)">
-            <span class="ub-tokens">↑ {{ fmtTokens(agentUsage(key).input_tokens) }} &nbsp;↓ {{ fmtTokens(agentUsage(key).output_tokens) }}</span>
-            <span class="ub-cost">{{ fmtCost(agentUsage(key).cost_usd) }}</span>
-          </template>
-          <span v-else class="ub-idle">—</span>
+          <span class="ub-name">{{ modelLabel(row.model) }}</span>
+          <span class="ub-tokens">↑ {{ fmtTokens(row.input_tokens) }} &nbsp;↓ {{ fmtTokens(row.output_tokens) }}</span>
+          <span class="ub-cost">{{ fmtCost(row.cost_usd) }}</span>
         </div>
       </template>
     </div>
@@ -410,8 +407,8 @@
                 <div class="ut-header">
                   <span>Agent</span><span>↑ Input</span><span>↓ Output</span><span>Est. cost</span>
                 </div>
-                <div v-for="row in globalUsage.breakdown" :key="row.agent+row.model" class="ut-row">
-                  <span>{{ AGENT_LABELS[row.agent] || row.agent }}</span>
+                <div v-for="row in globalUsage.breakdown" :key="row.model" class="ut-row">
+                  <span>{{ modelLabel(row.model) }}</span>
                   <span>{{ fmtTokens(row.input_tokens) }}</span>
                   <span>{{ fmtTokens(row.output_tokens) }}</span>
                   <span class="ut-cost">{{ fmtCost(row.cost_usd) }}</span>
@@ -711,18 +708,15 @@ function renderContent(c) {
 }
 
 const AGENT_LABELS = { intake: 'Intake Agent', discovery: 'Discovery Agent', researcher: 'Research Agent', reviewer: 'Review Agent', approver: 'Approver Gate' }
-const AGENT_SHORT  = { intake: 'Intake', discovery: 'Discovery', researcher: 'Research', reviewer: 'Review', approver: 'Approver' }
+const MODEL_NAMES = {
+  'claude-sonnet-4-6':         'Claude Sonnet 4.6',
+  'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
+  'sonar-pro':                 'Perplexity Sonar Pro',
+  'gemini-2.5-pro':            'Gemini 2.5 Pro',
+}
+function modelLabel(m) { return MODEL_NAMES[m] || m }
 function fmtTokens(n) { return n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n) }
 function fmtCost(c)   { return c < 0.01 ? `$${(c).toFixed(4)}` : `$${c.toFixed(3)}` }
-function agentUsage(key) {
-  const rows = sessionUsage.breakdown.filter(r => r.agent === key)
-  if (!rows.length) return null
-  return {
-    input_tokens:  rows.reduce((s, r) => s + r.input_tokens, 0),
-    output_tokens: rows.reduce((s, r) => s + r.output_tokens, 0),
-    cost_usd:      rows.reduce((s, r) => s + r.cost_usd, 0),
-  }
-}
 
 async function handleNewChat() {
   const missing = Object.entries(keysConfigured).filter(([, v]) => !v).map(([k]) => k)

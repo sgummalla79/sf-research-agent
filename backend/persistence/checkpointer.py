@@ -220,12 +220,13 @@ class DBContext:
                     )
 
     async def get_session_usage(self, thread_id: str) -> dict:
-        rows = await self._fetchall(
-            "SELECT agent, model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd) FROM token_usage WHERE thread_id = ? GROUP BY agent, model" if self._backend == "sqlite"
-            else "SELECT agent, model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd) FROM token_usage WHERE thread_id = %s GROUP BY agent, model",
-            (thread_id,)
+        sql = (
+            "SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd) FROM token_usage WHERE thread_id = ? GROUP BY model ORDER BY SUM(cost_usd) DESC"
+            if self._backend == "sqlite" else
+            "SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd) FROM token_usage WHERE thread_id = %s GROUP BY model ORDER BY SUM(cost_usd) DESC"
         )
-        breakdown = [{"agent": r[0], "model": r[1], "input_tokens": r[2], "output_tokens": r[3], "cost_usd": round(r[4], 6)} for r in rows]
+        rows = await self._fetchall(sql, (thread_id,))
+        breakdown = [{"model": r[0], "input_tokens": r[1], "output_tokens": r[2], "cost_usd": round(r[3], 6)} for r in rows]
         return {
             "breakdown": breakdown,
             "totals": {
@@ -237,9 +238,9 @@ class DBContext:
 
     async def get_global_usage(self) -> dict:
         rows = await self._fetchall(
-            "SELECT agent, model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd) FROM token_usage GROUP BY agent, model"
+            "SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd) FROM token_usage GROUP BY model ORDER BY SUM(cost_usd) DESC"
         )
-        breakdown = [{"agent": r[0], "model": r[1], "input_tokens": r[2], "output_tokens": r[3], "cost_usd": round(r[4], 6)} for r in rows]
+        breakdown = [{"model": r[0], "input_tokens": r[1], "output_tokens": r[2], "cost_usd": round(r[3], 6)} for r in rows]
         count_row = await self._fetchone("SELECT COUNT(DISTINCT thread_id) FROM token_usage")
         return {
             "breakdown": breakdown,
