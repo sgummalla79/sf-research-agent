@@ -35,26 +35,50 @@
           <span class="sba-label">Chats</span>
         </button>
 
-        <!-- Chat list — no per-item icons -->
+        <!-- Chat list — pinned section + recent section -->
         <div class="sb-list">
           <div v-if="!filteredChats.length" class="sb-empty">No conversations yet</div>
-          <div v-for="s in filteredChats" :key="s.thread_id"
-            class="sb-row" :class="{ active: s.thread_id === sessionId }"
-            @click="editingId !== s.thread_id && restoreSession(s.thread_id)">
-            <input v-if="editingId === s.thread_id" class="rename-input"
-              v-model="editingTitle" ref="renameInputRef"
-              @blur="saveRename(s.thread_id)" @keydown.enter.prevent="saveRename(s.thread_id)"
-              @keydown.esc="editingId = null" @click.stop />
-            <span v-else class="sb-row-title">{{ s.brief_snippet || 'New conversation' }}</span>
-            <div v-if="editingId !== s.thread_id" class="sb-row-actions" @click.stop>
-              <button class="sa-btn" :title="s.pinned ? 'Unpin' : 'Pin'"
-                @click="s.pinned ? unpinSession(s.thread_id) : pinSession(s.thread_id)">
-                {{ s.pinned ? '📌' : '📍' }}
-              </button>
-              <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
-              <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+
+          <!-- Pinned -->
+          <template v-if="sidebar.pinned.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase())).length">
+            <div class="sb-section-hdr">📌 Pinned</div>
+            <div v-for="s in sidebar.pinned.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase()))"
+              :key="s.thread_id"
+              class="sb-row" :class="{ active: s.thread_id === sessionId }"
+              @click="editingId !== s.thread_id && restoreSession(s.thread_id)">
+              <input v-if="editingId === s.thread_id" class="rename-input"
+                v-model="editingTitle" ref="renameInputRef"
+                @blur="saveRename(s.thread_id)" @keydown.enter.prevent="saveRename(s.thread_id)"
+                @keydown.esc="editingId = null" @click.stop />
+              <span v-else class="sb-row-title">{{ s.brief_snippet || 'New conversation' }}</span>
+              <div v-if="editingId !== s.thread_id" class="sb-row-actions" @click.stop>
+                <button class="sa-btn" title="Unpin" @click="unpinSession(s.thread_id)">📌</button>
+                <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
+                <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+              </div>
             </div>
-          </div>
+          </template>
+
+          <!-- Recent -->
+          <template v-if="sidebar.recent.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase())).length">
+            <div class="sb-section-hdr">Recent</div>
+            <div v-for="s in sidebar.recent.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase()))"
+              :key="s.thread_id"
+              class="sb-row" :class="{ active: s.thread_id === sessionId }"
+              @click="editingId !== s.thread_id && restoreSession(s.thread_id)">
+              <input v-if="editingId === s.thread_id" class="rename-input"
+                v-model="editingTitle"
+                @blur="saveRename(s.thread_id)" @keydown.enter.prevent="saveRename(s.thread_id)"
+                @keydown.esc="editingId = null" @click.stop />
+              <span v-else class="sb-row-title">{{ s.brief_snippet || 'New conversation' }}</span>
+              <div v-if="editingId !== s.thread_id" class="sb-row-actions" @click.stop>
+                <button class="sa-btn" title="Pin" @click="pinSession(s.thread_id)">📍</button>
+                <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
+                <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+              </div>
+            </div>
+          </template>
+
         </div>
 
       </template>
@@ -62,7 +86,7 @@
       <!-- ── COLLAPSED ────────────────────────────────────── -->
       <template v-else>
         <!-- SF icon — click to expand -->
-        <button class="col-icon-btn brand" title="Salesforce Architecture Agent" @click="sidebar.open = true">
+        <button class="col-icon-btn brand" title="Salesforce Architect Agent" @click="sidebar.open = true">
           <div class="sf-logo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
               <rect x="2" y="2" width="20" height="20" rx="5"/>
@@ -106,7 +130,7 @@
       </div>
 
       <!-- Subtitle -->
-      <div class="cp-subtitle">Your chats with Salesforce Architecture Agent</div>
+      <div class="cp-subtitle">Your chats with Salesforce Architect Agent</div>
 
       <!-- Chat list -->
       <div class="cp-list">
@@ -137,9 +161,8 @@
 
       <!-- Header -->
       <div class="chat-header">
-        <span class="chat-title">Salesforce Architecture Agent</span>
+        <span class="chat-title">Salesforce Architect Agent</span>
         <div class="header-right">
-          <span v-if="sessionId" class="session-id">{{ sessionId }}</span>
           <button class="theme-btn" @click="isDark = !isDark">{{ isDark ? '☀️' : '🌙' }}</button>
         </div>
       </div>
@@ -154,7 +177,7 @@
       <div class="messages" ref="messagesEl">
         <div v-if="!messages.length && !isStreaming" class="empty-state">
           <div class="empty-icon">🏗️</div>
-          <p class="empty-title">Salesforce Architecture Agent</p>
+          <p class="empty-title">Salesforce Architect Agent</p>
           <p class="empty-sub">Write a project brief or upload a document to begin.</p>
         </div>
 
@@ -299,25 +322,21 @@
 
     </div><!-- /chat-pane -->
 
-    <!-- ═══════════════════ DOCUMENT OVERLAY ═══════════════════ -->
-    <transition name="overlay">
-      <div v-if="documentPanel.open" class="overlay-backdrop" @click.self="closeDocumentPanel">
-        <div class="overlay-panel">
-          <div class="overlay-header">
-            <span class="overlay-title">📄 Architecture Document v{{ documentPanel.version }}</span>
-            <div class="overlay-actions">
-              <button class="ol-btn" @click="downloadMD">⬇ Markdown</button>
-              <button class="ol-btn accent" @click="doPDF">⬇ PDF</button>
-              <button class="ol-btn close" @click="closeDocumentPanel">✕</button>
-            </div>
-          </div>
-          <div class="overlay-body">
-            <div v-if="documentPanel.loading" class="doc-loading"><span class="spin large" /> Loading…</div>
-            <div v-else class="doc-content" v-html="renderContent(documentPanel.content)" />
-          </div>
+    <!-- ═══════════════════ DOCUMENT RIGHT PANEL ═══════════════════ -->
+    <div class="doc-panel" :class="{ open: documentPanel.open }">
+      <div class="doc-panel-header">
+        <span class="doc-panel-title">📄 Architecture Document v{{ documentPanel.version }}</span>
+        <div class="doc-panel-actions">
+          <button class="ol-btn" @click="downloadMD">⬇ Markdown</button>
+          <button class="ol-btn accent" @click="doPDF">⬇ PDF</button>
+          <button class="ol-btn close" @click="closeDocumentPanel">✕</button>
         </div>
       </div>
-    </transition>
+      <div class="doc-panel-body">
+        <div v-if="documentPanel.loading" class="doc-loading"><span class="spin large" /> Loading…</div>
+        <div v-else class="doc-content" v-html="renderContent(documentPanel.content)" />
+      </div>
+    </div>
 
     <!-- ═══════════════ DELETE CONFIRMATION ══════════════ -->
     <transition name="fade">
@@ -685,8 +704,9 @@ function doPDF() {
 .sb-list {
   flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 6px 8px;
 }
-.sb-empty   { font-size: 12px; color: var(--sb-muted); padding: 8px 6px; }
-.sb-loading { font-size: 12px; color: var(--sb-muted); padding: 10px 6px; }
+.sb-section-hdr { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--sb-muted); padding: 10px 8px 3px; }
+.sb-empty        { font-size: 12px; color: var(--sb-muted); padding: 8px 6px; }
+.sb-loading      { font-size: 12px; color: var(--sb-muted); padding: 10px 6px; }
 
 .sb-row {
   display: flex; align-items: center;
@@ -742,7 +762,7 @@ function doPDF() {
 
 .chat-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 18px; background: var(--hbg); color: var(--hfg); flex-shrink: 0;
+  padding: 12px 28px; background: var(--hbg); color: var(--hfg); flex-shrink: 0;
 }
 .chat-title   { font-size: 14px; font-weight: 600; }
 .header-right { display: flex; align-items: center; gap: 12px; }
@@ -750,39 +770,65 @@ function doPDF() {
 .theme-btn    { background: none; border: none; cursor: pointer; font-size: 18px; }
 
 /* Progress strip */
+/* ── Agent progress strip ─────────────────────────────────────── */
 .progress-strip {
   position: relative; flex-shrink: 0; height: 0; overflow: hidden; opacity: 0;
   display: flex; align-items: center; justify-content: center; gap: 8px;
   transition: height .2s ease, opacity .2s ease;
 }
-.progress-strip.visible { height: 30px; opacity: 1; }
-.progress-strip.intake     { background: rgba(59,130,246,.13); border-bottom:2px solid rgba(59,130,246,.35); }
-.progress-strip.discovery  { background: rgba(99,102,241,.13); border-bottom:2px solid rgba(99,102,241,.35); }
-.progress-strip.researcher { background: rgba(139,92,246,.13);  border-bottom:2px solid rgba(139,92,246,.35); }
-.progress-strip.reviewer   { background: rgba(245,158,11,.13);  border-bottom:2px solid rgba(245,158,11,.35); }
-.progress-strip.approver   { background: rgba(16,185,129,.13);  border-bottom:2px solid rgba(16,185,129,.35); }
+.progress-strip.visible { height: 32px; opacity: 1; }
+
+/* Track tint — per agent, very subtle */
+.progress-strip.intake     { background: rgba(59,  130, 246, 0.07); }
+.progress-strip.discovery  { background: rgba(99,  102, 241, 0.07); }
+.progress-strip.researcher { background: rgba(239, 68, 68, 0.07); }
+.progress-strip.reviewer   { background: rgba(245, 158,  11, 0.07); }
+.progress-strip.approver   { background: rgba(16,  185, 129, 0.07); }
+
+/* Slow shimmer — per agent, muted opacity */
 .progress-strip::after {
-  content:''; position:absolute; inset:0;
-  background:linear-gradient(90deg,transparent 10%,rgba(255,255,255,.35) 50%,transparent 90%);
-  background-size:300% 100%; animation:p-sweep 1.8s ease-in-out infinite;
+  content: '';
+  position: absolute; top: 0; bottom: 0;
+  width: 55%;
+  animation: p-sweep 3.5s linear infinite;
 }
-@keyframes p-sweep { 0%{background-position:-100% 0} 100%{background-position:200% 0} }
-.p-dot { position:relative;z-index:1;width:7px;height:7px;border-radius:50%;flex-shrink:0;animation:p-pulse 1.2s ease-in-out infinite; }
-.intake .p-dot{background:var(--c-intake)}.discovery .p-dot{background:var(--c-discovery)}.researcher .p-dot{background:var(--c-researcher)}.reviewer .p-dot{background:var(--c-reviewer)}.approver .p-dot{background:var(--c-approver)}
-@keyframes p-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
-.p-text { position:relative;z-index:1;font-size:12px;font-weight:600;letter-spacing:.02em;white-space:nowrap; }
-.intake .p-text{color:#1d4ed8}.discovery .p-text{color:#4338ca}.researcher .p-text{color:#6d28d9}.reviewer .p-text{color:#b45309}.approver .p-text{color:#065f46}
-.dark .intake .p-text{color:#93c5fd}.dark .discovery .p-text{color:#a5b4fc}.dark .researcher .p-text{color:#d8b4fe}.dark .reviewer .p-text{color:#fcd34d}.dark .approver .p-text{color:#6ee7b7}
+.intake::after     { background: linear-gradient(90deg, transparent, rgba(59,  130, 246, 0.5), transparent); }
+.discovery::after  { background: linear-gradient(90deg, transparent, rgba(99,  102, 241, 0.5), transparent); }
+.researcher::after { background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.5), transparent); }
+.reviewer::after   { background: linear-gradient(90deg, transparent, rgba(245, 158,  11, 0.5), transparent); }
+.approver::after   { background: linear-gradient(90deg, transparent, rgba(16,  185, 129, 0.5), transparent); }
+
+@keyframes p-sweep {
+  0%   { left: -55%; }
+  100% { left: 100%; }
+}
+
+/* Dot + label — per agent colour */
+.p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite; }
+.intake .p-dot    { background: #3b82f6; }
+.discovery .p-dot { background: #6366f1; }
+.researcher .p-dot{ background: #ef4444; }
+.reviewer .p-dot  { background: #f59e0b; }
+.approver .p-dot  { background: #10b981; }
+@keyframes p-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
+
+.p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap; }
+.intake .p-text    { color: #2563eb; } .discovery .p-text { color: #4f46e5; }
+.researcher .p-text{ color: #dc2626; } .reviewer .p-text  { color: #b45309; }
+.approver .p-text  { color: #059669; }
+.dark .intake .p-text    { color: #93c5fd; } .dark .discovery .p-text { color: #a5b4fc; }
+.dark .researcher .p-text{ color: #fca5a5; } .dark .reviewer .p-text  { color: #fcd34d; }
+.dark .approver .p-text  { color: #6ee7b7; }
 
 /* Messages */
-.messages { flex:1;overflow-y:auto;padding:20px 18px;display:flex;flex-direction:column;gap:14px;min-height:0; }
+.messages { flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px;min-height:0; }
 .empty-state{margin:auto;text-align:center;color:var(--muted);padding:40px 20px}
 .empty-icon{font-size:42px;margin-bottom:12px}.empty-title{font-size:16px;font-weight:600;color:var(--tx);margin:0 0 6px}.empty-sub{font-size:14px;margin:0}
 .message{display:flex;flex-direction:column;max-width:82%}
 .message.user{align-self:flex-end;align-items:flex-end}.message.agent{align-self:flex-start;align-items:flex-start}
 .stage-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:99px;margin-bottom:5px;background:var(--sbg);color:var(--stx)}
-.stage-tag.discovery{background:#dbeafe;color:#1e40af}.stage-tag.researcher{background:#f3e8ff;color:#6b21a8}.stage-tag.reviewer{background:#ffedd5;color:#9a3412}.stage-tag.approver{background:#dcfce7;color:#166534}
-.dark .stage-tag.discovery{background:#1e3a5f;color:#93c5fd}.dark .stage-tag.researcher{background:#2e1065;color:#d8b4fe}.dark .stage-tag.reviewer{background:#431407;color:#fdba74}.dark .stage-tag.approver{background:#052e16;color:#86efac}
+.stage-tag.discovery{background:#dbeafe;color:#1e40af}.stage-tag.researcher{background:#fee2e2;color:#991b1b}.stage-tag.reviewer{background:#ffedd5;color:#9a3412}.stage-tag.approver{background:#dcfce7;color:#166534}
+.dark .stage-tag.discovery{background:#1e3a5f;color:#93c5fd}.dark .stage-tag.researcher{background:#450a0a;color:#fca5a5}.dark .stage-tag.reviewer{background:#431407;color:#fdba74}.dark .stage-tag.approver{background:#052e16;color:#86efac}
 .bubble{padding:11px 15px;border-radius:14px;font-size:14px;line-height:1.65;word-break:break-word}
 .message.user .bubble{background:var(--ub);color:var(--uf);border-radius:14px 14px 3px 14px}
 .message.agent .bubble{background:var(--ab);color:var(--tx);border:1px solid var(--abdr);border-radius:3px 14px 14px 14px}
@@ -808,7 +854,7 @@ function doPDF() {
 @keyframes spin{to{transform:rotate(360deg)}}
 
 /* Input panel */
-.input-panel{flex-shrink:0;padding:15px 18px;background:var(--surf);border-top:1px solid var(--bdr);display:flex;flex-direction:column;gap:10px}
+.input-panel{flex-shrink:0;padding:15px 28px;background:var(--surf);border-top:1px solid var(--bdr);display:flex;flex-direction:column;gap:10px}
 .multi-item{display:flex;flex-direction:column;gap:5px}.multi-label{font-size:13px;font-weight:500;color:var(--tx);line-height:1.4}
 .input-row{display:flex;gap:10px;align-items:flex-end}
 .ta{width:100%;box-sizing:border-box;padding:10px 13px;border:1px solid var(--ibdr);border-radius:10px;font-size:14px;font-family:inherit;resize:vertical;outline:none;background:var(--surf2);color:var(--tx);transition:border-color .15s;line-height:1.5}
@@ -824,34 +870,58 @@ function doPDF() {
 .drop-lbl{font-size:14px;font-weight:500;color:var(--tx)}.drop-hint{font-size:12px;color:var(--muted);text-align:center}.fname{font-size:14px;font-weight:600;color:var(--pri);word-break:break-all;text-align:center}.fmeta{font-size:12px;color:var(--muted)}.img-prev{max-width:100%;max-height:140px;border-radius:8px;object-fit:contain;border:1px solid var(--bdr)}.upload-err{font-size:13px;color:#ef4444}
 
 /* Confirmation panel */
-.confirm-panel{flex-shrink:0;display:flex;flex-direction:column;gap:14px;padding:20px 18px;background:var(--surf);border-top:2px solid var(--pri);max-height:70vh;overflow-y:auto}
+.confirm-panel{flex-shrink:0;display:flex;flex-direction:column;gap:14px;padding:20px 28px;background:var(--surf);border-top:2px solid var(--pri);max-height:70vh;overflow-y:auto}
 .confirm-header{display:flex;gap:12px;align-items:flex-start}.confirm-title{font-size:15px;font-weight:700;color:var(--tx);margin:0 0 3px}.confirm-sub{font-size:13px;color:var(--muted);margin:0}
 .confirm-content{background:var(--surf2);border:1px solid var(--bdr);border-radius:10px;padding:14px 16px;font-size:14px;line-height:1.7;color:var(--tx);overflow-y:auto}
 .confirm-content :deep(p){margin:.4em 0}.confirm-content :deep(ul){padding-left:1.4em;margin:.4em 0}.confirm-content :deep(strong){font-weight:600}
 .confirm-footer{display:flex;flex-direction:column;gap:10px}
 
 /* Banners */
-.banner{flex-shrink:0;padding:12px 18px;font-size:13px;font-weight:500;text-align:center}
+.banner{flex-shrink:0;padding:12px 28px;font-size:13px;font-weight:500;text-align:center}
 .banner.ok{background:#dcfce7;color:#166534}.banner.warn{background:#fef3c7;color:#92400e}.banner.err{background:#fee2e2;color:#991b1b}
 .dark .banner.ok{background:#052e16;color:#86efac}.dark .banner.warn{background:#1c1400;color:#fcd34d}.dark .banner.err{background:#1f0000;color:#fca5a5}
 
-/* Document overlay */
-.overlay-backdrop{position:absolute;inset:0;z-index:50;background:rgba(0,0,0,.45);display:flex;justify-content:flex-end}
-.overlay-panel{width:58%;max-width:820px;height:100%;display:flex;flex-direction:column;background:var(--surf);box-shadow:-6px 0 32px rgba(0,0,0,.25)}
-.overlay-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 18px;background:var(--hbg);color:var(--hfg);flex-shrink:0}
-.overlay-title{font-size:13px;font-weight:600;flex:1}.overlay-actions{display:flex;gap:8px}
-.ol-btn{padding:5px 12px;border:1px solid rgba(255,255,255,.2);border-radius:7px;background:rgba(255,255,255,.1);color:var(--hfg);font-size:12px;font-weight:500;cursor:pointer;transition:background .15s;white-space:nowrap}
-.ol-btn:hover{background:rgba(255,255,255,.2)}.ol-btn.accent{background:var(--pri);border-color:var(--pri)}.ol-btn.accent:hover{background:var(--pri-h)}.ol-btn.close{border-color:rgba(255,255,255,.15)}
-.overlay-body{flex:1;overflow-y:auto;padding:24px 28px}.doc-loading{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;padding:40px 0;justify-content:center}
-.doc-content{font-size:14px;line-height:1.75;color:var(--tx)}
-.doc-content :deep(h1){font-size:20px;font-weight:700;margin:1.2em 0 .4em}.doc-content :deep(h2){font-size:16px;font-weight:700;margin:1em 0 .3em;border-bottom:1px solid var(--bdr);padding-bottom:4px}.doc-content :deep(h3){font-size:14px;font-weight:600;margin:.8em 0 .3em}.doc-content :deep(p){margin:.5em 0}.doc-content :deep(ul),.doc-content :deep(ol){padding-left:1.4em;margin:.4em 0}.doc-content :deep(table){border-collapse:collapse;width:100%;margin:.8em 0;font-size:13px}.doc-content :deep(th),.doc-content :deep(td){border:1px solid var(--bdr);padding:7px 12px;vertical-align:top}.doc-content :deep(th){background:var(--surf2);font-weight:600}.doc-content :deep(code){background:var(--cbg);padding:1px 5px;border-radius:4px;font-size:12px}.doc-content :deep(pre){background:var(--cbg);padding:12px;border-radius:8px;overflow-x:auto;margin:.6em 0}.doc-content :deep(blockquote){border-left:3px solid var(--pri);padding-left:12px;color:var(--muted);margin:.5em 0}.doc-content :deep(strong){font-weight:600}
-
-/* Overlay transition */
-.overlay-enter-active,.overlay-leave-active{transition:opacity .25s ease}.overlay-enter-active .overlay-panel,.overlay-leave-active .overlay-panel{transition:transform .25s ease}
-.overlay-enter-from,.overlay-leave-to{opacity:0}.overlay-enter-from .overlay-panel,.overlay-leave-to .overlay-panel{transform:translateX(100%)}
+/* ── Document right panel ──────────────────────────────────────────────────── */
+.doc-panel {
+  width: 0; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: var(--surf);
+  border-left: 0px solid var(--bdr);
+  overflow: hidden;
+  transition: width 0.25s ease, border-left-width 0.25s ease;
+}
+.doc-panel.open {
+  width: 42%;
+  min-width: 340px;
+  max-width: 680px;
+  border-left-width: 1px;
+}
+.doc-panel-header { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 18px;background:var(--hbg);color:var(--hfg);flex-shrink:0 }
+.doc-panel-title  { font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.doc-panel-actions { display:flex;gap:8px;flex-shrink:0 }
+.ol-btn { padding:5px 12px;border:1px solid rgba(255,255,255,.2);border-radius:7px;background:rgba(255,255,255,.1);color:var(--hfg);font-size:12px;font-weight:500;cursor:pointer;transition:background .15s;white-space:nowrap }
+.ol-btn:hover  { background:rgba(255,255,255,.2) }
+.ol-btn.accent { background:var(--pri);border-color:var(--pri) }
+.ol-btn.accent:hover { background:var(--pri-h) }
+.ol-btn.close  { border-color:rgba(255,255,255,.15) }
+.doc-panel-body { flex:1;overflow-y:auto;padding:24px 28px }
+.doc-loading { display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px;padding:40px 0;justify-content:center }
+.doc-content { font-size:14px;line-height:1.75;color:var(--tx) }
+.doc-content :deep(h1){font-size:20px;font-weight:700;margin:1.2em 0 .4em}
+.doc-content :deep(h2){font-size:16px;font-weight:700;margin:1em 0 .3em;border-bottom:1px solid var(--bdr);padding-bottom:4px}
+.doc-content :deep(h3){font-size:14px;font-weight:600;margin:.8em 0 .3em}
+.doc-content :deep(p){margin:.5em 0}
+.doc-content :deep(ul),.doc-content :deep(ol){padding-left:1.4em;margin:.4em 0}
+.doc-content :deep(table){border-collapse:collapse;width:100%;margin:.8em 0;font-size:13px}
+.doc-content :deep(th),.doc-content :deep(td){border:1px solid var(--bdr);padding:7px 12px;vertical-align:top}
+.doc-content :deep(th){background:var(--surf2);font-weight:600}
+.doc-content :deep(code){background:var(--cbg);padding:1px 5px;border-radius:4px;font-size:12px}
+.doc-content :deep(pre){background:var(--cbg);padding:12px;border-radius:8px;overflow-x:auto;margin:.6em 0}
+.doc-content :deep(blockquote){border-left:3px solid var(--pri);padding-left:12px;color:var(--muted);margin:.5em 0}
+.doc-content :deep(strong){font-weight:600}
 
 /* Scrollbars */
-.messages::-webkit-scrollbar,.overlay-body::-webkit-scrollbar,.sb-content::-webkit-scrollbar{width:4px}
-.messages::-webkit-scrollbar-thumb,.overlay-body::-webkit-scrollbar-thumb,.sb-content::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:99px}
+.messages::-webkit-scrollbar,.doc-panel-body::-webkit-scrollbar,.sb-content::-webkit-scrollbar{width:4px}
+.messages::-webkit-scrollbar-thumb,.doc-panel-body::-webkit-scrollbar-thumb,.sb-content::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:99px}
 .sb-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
 </style>
