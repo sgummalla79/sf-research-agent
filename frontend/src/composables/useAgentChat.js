@@ -61,6 +61,7 @@ export function useAgentChat() {
       }
     } finally {
       isStreaming.value = false
+      if (sessionId.value) fetchSessionUsage(sessionId.value)
     }
   }
 

@@ -1,5 +1,12 @@
 <template>
   <div class="shell" :class="{ dark: isDark }">
+  <!-- ══════════════════ PRIVACY BANNER ══════════════════ -->
+  <div class="privacy-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <span>All conversations are <strong>incognito</strong> · Data never leaves <strong>your machine</strong> · Your inputs are <strong>never used</strong> to train AI models · No data is persisted by model providers</span>
+  </div>
+
+  <div class="shell-body">
 
     <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
     <div class="sidebar" :class="{ collapsed: !sidebar.open }">
@@ -81,39 +88,10 @@
 
         </div>
 
-        <!-- User footer — expanded -->
-        <div class="sb-footer" @click.stop>
-          <button class="avatar-btn" @click="userMenuOpen = !userMenuOpen">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-            </svg>
-          </button>
-          <transition name="um-pop">
-            <div v-if="userMenuOpen" class="user-menu">
-              <button class="um-item" @click="openSettings(); userMenuOpen = false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                Settings
-              </button>
-              <button class="um-item" @click="openUsage(); userMenuOpen = false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                Usage
-              </button>
-              <div class="um-divider"></div>
-              <div class="um-section-label">Appearance</div>
-              <button class="um-item" @click="isDark = !isDark; userMenuOpen = false">
-                <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                {{ isDark ? 'Light mode' : 'Dark mode' }}
-              </button>
-            </div>
-          </transition>
-        </div>
-
       </template>
 
       <!-- ── COLLAPSED ────────────────────────────────────── -->
       <template v-else>
-        <!-- SF icon — click to expand -->
         <button class="col-icon-btn brand" title="Salesforce Architect Agent" @click="sidebar.open = true">
           <div class="sf-logo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
@@ -122,48 +100,15 @@
             </svg>
           </div>
         </button>
-
-        <!-- New Chat icon -->
         <button class="col-icon-btn" title="New Chat" @click="handleNewChat">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="18" height="18"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
-
-        <!-- Chats icon — opens full chats view -->
         <button class="col-icon-btn" :class="{ active: currentView === 'chats' }" title="Chats" @click="openChatsView">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" width="18" height="18">
             <path d="M17 8h2a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v3l-3-3h-3"/>
             <path d="M13 3H4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1v3l3-3h5a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
           </svg>
         </button>
-
-        <!-- Avatar at bottom — collapsed -->
-        <div class="sb-footer-col" @click.stop>
-          <button class="col-icon-btn avatar-col" title="Menu" @click="userMenuOpen = !userMenuOpen">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-            </svg>
-          </button>
-          <transition name="um-pop">
-            <div v-if="userMenuOpen" class="user-menu user-menu-col">
-              <button class="um-item" @click="openSettings(); userMenuOpen = false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                Settings
-              </button>
-              <button class="um-item" @click="openUsage(); userMenuOpen = false">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-                Usage
-              </button>
-              <div class="um-divider"></div>
-              <div class="um-section-label">Appearance</div>
-              <button class="um-item" @click="isDark = !isDark; userMenuOpen = false">
-                <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-                {{ isDark ? 'Light mode' : 'Dark mode' }}
-              </button>
-            </div>
-          </transition>
-        </div>
-
       </template>
     </div>
 
@@ -361,26 +306,6 @@
         </template>
       </div>
 
-      <!-- Token usage footer -->
-      <div v-if="sessionUsage.loaded && sessionId" class="usage-footer">
-        <div class="uf-summary" @click="usageExpanded = !usageExpanded" style="cursor:pointer">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          <span>↑ {{ fmtTokens(sessionUsage.input_tokens) }} &nbsp;↓ {{ fmtTokens(sessionUsage.output_tokens) }}</span>
-          <span class="uf-sep">·</span>
-          <span class="uf-cost">est. {{ fmtCost(sessionUsage.cost_usd) }}</span>
-          <svg :style="{ transform: usageExpanded ? 'rotate(180deg)' : '', transition: 'transform .2s' }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="10" height="10"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <transition name="fade">
-          <div v-if="usageExpanded" class="uf-breakdown">
-            <div v-for="row in sessionUsage.breakdown" :key="row.agent + row.model" class="uf-row">
-              <span class="uf-agent">{{ AGENT_LABELS[row.agent] || row.agent }}</span>
-              <span class="uf-nums">↑ {{ fmtTokens(row.input_tokens) }} &nbsp;↓ {{ fmtTokens(row.output_tokens) }}</span>
-              <span class="uf-cost">{{ fmtCost(row.cost_usd) }}</span>
-            </div>
-          </div>
-        </transition>
-      </div>
-
       <!-- Banners -->
       <div v-if="isComplete"     class="banner ok">🎉 Document approved and finalised.</div>
       <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
@@ -404,6 +329,62 @@
         <div v-else class="doc-content" v-html="renderContent(documentPanel.content)" />
       </div>
     </div>
+
+  </div><!-- /shell-body -->
+
+  <!-- ═══════════ SHELL FOOTER — full-width, one border-top ════════════ -->
+  <div class="shell-footer" @click.stop>
+
+    <!-- Avatar area — matches sidebar width -->
+    <div class="sf-avatar-area" :class="{ collapsed: !sidebar.open }">
+      <button class="avatar-btn" @click="userMenuOpen = !userMenuOpen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+          <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+        </svg>
+      </button>
+      <transition name="um-pop">
+        <div v-if="userMenuOpen" class="user-menu">
+          <button class="um-item" @click="openSettings(); userMenuOpen = false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Settings
+          </button>
+          <button class="um-item" @click="openUsage(); userMenuOpen = false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Usage
+          </button>
+          <div class="um-divider"></div>
+          <div class="um-section-label">Appearance</div>
+          <button class="um-item" @click="isDark = !isDark; userMenuOpen = false">
+            <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            {{ isDark ? 'Light mode' : 'Dark mode' }}
+          </button>
+        </div>
+      </transition>
+    </div>
+
+    <!-- Usage bar — takes remaining width -->
+    <div class="usage-bar" v-if="sessionUsage.loaded && sessionId">
+      <div class="ub-cell ub-total">
+        <span class="ub-name">Session</span>
+        <span class="ub-tokens">↑ {{ fmtTokens(sessionUsage.input_tokens) }} &nbsp;↓ {{ fmtTokens(sessionUsage.output_tokens) }}</span>
+        <span class="ub-cost">{{ fmtCost(sessionUsage.cost_usd) }}</span>
+      </div>
+      <template v-for="key in ['intake','discovery','researcher','reviewer','approver']" :key="key">
+        <div class="ub-sep"/>
+        <div class="ub-cell">
+          <span class="ub-name">{{ AGENT_SHORT[key] }}</span>
+          <template v-if="agentUsage(key)">
+            <span class="ub-tokens">↑ {{ fmtTokens(agentUsage(key).input_tokens) }} &nbsp;↓ {{ fmtTokens(agentUsage(key).output_tokens) }}</span>
+            <span class="ub-cost">{{ fmtCost(agentUsage(key).cost_usd) }}</span>
+          </template>
+          <span v-else class="ub-idle">—</span>
+        </div>
+      </template>
+    </div>
+    <div v-else class="usage-bar-empty"/>
+
+  </div><!-- /shell-footer -->
 
     <!-- ═══════════════════ USAGE MODAL ════════════════════ -->
     <transition name="fade">
@@ -587,11 +568,10 @@ async function saveRename(threadId) {
   if (title) await renameSession(threadId, title)
 }
 
-const isDark          = ref(false)
+const isDark          = ref(true)
 const userMenuOpen    = ref(false)
 const settingsOpen    = ref(false)
 const usageOpen       = ref(false)
-const usageExpanded   = ref(false)
 const globalUsage     = reactive({ totals: { input_tokens: 0, output_tokens: 0, cost_usd: 0 }, breakdown: [], session_count: 0, loading: false })
 const settingsKeys    = reactive({ anthropic: '', perplexity: '', google: '' })
 const keysConfigured  = reactive({ anthropic: false, perplexity: false, google: false })
@@ -715,8 +695,18 @@ function renderContent(c) {
 }
 
 const AGENT_LABELS = { intake: 'Intake Agent', discovery: 'Discovery Agent', researcher: 'Research Agent', reviewer: 'Review Agent', approver: 'Approver Gate' }
+const AGENT_SHORT  = { intake: 'Intake', discovery: 'Discovery', researcher: 'Research', reviewer: 'Review', approver: 'Approver' }
 function fmtTokens(n) { return n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n) }
 function fmtCost(c)   { return c < 0.01 ? `$${(c).toFixed(4)}` : `$${c.toFixed(3)}` }
+function agentUsage(key) {
+  const rows = sessionUsage.breakdown.filter(r => r.agent === key)
+  if (!rows.length) return null
+  return {
+    input_tokens:  rows.reduce((s, r) => s + r.input_tokens, 0),
+    output_tokens: rows.reduce((s, r) => s + r.output_tokens, 0),
+    cost_usd:      rows.reduce((s, r) => s + r.cost_usd, 0),
+  }
+}
 
 function handleNewChat()        { newChat(); currentView.value = 'chat' }
 function openChatsView()       { searchQuery.value = ''; currentView.value = 'chats' }
@@ -790,15 +780,52 @@ function doPDF() {
   --fail-bg:#1f0000;--fail-bdr:#991b1b;--fail-tx:#fca5a5;
 }
 
+/* ── Privacy banner ──────────────────────────────────────────────────────────── */
+.privacy-banner {
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 6px 20px;
+  background: rgba(16, 185, 129, 0.08);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.2);
+  font-size: 13px; color: #065f46; line-height: 1.4;
+  text-align: center;
+}
+.shell.dark .privacy-banner {
+  background: rgba(16, 185, 129, 0.07);
+  border-bottom-color: rgba(16, 185, 129, 0.18);
+  color: #6ee7b7;
+}
+.privacy-banner svg { flex-shrink: 0; opacity: 0.8; }
+.privacy-banner strong { font-weight: 700; }
+
 /* ── Shell ───────────────────────────────────────────────────────────────────── */
 .shell {
-  display: flex; flex-direction: row;
+  display: flex; flex-direction: column;
   width: 100%; height: 100%;
   border-radius: 14px; overflow: hidden;
   border: 1px solid var(--bdr);
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--tx);
 }
+.shell-body {
+  display: flex; flex-direction: row;
+  flex: 1; min-height: 0;
+}
+/* ── Shell footer — single full-width bottom bar ─────────────────────────── */
+.shell-footer {
+  display: flex; flex-direction: row; flex-shrink: 0;
+  border-top: 1px solid rgba(255,255,255,0.07);
+  background: var(--sb-bg);
+}
+.sf-avatar-area {
+  width: 240px; flex-shrink: 0;
+  display: flex; align-items: center;
+  padding: 8px 10px; position: relative;
+  transition: width 0.22s ease;
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+.sf-avatar-area.collapsed { width: 52px; justify-content: center; padding: 8px 0; }
+.usage-bar-empty { flex: 1; }
 
 /* ═══════════════════════ SIDEBAR ═══════════════════════ */
 .sidebar {
@@ -938,28 +965,24 @@ function doPDF() {
 
 .um-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
 
-/* ── Session usage footer ────────────────────────────────────────────────── */
-.usage-footer {
-  flex-shrink: 0; padding: 5px 28px;
-  background: var(--surf2); border-top: 1px solid var(--bdr);
-  font-size: 11px; color: var(--muted);
+/* ── Session usage bar ───────────────────────────────────────────────────── */
+.usage-bar {
+  flex: 1; display: flex; align-items: stretch;
+  background: var(--surf2);
+  font-size: 11px;
 }
-.uf-summary {
-  display: flex; align-items: center; gap: 6px;
-  padding: 2px 0; user-select: none;
+.ub-cell {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 5px 6px; gap: 1px; min-width: 0;
 }
-.uf-sep  { color: var(--bdr); }
-.uf-cost { color: var(--pri); font-weight: 600; }
-.uf-breakdown {
-  padding: 6px 0 4px; display: flex; flex-direction: column; gap: 3px;
-}
-.uf-row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 2px 0; font-size: 11px;
-}
-.uf-agent { flex: 1; color: var(--tx); }
-.uf-nums  { color: var(--muted); }
-.uf-row .uf-cost { margin-left: auto; }
+.ub-total { background: rgba(37,99,235,0.05); }
+.dark .ub-total { background: rgba(59,130,246,0.08); }
+.ub-sep   { width: 1px; background: var(--bdr); flex-shrink: 0; margin: 5px 0; }
+.ub-name  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); white-space: nowrap; }
+.ub-tokens{ color: var(--tx); font-weight: 500; white-space: nowrap; }
+.ub-cost  { color: var(--pri); font-weight: 600; white-space: nowrap; }
+.ub-idle  { color: var(--muted); font-size: 13px; }
 
 /* ── Usage modal ─────────────────────────────────────────────────────────── */
 .usage-total-card {
@@ -1105,11 +1128,6 @@ function doPDF() {
 .col-icon-btn.brand .sf-logo { pointer-events: none; }
 
 /* ── User footer (expanded) ──────────────────────────────── */
-.sb-footer {
-  flex-shrink: 0; position: relative;
-  padding: 8px 10px;
-  border-top: 1px solid rgba(255,255,255,0.07);
-}
 .avatar-btn {
   width: 36px; height: 36px; border-radius: 50%;
   background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.15);
@@ -1118,15 +1136,6 @@ function doPDF() {
   transition: background .15s, border-color .15s;
 }
 .avatar-btn:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.28); }
-
-/* User footer (collapsed) */
-.sb-footer-col {
-  flex-shrink: 0; position: relative;
-  margin-top: auto; padding: 8px 0 10px;
-  display: flex; justify-content: center;
-  border-top: 1px solid rgba(255,255,255,0.07);
-}
-.avatar-col { margin: 0; }
 
 /* User menu popup */
 .user-menu {
