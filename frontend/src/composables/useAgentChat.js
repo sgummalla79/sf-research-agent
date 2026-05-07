@@ -12,6 +12,7 @@ export function useAgentChat() {
   const isComplete          = ref(false)
   const isHalted            = ref(false)
   const isInvalidInput      = ref(false)
+  const isResumable         = ref(false)   // restored session stuck mid-run
   const error               = ref(null)
 
   // Document panel
@@ -201,6 +202,7 @@ export function useAgentChat() {
     isComplete.value          = false
     isHalted.value            = false
     isInvalidInput.value      = false
+    isResumable.value         = false
     error.value               = null
     documentPanel.open        = false
     documentPanel.content     = ''
@@ -277,13 +279,15 @@ export function useAgentChat() {
       card.docVersion   = data.document_version
       card.docSessionId = sid
     }
+    const terminal = ['complete', 'halted', 'invalid_input']
     if (data.pending_confirmation)      pendingConfirmation.value = data.pending_confirmation
     else if (data.pending_questions?.length) {
       const qs = data.pending_questions
       _addMessage('agent', qs.map((q, i) => `${i+1}. ${q}`).join('\n\n'), 'discovery')
       pendingQuestions.value = qs
-    } else if (data.current_stage === 'complete') isComplete.value = true
-    else if (data.current_stage === 'halted')     isHalted.value   = true
+    } else if (data.current_stage === 'complete')     isComplete.value  = true
+    else if (data.current_stage === 'halted')         isHalted.value    = true
+    else if (!terminal.includes(data.current_stage))  isResumable.value = true
 
     fetchSessionUsage(sid)
   }
@@ -332,7 +336,8 @@ export function useAgentChat() {
 
   async function retrySession() {
     if (!sessionId.value) return
-    error.value = null
+    error.value       = null
+    isResumable.value = false
     const response = await fetch(`${API_BASE}/retry/${sessionId.value}`, { method: 'POST' })
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
@@ -392,7 +397,7 @@ export function useAgentChat() {
   return {
     sessionId, messages, currentStage,
     pendingQuestions, pendingConfirmation,
-    isStreaming, isComplete, isHalted, isInvalidInput, error,
+    isStreaming, isComplete, isHalted, isInvalidInput, isResumable, error,
     documentPanel, sidebar, sessionUsage,
     // session ops
     loadSessions, newChat, restoreSession,

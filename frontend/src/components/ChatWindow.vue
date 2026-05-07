@@ -305,6 +305,10 @@
       </div>
 
       <!-- Banners -->
+      <div v-if="isResumable" class="banner warn">
+        <span>⚡ This session was interrupted mid-run.</span>
+        <button class="retry-btn" @click="retrySession">↺ Resume Session</button>
+      </div>
       <div v-if="isComplete"     class="banner ok">🎉 Document approved and finalised.</div>
       <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
       <div v-if="isInvalidInput" class="banner err">❌ Image doesn't appear to be architecture-related.</div>
@@ -525,7 +529,7 @@ import { useAgentChat } from '../composables/useAgentChat.js'
 
 const {
   sessionId, messages, currentStage, pendingQuestions, pendingConfirmation,
-  isStreaming, isComplete, isHalted, isInvalidInput, error,
+  isStreaming, isComplete, isHalted, isInvalidInput, isResumable, error,
   documentPanel, sidebar, sessionUsage,
   loadSessions, newChat, restoreSession,
   pinSession, unpinSession, deleteSession, renameSession,
