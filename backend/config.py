@@ -3,9 +3,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ANTHROPIC_API_KEY  = os.environ["ANTHROPIC_API_KEY"]
-PERPLEXITY_API_KEY = os.environ["PERPLEXITY_API_KEY"]
-GOOGLE_API_KEY     = os.environ["GOOGLE_API_KEY"]
+# ── API keys are managed via the Settings UI, not environment variables ───────
+# Use utils.api_keys.get_keys() in agent code to retrieve them at call time.
 
 # ── Database backend ──────────────────────────────────────────────────────────
 # DB_BACKEND = "postgres"  →  local Docker or any cloud PostgreSQL (Supabase, Neon, Railway...)

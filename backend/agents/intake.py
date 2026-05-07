@@ -24,6 +24,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel
 
 from config import CLAUDE_MODEL
+from utils.api_keys import get_keys
 from utils.llm_retry import invoke_with_retry
 from state import AgentState
 
@@ -104,7 +105,7 @@ def _analyze_image(image_path: str) -> ImageAnalysisResult:
     with open(image_path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode("utf-8")
 
-    llm = ChatAnthropic(model=CLAUDE_MODEL).with_structured_output(ImageAnalysisResult)
+    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(ImageAnalysisResult)
 
     return invoke_with_retry(llm, [
         SystemMessage(content=INTAKE_IMAGE_SYSTEM_PROMPT),
@@ -176,7 +177,7 @@ def run_intake(state: AgentState) -> dict:
 
     # ── Document path ─────────────────────────────────────────────────────────
     if state.source_type == "document" and state.raw_document_text:
-        llm      = ChatAnthropic(model=CLAUDE_MODEL)
+        llm      = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"])
         response = invoke_with_retry(llm, [
             SystemMessage(content=INTAKE_DOCUMENT_PROMPT),
             HumanMessage(content=(

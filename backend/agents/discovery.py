@@ -14,6 +14,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel
 
 from config import CLAUDE_MODEL, MAX_DISCOVERY_QUESTIONS
+from utils.api_keys import get_keys
 from state import AgentState, DiscoveryQuestion
 
 
@@ -194,7 +195,7 @@ _DISCOVERY_WINDOW = 30
 
 
 def run_discovery(state: AgentState) -> dict:
-    llm = ChatAnthropic(model=CLAUDE_MODEL).with_structured_output(DiscoveryOutput)
+    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(DiscoveryOutput)
 
     windowed = list(
         state.messages[-_DISCOVERY_WINDOW:]

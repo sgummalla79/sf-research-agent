@@ -11,6 +11,7 @@ from utils.llm_retry import invoke_with_retry
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from config import CLAUDE_MODEL, MAX_REVISIONS
+from utils.api_keys import get_keys
 from state import AgentState, ApprovalResult
 
 
@@ -87,7 +88,7 @@ APPROVAL FORMAT:
 
 
 def run_approver(state: AgentState) -> dict:
-    llm = ChatAnthropic(model=CLAUDE_MODEL).with_structured_output(ApprovalResult)
+    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(ApprovalResult)
 
     revision_note = (
         f"\nIMPORTANT: This is revision {state.revision_count} of {MAX_REVISIONS} allowed. "

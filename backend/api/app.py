@@ -27,18 +27,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from api.routes.chat import router as chat_router
+from api.routes.settings import router as settings_router
 from graph.builder import build_graph
 from persistence.checkpointer import get_async_checkpointer
+from utils.api_keys import decrypt, populate_cache
 
 logger = logging.getLogger(__name__)
 
 # ── Environment validation ────────────────────────────────────────────────────
 
-_ALWAYS_REQUIRED = ["ANTHROPIC_API_KEY", "PERPLEXITY_API_KEY", "GOOGLE_API_KEY"]
-
-
 def _validate_env() -> None:
-    missing = [v for v in _ALWAYS_REQUIRED if not os.getenv(v)]
+    missing = []
+
+    if not os.getenv("SETTINGS_SECRET"):
+        missing.append("SETTINGS_SECRET")
 
     # POSTGRES_URI only required when not using SQLite
     if os.getenv("DB_BACKEND", "postgres") != "sqlite" and not os.getenv("POSTGRES_URI"):
@@ -60,7 +62,18 @@ async def lifespan(app: FastAPI):
     _validate_env()
     async with get_async_checkpointer() as db:
         app.state.graph = build_graph(db.checkpointer)
-        app.state.db    = db      # exposed for record_session() calls in routes
+        app.state.db    = db
+
+        # Load API keys from DB into the in-memory cache on startup
+        stored = await db.get_all_api_keys()
+        decrypted: dict[str, str] = {}
+        for k, enc in stored.items():
+            try:
+                decrypted[k] = decrypt(enc)
+            except Exception:
+                logger.warning("Could not decrypt stored API key: %s", k)
+        populate_cache(decrypted)
+
         logger.info("Salesforce Architecture Agent started — graph ready.")
         yield
     logger.info("Salesforce Architecture Agent shutting down.")
@@ -81,6 +94,7 @@ app.add_middleware(
 )
 
 app.include_router(chat_router)
+app.include_router(settings_router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

@@ -53,9 +53,10 @@ async def _generate_title(text: str) -> str:
     Runs in background so it never adds latency to session start.
     """
     import anthropic
-    from config import ANTHROPIC_API_KEY, CLAUDE_HAIKU_MODEL
+    from config import CLAUDE_HAIKU_MODEL
+    from utils.api_keys import get_keys
 
-    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=get_keys()["anthropic"])
     resp   = await client.messages.create(
         model=CLAUDE_HAIKU_MODEL,
         max_tokens=25,

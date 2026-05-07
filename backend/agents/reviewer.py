@@ -11,6 +11,7 @@ from utils.llm_retry import invoke_with_retry
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from config import CLAUDE_MODEL
+from utils.api_keys import get_keys
 from state import AgentState, ReviewResult
 
 
@@ -91,7 +92,7 @@ VERDICT RULES:
 
 
 def run_reviewer(state: AgentState) -> dict:
-    llm = ChatAnthropic(model=CLAUDE_MODEL).with_structured_output(ReviewResult)
+    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(ReviewResult)
 
     scope_note = ""
     if state.discovery_questions:

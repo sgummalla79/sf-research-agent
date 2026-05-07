@@ -26,14 +26,8 @@ from langchain_openai import ChatOpenAI
 from utils.llm_retry import invoke_with_retry
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from config import (
-    CLAUDE_MODEL,
-    GEMINI_MODEL,
-    GOOGLE_API_KEY,
-    PERPLEXITY_API_KEY,
-    PERPLEXITY_API_BASE,
-    PERPLEXITY_MODEL,
-)
+from config import CLAUDE_MODEL, GEMINI_MODEL, PERPLEXITY_API_BASE, PERPLEXITY_MODEL
+from utils.api_keys import get_keys
 from state import AgentState
 
 
@@ -159,9 +153,10 @@ For each topic: current value/status, relevant limits, any recent changes, sourc
 ## Topics to research
 {topic_list}"""
 
+    keys = get_keys()
     llm = ChatOpenAI(
         model=PERPLEXITY_MODEL,
-        api_key=PERPLEXITY_API_KEY,
+        api_key=keys["perplexity"],
         base_url=PERPLEXITY_API_BASE,
     )
 
@@ -231,9 +226,10 @@ Brief: {state.project_brief}
 ## Architectural topics
 {topic_list}"""
 
+    keys = get_keys()
     llm = ChatGoogleGenerativeAI(
         model=GEMINI_MODEL,
-        google_api_key=GOOGLE_API_KEY,
+        google_api_key=keys["google"],
     )
 
     response = invoke_with_retry(llm, [
@@ -333,7 +329,7 @@ def _write_document(
     perplexity_research: str,
     gemini_research: str,
 ) -> str:
-    llm = ChatAnthropic(model=CLAUDE_MODEL)
+    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"])
 
     discovery = _discovery_summary(state)
 

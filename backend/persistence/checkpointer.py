@@ -42,6 +42,14 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
 );
 """
 
+_CREATE_SETTINGS_TABLE = """
+CREATE TABLE IF NOT EXISTS app_settings (
+    key_name        TEXT PRIMARY KEY,
+    encrypted_value TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+"""
+
 # ── SQL — SQLite (? placeholders) ─────────────────────────────────────────────
 
 _SL = dict(
@@ -180,6 +188,25 @@ class DBContext:
         )
         return {"pinned": pinned[:MAX_PINNED], "recent": recent}
 
+    async def save_api_key(self, key_name: str, encrypted_value: str) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        if self._backend == "sqlite":
+            await self._exec(
+                "INSERT OR REPLACE INTO app_settings (key_name, encrypted_value, updated_at) VALUES (?, ?, ?)",
+                (key_name, encrypted_value, now),
+            )
+        else:
+            await self._exec(
+                "INSERT INTO app_settings (key_name, encrypted_value, updated_at) VALUES (%s, %s, %s)"
+                " ON CONFLICT (key_name) DO UPDATE SET encrypted_value = EXCLUDED.encrypted_value, updated_at = EXCLUDED.updated_at",
+                (key_name, encrypted_value, now),
+            )
+
+    async def get_all_api_keys(self) -> dict[str, str]:
+        """Returns {key_name: encrypted_value} for every stored key."""
+        rows = await self._fetchall("SELECT key_name, encrypted_value FROM app_settings")
+        return {r[0]: r[1] for r in rows}
+
     async def delete_expired_sessions(self) -> int:
         cutoff  = (datetime.now(timezone.utc) - timedelta(days=SESSION_TTL_DAYS)).isoformat()
         rows    = await self._fetchall(self._q("expired"), (cutoff,))
@@ -241,6 +268,7 @@ async def _sqlite_backend():
 
     async with aiosqlite.connect(str(db_path)) as conn:
         await conn.execute(_CREATE_SESSIONS_TABLE)
+        await conn.execute(_CREATE_SETTINGS_TABLE)
         await conn.commit()
         await _migrate(conn, "sqlite")
 
@@ -272,6 +300,7 @@ async def _postgres_backend():
         async with pool.connection() as conn:
             pg_ddl = _CREATE_SESSIONS_TABLE.replace("?", "%s")
             await conn.execute(pg_ddl)
+            await conn.execute(_CREATE_SETTINGS_TABLE)
             await conn.commit()
             await _migrate(conn, "postgres")
 

@@ -90,6 +90,11 @@
           </button>
           <transition name="um-pop">
             <div v-if="userMenuOpen" class="user-menu">
+              <button class="um-item" @click="openSettings; userMenuOpen = false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Settings
+              </button>
+              <div class="um-divider"></div>
               <div class="um-section-label">Appearance</div>
               <button class="um-item" @click="isDark = !isDark; userMenuOpen = false">
                 <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -136,6 +141,11 @@
           </button>
           <transition name="um-pop">
             <div v-if="userMenuOpen" class="user-menu user-menu-col">
+              <button class="um-item" @click="openSettings; userMenuOpen = false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Settings
+              </button>
+              <div class="um-divider"></div>
               <div class="um-section-label">Appearance</div>
               <button class="um-item" @click="isDark = !isDark; userMenuOpen = false">
                 <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -367,6 +377,72 @@
       </div>
     </div>
 
+    <!-- ═══════════════════ SETTINGS MODAL ═══════════════════ -->
+    <transition name="fade">
+      <div v-if="settingsOpen" class="del-overlay" @click.self="settingsOpen = false">
+        <div class="settings-dialog" @click.stop>
+          <div class="settings-header">
+            <span class="settings-title">Settings</span>
+            <button class="settings-close" @click="settingsOpen = false">✕</button>
+          </div>
+
+          <div class="settings-body">
+            <div class="settings-section-label">API Keys</div>
+            <p class="settings-hint">Keys are encrypted at rest. Leave a field empty to keep the existing key.</p>
+
+            <!-- Anthropic -->
+            <div class="sk-row">
+              <div class="sk-label-row">
+                <span class="sk-label">Anthropic API Key</span>
+                <span class="sk-badge" :class="keysConfigured.anthropic ? 'ok' : 'missing'">
+                  {{ keysConfigured.anthropic ? 'Configured ✓' : 'Not set' }}
+                </span>
+              </div>
+              <p class="sk-desc">Intake · Discovery · Research (writing) · Review · Approver</p>
+              <input v-model="settingsKeys.anthropic" class="sk-input" type="password"
+                :placeholder="keysConfigured.anthropic ? 'Enter new key to update…' : 'sk-ant-…'" autocomplete="off" />
+            </div>
+
+            <!-- Perplexity -->
+            <div class="sk-row">
+              <div class="sk-label-row">
+                <span class="sk-label">Perplexity API Key</span>
+                <span class="sk-badge" :class="keysConfigured.perplexity ? 'ok' : 'missing'">
+                  {{ keysConfigured.perplexity ? 'Configured ✓' : 'Not set' }}
+                </span>
+              </div>
+              <p class="sk-desc">Research Agent — live web search (Sonar Pro)</p>
+              <input v-model="settingsKeys.perplexity" class="sk-input" type="password"
+                :placeholder="keysConfigured.perplexity ? 'Enter new key to update…' : 'pplx-…'" autocomplete="off" />
+            </div>
+
+            <!-- Google -->
+            <div class="sk-row">
+              <div class="sk-label-row">
+                <span class="sk-label">Google API Key</span>
+                <span class="sk-badge" :class="keysConfigured.google ? 'ok' : 'missing'">
+                  {{ keysConfigured.google ? 'Configured ✓' : 'Not set' }}
+                </span>
+              </div>
+              <p class="sk-desc">Research Agent — architectural patterns (Gemini 2.5 Pro)</p>
+              <input v-model="settingsKeys.google" class="sk-input" type="password"
+                :placeholder="keysConfigured.google ? 'Enter new key to update…' : 'AIza…'" autocomplete="off" />
+            </div>
+
+            <div v-if="settingsSaveMsg" class="settings-msg" :class="settingsSaveMsg.type">
+              {{ settingsSaveMsg.text }}
+            </div>
+          </div>
+
+          <div class="settings-footer">
+            <button class="btn-primary" :disabled="settingsSaving" @click="saveSettings">
+              {{ settingsSaving ? 'Saving…' : 'Save Keys' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
     <!-- ═══════════════ DELETE CONFIRMATION ══════════════ -->
     <transition name="fade">
       <div v-if="deleteConfirm.show" class="del-overlay" @click.self="deleteConfirm.show = false">
@@ -386,7 +462,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onMounted } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
 import { marked } from 'marked'
 import { useAgentChat } from '../composables/useAgentChat.js'
 
@@ -446,6 +522,11 @@ async function saveRename(threadId) {
 
 const isDark          = ref(false)
 const userMenuOpen    = ref(false)
+const settingsOpen    = ref(false)
+const settingsKeys    = reactive({ anthropic: '', perplexity: '', google: '' })
+const keysConfigured  = reactive({ anthropic: false, perplexity: false, google: false })
+const settingsSaving  = ref(false)
+const settingsSaveMsg = ref(null)
 const briefText       = ref('')
 const correctionText  = ref('')
 const replyAnswers    = ref([])
@@ -476,8 +557,62 @@ const filteredChats = computed(() => {
   return q ? all.filter(s => (s.brief_snippet || '').toLowerCase().includes(q)) : all
 })
 
+async function fetchKeyStatus() {
+  try {
+    const res = await fetch('/api/settings/keys')
+    if (res.ok) {
+      const data = await res.json()
+      keysConfigured.anthropic  = !!data.anthropic
+      keysConfigured.perplexity = !!data.perplexity
+      keysConfigured.google     = !!data.google
+    }
+  } catch (_) {}
+}
+
+function openSettings() {
+  settingsKeys.anthropic  = ''
+  settingsKeys.perplexity = ''
+  settingsKeys.google     = ''
+  settingsSaveMsg.value   = null
+  settingsOpen.value      = true
+  fetchKeyStatus()
+}
+
+async function saveSettings() {
+  settingsSaving.value  = true
+  settingsSaveMsg.value = null
+  try {
+    const res = await fetch('/api/settings/keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        anthropic:  settingsKeys.anthropic,
+        perplexity: settingsKeys.perplexity,
+        google:     settingsKeys.google,
+      }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      keysConfigured.anthropic  = !!data.configured?.anthropic
+      keysConfigured.perplexity = !!data.configured?.perplexity
+      keysConfigured.google     = !!data.configured?.google
+      settingsKeys.anthropic  = ''
+      settingsKeys.perplexity = ''
+      settingsKeys.google     = ''
+      settingsSaveMsg.value = { type: 'ok', text: `Saved: ${data.saved.join(', ') || 'no changes'}` }
+    } else {
+      settingsSaveMsg.value = { type: 'err', text: data.detail || 'Save failed.' }
+    }
+  } catch (e) {
+    settingsSaveMsg.value = { type: 'err', text: 'Network error. Is the backend running?' }
+  } finally {
+    settingsSaving.value = false
+  }
+}
+
 onMounted(() => {
   loadSessions()
+  fetchKeyStatus()
   document.addEventListener('click', () => { userMenuOpen.value = false })
 })
 watch(pendingQuestions, qs => { replyAnswers.value = qs.map(() => '') })
@@ -668,6 +803,51 @@ function doPDF() {
 .cp-row .sa-btn        { color: var(--muted); }
 .cp-row .sa-btn:hover  { background: var(--bdr); color: var(--tx); }
 .cp-row .sa-btn.del:hover { background: rgba(220,38,38,.15); color: #dc2626; }
+
+/* ═══════════════════════ SETTINGS MODAL ════════════════════ */
+.settings-dialog {
+  background: var(--surf); border: 1px solid var(--bdr);
+  border-radius: 16px; width: 480px; max-width: 95%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.settings-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 24px; border-bottom: 1px solid var(--bdr); flex-shrink: 0;
+}
+.settings-title { font-size: 16px; font-weight: 700; color: var(--tx); }
+.settings-close {
+  width: 28px; height: 28px; border: none; border-radius: 6px;
+  background: transparent; color: var(--muted); cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center; transition: background .12s;
+}
+.settings-close:hover { background: var(--surf2); color: var(--tx); }
+.settings-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 18px; overflow-y: auto; }
+.settings-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.settings-hint { font-size: 12px; color: var(--muted); margin: -10px 0 0; }
+.settings-footer { padding: 16px 24px; border-top: 1px solid var(--bdr); display: flex; justify-content: flex-end; flex-shrink: 0; }
+
+.sk-row { display: flex; flex-direction: column; gap: 5px; }
+.sk-label-row { display: flex; align-items: center; gap: 10px; }
+.sk-label { font-size: 14px; font-weight: 600; color: var(--tx); }
+.sk-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; }
+.sk-badge.ok      { background: var(--pass-bg); color: var(--pass-tx); }
+.sk-badge.missing { background: var(--fail-bg);  color: var(--fail-tx); }
+.sk-desc  { font-size: 12px; color: var(--muted); margin: 0; }
+.sk-input {
+  width: 100%; box-sizing: border-box;
+  padding: 9px 12px; border: 1px solid var(--ibdr); border-radius: 8px;
+  font-size: 13px; font-family: monospace; background: var(--surf2);
+  color: var(--tx); outline: none; transition: border-color .15s;
+}
+.sk-input:focus { border-color: var(--ifocus); }
+.sk-input::placeholder { font-family: inherit; color: var(--muted); }
+
+.settings-msg { font-size: 13px; font-weight: 500; padding: 10px 14px; border-radius: 8px; }
+.settings-msg.ok  { background: var(--pass-bg); color: var(--pass-tx); }
+.settings-msg.err { background: var(--fail-bg);  color: var(--fail-tx); }
+
+.um-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
 
 /* ═══════════════════ DELETE CONFIRMATION ══════════════════ */
 .del-overlay {
