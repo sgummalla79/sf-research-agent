@@ -1,11 +1,6 @@
 <template>
   <div class="shell" :class="{ dark: isDark }">
   <!-- ══════════════════ PRIVACY BANNER ══════════════════ -->
-  <div class="privacy-banner">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-    <span>All conversations are <strong>incognito</strong> · Data never leaves <strong>your machine</strong> · Your inputs are <strong>never used</strong> to train AI models · No data is persisted by model providers</span>
-  </div>
-
   <div class="shell-body">
 
     <!-- ═══════════════════ SIDEBAR ═══════════════════ -->
@@ -385,6 +380,12 @@
     <div v-else class="usage-bar-empty"/>
 
   </div><!-- /shell-footer -->
+
+  <!-- ══════════════════ PRIVACY STATUS BAR ══════════════════ -->
+  <div class="privacy-banner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <span>All conversations are <strong>incognito</strong> · Data never leaves <strong>your machine</strong> · Your inputs are <strong>never used</strong> to train AI models · No data is persisted by model providers</span>
+  </div>
 
     <!-- ═══════════════════ USAGE MODAL ════════════════════ -->
     <transition name="fade">
@@ -816,7 +817,7 @@ function doPDF() {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   height: 28px; padding: 0 20px;
   background: var(--sb-bg);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid rgba(255,255,255,0.06);
   font-size: 11px; color: #6b7f99; letter-spacing: 0.01em;
   white-space: nowrap; overflow: hidden;
 }
