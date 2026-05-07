@@ -36,10 +36,10 @@ The agent conducts a dynamic discovery session, runs parallel research using Per
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in all values:
+Copy `backend/.env.example` to `backend/.env` and fill in all values:
 
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
 
 | Variable | Required | Description |
@@ -71,8 +71,11 @@ Uses **SQLite** — no Docker or database server required.
 ### 1. Backend
 
 ```bash
+cd backend
+
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # Mac/Linux
+# .venv\Scripts\activate         # Windows
 
 pip install -r requirements.txt
 
@@ -90,6 +93,8 @@ curl http://localhost:8000/health
 ```
 
 ### 2. Frontend
+
+Open a second terminal:
 
 ```bash
 cd frontend
@@ -115,7 +120,7 @@ docker run --name sf-agent-db \
 ```
 
 ```bash
-# .env
+# backend/.env
 DB_BACKEND=postgres
 POSTGRES_URI=postgresql://agent:agent@localhost:5432/research_agent
 ALLOWED_ORIGINS=https://yourdomain.com
@@ -125,11 +130,13 @@ ALLOWED_ORIGINS=https://yourdomain.com
 
 ```bash
 cd frontend && npm run build
+# Output: frontend/dist/
 ```
 
 ### 3. Run backend
 
 ```bash
+cd backend
 pip install gunicorn
 
 gunicorn api.app:app \
@@ -143,7 +150,7 @@ gunicorn api.app:app \
 
 ```nginx
 server {
-    root /path/to/frontend/dist;
+    root /path/to/sf-research-agent/frontend/dist;
 
     location / { try_files $uri $uri/ /index.html; }
 
@@ -171,16 +178,23 @@ server {
 
 ```
 sf-research-agent/
-├── agents/          # LangGraph agent nodes (intake, discovery, researcher, reviewer, approver)
-├── api/             # FastAPI app + SSE streaming routes
-├── graph/           # LangGraph StateGraph builder + conditional edges
-├── persistence/     # SQLite / PostgreSQL checkpointer factory
-├── utils/           # File parser, storage, LLM retry wrapper
-├── frontend/src/    # Vue 3 chat UI + composables
-├── docs/            # Design and requirements documents
-├── state.py         # AgentState schema
-├── config.py        # Environment variable loading
-└── .env.example     # Environment template
+├── backend/                    # Python API + AI agents
+│   ├── agents/                 # LangGraph nodes (intake, discovery, researcher, reviewer, approver)
+│   ├── api/                    # FastAPI app + SSE streaming routes
+│   ├── graph/                  # LangGraph StateGraph builder + conditional edges
+│   ├── persistence/            # SQLite / PostgreSQL checkpointer factory
+│   ├── utils/                  # File parser, storage, LLM retry wrapper
+│   ├── state.py                # AgentState schema
+│   ├── config.py               # Environment variable loading
+│   ├── main.py                 # CLI entry point (dev helper)
+│   ├── requirements.txt        # Python dependencies
+│   └── .env.example            # Environment variable template
+├── frontend/                   # Vue 3 chat UI
+│   └── src/
+│       ├── components/         # ChatWindow.vue
+│       └── composables/        # useAgentChat.js
+├── docs/                       # Design and requirements documents
+└── README.md
 ```
 
 ---

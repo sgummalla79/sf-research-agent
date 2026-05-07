@@ -18,11 +18,11 @@ htmlcov/
 .env.local
 .env.*.local
 
-# ── Runtime data ──────────────────────────────────────────
+# ── Runtime data (backend) ────────────────────────────────
 # SQLite database
-data/
+backend/data/
 # User-uploaded files
-uploads/
+backend/uploads/
 
 # ── Vue / Node ────────────────────────────────────────────
 frontend/node_modules/
