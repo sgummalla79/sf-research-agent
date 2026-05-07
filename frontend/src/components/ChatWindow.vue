@@ -204,7 +204,8 @@
 
           <div v-else-if="msg.type === 'review_result'" class="verdict-card" :class="msg.reviewPassed ? 'pass' : 'fail'">
             <div class="verdict-head"><span>{{ msg.reviewPassed ? '✅' : '❌' }}</span>
-              <strong>Technical Review — {{ msg.reviewPassed ? 'PASSED' : 'FAILED' }}</strong></div>
+              <strong>Technical Review</strong>
+              <span class="verdict-badge" :class="msg.reviewPassed ? 'badge-pass' : 'badge-fail'">{{ msg.reviewPassed ? 'PASSED' : 'FAILED' }}</span></div>
             <p class="verdict-body">{{ msg.reviewFeedback }}</p>
             <ul v-if="msg.criticalIssues?.length" class="verdict-list">
               <li v-for="(it, j) in msg.criticalIssues" :key="j">{{ it }}</li>
@@ -213,7 +214,8 @@
 
           <div v-else-if="msg.type === 'approval_result'" class="verdict-card" :class="msg.approvalStatus === 'approved' ? 'pass' : 'fail'">
             <div class="verdict-head"><span>{{ msg.approvalStatus === 'approved' ? '🎉' : '🔄' }}</span>
-              <strong>Approver Gate — {{ msg.approvalStatus?.toUpperCase() }}</strong></div>
+              <strong>Approver Gate</strong>
+              <span class="verdict-badge" :class="msg.approvalStatus === 'approved' ? 'badge-pass' : 'badge-fail'">{{ msg.approvalStatus?.toUpperCase() }}</span></div>
             <p class="verdict-body">{{ msg.approvalComments }}</p>
             <ul v-if="msg.requiredChanges?.length" class="verdict-list">
               <li v-for="(ch, j) in msg.requiredChanges" :key="j">{{ ch }}</li>
@@ -701,11 +703,19 @@ watch(messages, async () => {
 }, { deep: true })
 
 marked.setOptions({ breaks: true })
+
+const _VERDICT_PASS = '<span class="vb-pass">$&</span>'
+const _VERDICT_FAIL = '<span class="vb-fail">$&</span>'
+
 function renderContent(c) {
   if (!c) return ''
   if (Array.isArray(c)) c = c.filter(b => b?.type === 'text').map(b => b?.text ?? '').join('\n')
   else if (typeof c !== 'string') c = String(c)
   return marked.parse(c)
+    .replace(/\bPASSED\b/g,   _VERDICT_PASS)
+    .replace(/\bAPPROVED\b/g, _VERDICT_PASS)
+    .replace(/\bFAILED\b/g,   _VERDICT_FAIL)
+    .replace(/\bREJECTED\b/g, _VERDICT_FAIL)
 }
 
 const AGENT_LABELS = { intake: 'Intake Agent', discovery: 'Discovery Agent', researcher: 'Research Agent', reviewer: 'Review Agent', approver: 'Approver Gate' }
@@ -1276,6 +1286,12 @@ function doPDF() {
 .verdict-card.pass{background:var(--pass-bg);border-color:var(--pass-bdr)}.verdict-card.fail{background:var(--fail-bg);border-color:var(--fail-bdr)}
 .verdict-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
 .verdict-card.pass .verdict-head strong{color:var(--pass-tx)}.verdict-card.fail .verdict-head strong{color:var(--fail-tx)}
+.verdict-badge{padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:.06em;line-height:1.8}
+.badge-pass{background:#16a34a;color:#fff}
+.badge-fail{background:#dc2626;color:#fff}
+/* Same badges inside streamed v-html content */
+.bubble :deep(.vb-pass),.doc-content :deep(.vb-pass){display:inline;padding:1px 8px;border-radius:99px;font-size:.85em;font-weight:700;background:#16a34a;color:#fff;white-space:nowrap}
+.bubble :deep(.vb-fail),.doc-content :deep(.vb-fail){display:inline;padding:1px 8px;border-radius:99px;font-size:.85em;font-weight:700;background:#dc2626;color:#fff;white-space:nowrap}
 .verdict-body{margin:0 0 7px;color:var(--tx);line-height:1.5}
 .verdict-list{margin:0;padding-left:1.3em;font-size:13px}.verdict-card.pass .verdict-list{color:var(--pass-tx)}.verdict-card.fail .verdict-list{color:var(--fail-tx)}.verdict-list li{margin:3px 0}
 .spin{display:inline-block;width:16px;height:16px;flex-shrink:0;border:2px solid var(--sbdr);border-top-color:var(--stx);border-radius:50%;animation:spin .7s linear infinite}
