@@ -813,22 +813,18 @@ function doPDF() {
 /* ── Privacy banner ──────────────────────────────────────────────────────────── */
 .privacy-banner {
   flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  padding: 6px 20px;
-  background: rgba(16, 185, 129, 0.08);
-  border-bottom: 1px solid rgba(16, 185, 129, 0.2);
-  font-size: 13px; color: #065f46; line-height: 1.4;
-  text-align: center;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  height: 28px; padding: 0 20px;
+  background: var(--sb-bg);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 11px; color: #6b7f99; letter-spacing: 0.01em;
+  white-space: nowrap; overflow: hidden;
 }
-.shell.dark .privacy-banner {
-  background: rgba(16, 185, 129, 0.07);
-  border-bottom-color: rgba(16, 185, 129, 0.18);
-  color: #6ee7b7;
-}
-.privacy-banner svg { flex-shrink: 0; opacity: 0.8; }
-.privacy-banner strong { font-weight: 700; }
+.privacy-banner svg { flex-shrink: 0; opacity: 0.5; }
+.privacy-banner strong { font-weight: 600; color: #8a9fba; }
 
 /* ── Shell ───────────────────────────────────────────────────────────────────── */
+
 .shell {
   display: flex; flex-direction: column;
   width: 100%; height: 100%;
