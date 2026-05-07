@@ -330,6 +330,18 @@ export function useAgentChat() {
     await _readStream(response)
   }
 
+  async function retrySession() {
+    if (!sessionId.value) return
+    error.value = null
+    const response = await fetch(`${API_BASE}/retry/${sessionId.value}`, { method: 'POST' })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      error.value = data.detail || 'Retry failed.'
+      return
+    }
+    await _readStream(response)
+  }
+
   async function sendReply(answers) {
     if (!sessionId.value) return
     const qs = pendingQuestions.value
@@ -386,7 +398,7 @@ export function useAgentChat() {
     loadSessions, newChat, restoreSession,
     pinSession, unpinSession, deleteSession, renameSession,
     // chat ops
-    startSession, uploadDocument, confirmUnderstanding, sendReply,
+    startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
     // doc panel
     openDocumentPanel, closeDocumentPanel, downloadMD, downloadPDF,
   }

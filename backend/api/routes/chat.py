@@ -456,6 +456,41 @@ async def restore_session(session_id: str, request: Request):
     }
 
 
+@router.post("/retry/{session_id}")
+async def retry_chat(session_id: str, request: Request):
+    """
+    Re-stream the graph from its last LangGraph checkpoint.
+    Use this after a connection error or exhausted LLM retries.
+    Safe to call multiple times — LangGraph resumes from the last
+    completed node, so no work is duplicated or lost.
+    """
+    graph  = request.app.state.graph
+    db     = request.app.state.db
+    config = {"configurable": {"thread_id": session_id}}
+
+    state = await graph.aget_state(config)
+    if not state or not state.values:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    current_stage = (state.values or {}).get("current_stage", "")
+    if current_stage in ("complete", "halted", "invalid_input"):
+        raise HTTPException(status_code=400, detail="Session is already finished — nothing to retry.")
+
+    if state.next:
+        raise HTTPException(
+            status_code=400,
+            detail="Session is waiting for your input — answer the pending question instead of retrying.",
+        )
+
+    asyncio.create_task(db.update_last_modified(session_id))
+
+    return StreamingResponse(
+        _stream_graph(graph, None, config, db),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.post("/reply/{session_id}")
 async def reply_chat(session_id: str, body: ReplyRequest, request: Request):
     graph = request.app.state.graph

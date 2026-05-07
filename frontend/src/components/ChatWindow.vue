@@ -308,7 +308,12 @@
       <div v-if="isComplete"     class="banner ok">🎉 Document approved and finalised.</div>
       <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
       <div v-if="isInvalidInput" class="banner err">❌ Image doesn't appear to be architecture-related.</div>
-      <div v-if="error"          class="banner err">Error: {{ error }}</div>
+      <div v-if="error" class="banner err">
+        <span>{{ error }}</span>
+        <button v-if="sessionId && !isComplete && !isHalted" class="retry-btn" @click="retrySession">
+          ↺ Retry
+        </button>
+      </div>
 
     </div><!-- /chat-pane -->
 
@@ -524,7 +529,7 @@ const {
   documentPanel, sidebar, sessionUsage,
   loadSessions, newChat, restoreSession,
   pinSession, unpinSession, deleteSession, renameSession,
-  startSession, uploadDocument, confirmUnderstanding, sendReply,
+  startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
   openDocumentPanel, closeDocumentPanel, downloadMD,
 } = useAgentChat()
 
@@ -1319,7 +1324,9 @@ function doPDF() {
 .confirm-footer{display:flex;flex-direction:column;gap:10px}
 
 /* Banners */
-.banner{flex-shrink:0;padding:12px 28px;font-size:13px;font-weight:500;text-align:center}
+.banner{flex-shrink:0;padding:12px 28px;font-size:13px;font-weight:500;text-align:center;display:flex;align-items:center;justify-content:center;gap:12px}
+.retry-btn{padding:5px 14px;border-radius:7px;border:1.5px solid currentColor;background:transparent;color:inherit;font-size:13px;font-weight:600;cursor:pointer;opacity:0.85;transition:opacity .15s}
+.retry-btn:hover{opacity:1}
 .banner.ok{background:#dcfce7;color:#166534}.banner.warn{background:#fef3c7;color:#92400e}.banner.err{background:#fee2e2;color:#991b1b}
 .dark .banner.ok{background:#052e16;color:#86efac}.dark .banner.warn{background:#1c1400;color:#fcd34d}.dark .banner.err{background:#1f0000;color:#fca5a5}
 
