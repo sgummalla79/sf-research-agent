@@ -281,7 +281,7 @@ The checkpointer factory reads `DB_BACKEND` at startup and returns either `Async
 
 | Concern | Mitigation |
 |---|---|
-| API keys | Never committed — `.env` is in `.gitignore`; `.env.example` contains no values |
+| API keys | Never committed — `backend/.env` is in `.gitignore`; `backend/.env.example` contains no values |
 | CORS | `ALLOWED_ORIGINS` env var; defaults to `*` for dev, must be restricted in prod |
 | File uploads | Extension allowlist + size limit enforced both client and server |
 | Session isolation | Sessions identified by UUID4 `thread_id`; no auth currently (add JWT/API key before production exposure) |
@@ -322,7 +322,7 @@ The checkpointer factory reads `DB_BACKEND` at startup and returns either `Async
 |---|---|
 | Authentication | Add JWT or API key auth to all `/api/` routes before public deployment |
 | Rate limiting | Add `slowapi` to limit `/start` and `/upload` per IP |
-| Switch to Gemini | Replace Perplexity with Gemini 2.5 Pro + Search grounding when Google AI Pro is available; one function change in `researcher.py` |
+| Switch to Gemini | Replace Perplexity with Gemini 2.5 Pro + Search grounding when Google AI Pro is available; one function change in `backend/agents/researcher.py` |
 | RAG integration | Connect Salesforce Help documentation as a vector store for the research step |
 | Salesforce Metadata API | Validate architecture recommendations against real org limits via Tooling API |
 | Export to Word | Add DOCX export alongside PDF and Markdown |
