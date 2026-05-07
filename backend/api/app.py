@@ -28,6 +28,7 @@ from fastapi.responses import JSONResponse
 
 from api.routes.chat import router as chat_router
 from api.routes.settings import router as settings_router
+from api.routes.usage import router as usage_router
 from graph.builder import build_graph
 from persistence.checkpointer import get_async_checkpointer
 from utils.api_keys import decrypt, populate_cache
@@ -95,6 +96,7 @@ app.add_middleware(
 
 app.include_router(chat_router)
 app.include_router(settings_router)
+app.include_router(usage_router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

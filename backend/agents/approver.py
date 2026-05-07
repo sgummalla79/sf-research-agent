@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from config import CLAUDE_MODEL, MAX_REVISIONS
 from utils.api_keys import get_keys
+from utils.pricing import usage_record
 from state import AgentState, ApprovalResult
 
 
@@ -88,7 +89,7 @@ APPROVAL FORMAT:
 
 
 def run_approver(state: AgentState) -> dict:
-    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(ApprovalResult)
+    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(ApprovalResult, include_raw=True)
 
     revision_note = (
         f"\nIMPORTANT: This is revision {state.revision_count} of {MAX_REVISIONS} allowed. "
@@ -124,10 +125,12 @@ Apply your 7-lens strategic review. Return your structured verdict."""
 
     # Approver does NOT need conversation history — all required context is
     # already structured in the prompt: brief, discovery answers, document, reviewer verdict.
-    result: ApprovalResult = invoke_with_retry(llm, [
+    raw    = invoke_with_retry(llm, [
         SystemMessage(content=APPROVER_SYSTEM_PROMPT),
         HumanMessage(content=prompt),
     ])
+    result: ApprovalResult = raw["parsed"]
+    urec   = usage_record("approver", CLAUDE_MODEL, getattr(raw.get("raw"), "usage_metadata", None))
 
     new_revision_count = state.revision_count + (1 if result.status == "rejected" else 0)
 
@@ -135,6 +138,7 @@ Apply your 7-lens strategic review. Return your structured verdict."""
         "current_stage": "approval",
         "approval_result": result,
         "revision_count": new_revision_count,
+        "usage_records": [urec],
         "messages": [
             AIMessage(
                 name="approver",

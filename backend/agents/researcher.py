@@ -28,6 +28,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from config import CLAUDE_MODEL, GEMINI_MODEL, PERPLEXITY_API_BASE, PERPLEXITY_MODEL
 from utils.api_keys import get_keys
+from utils.pricing import usage_record
 from state import AgentState
 
 
@@ -165,7 +166,10 @@ For each topic: current value/status, relevant limits, any recent changes, sourc
         HumanMessage(content=prompt),
     ])
 
-    return f"## PERPLEXITY RESEARCH — Current Facts & Citations\n\n{response.content}"
+    return (
+        f"## PERPLEXITY RESEARCH — Current Facts & Citations\n\n{response.content}",
+        usage_record("researcher", PERPLEXITY_MODEL, getattr(response, "usage_metadata", None)),
+    )
 
 
 # ── Step 1b: Gemini — deep patterns, architectural reasoning ──────────────────
@@ -237,7 +241,10 @@ Brief: {state.project_brief}
         HumanMessage(content=prompt),
     ])
 
-    return f"## GEMINI RESEARCH — Architectural Patterns & Design Guidance\n\n{response.content}"
+    return (
+        f"## GEMINI RESEARCH — Architectural Patterns & Design Guidance\n\n{response.content}",
+        usage_record("researcher", GEMINI_MODEL, getattr(response, "usage_metadata", None)),
+    )
 
 
 # ── Step 2: Claude — write the structured document ────────────────────────────
@@ -329,7 +336,8 @@ def _write_document(
     perplexity_research: str,
     gemini_research: str,
 ) -> str:
-    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"])
+    keys = get_keys()
+    llm  = ChatAnthropic(model=CLAUDE_MODEL, api_key=keys["anthropic"])
 
     discovery = _discovery_summary(state)
 
@@ -402,7 +410,7 @@ Instructions:
         HumanMessage(content=user_prompt),
     ])
 
-    return response.content
+    return response.content, usage_record("researcher", CLAUDE_MODEL, getattr(response, "usage_metadata", None))
 
 
 # ── Node function ─────────────────────────────────────────────────────────────
@@ -415,19 +423,20 @@ def run_researcher(state: AgentState) -> dict:
         perplexity_future = pool.submit(_gather_perplexity, state, scope)
         gemini_future     = pool.submit(_gather_gemini,     state, scope)
 
-        perplexity_research = perplexity_future.result()
-        gemini_research     = gemini_future.result()
+        perplexity_research, urec_pplx  = perplexity_future.result()
+        gemini_research,     urec_gemini = gemini_future.result()
 
     # Step 2: Claude writes the document with both research outputs
-    document    = _write_document(state, perplexity_research, gemini_research)
+    document, urec_writer = _write_document(state, perplexity_research, gemini_research)
     new_version = state.document_version + 1
 
     return {
-        "current_stage":   "research",
-        "document_draft":  document,
+        "current_stage":    "research",
+        "document_draft":   document,
         "document_version": new_version,
-        "review_result":   None,
-        "approval_result": None,
+        "review_result":    None,
+        "approval_result":  None,
+        "usage_records":    [urec_pplx, urec_gemini, urec_writer],
         "messages": [
             AIMessage(
                 name="researcher",

@@ -90,9 +90,13 @@
           </button>
           <transition name="um-pop">
             <div v-if="userMenuOpen" class="user-menu">
-              <button class="um-item" @click="openSettings; userMenuOpen = false">
+              <button class="um-item" @click="openSettings(); userMenuOpen = false">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 Settings
+              </button>
+              <button class="um-item" @click="openUsage(); userMenuOpen = false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Usage
               </button>
               <div class="um-divider"></div>
               <div class="um-section-label">Appearance</div>
@@ -141,9 +145,13 @@
           </button>
           <transition name="um-pop">
             <div v-if="userMenuOpen" class="user-menu user-menu-col">
-              <button class="um-item" @click="openSettings; userMenuOpen = false">
+              <button class="um-item" @click="openSettings(); userMenuOpen = false">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 Settings
+              </button>
+              <button class="um-item" @click="openUsage(); userMenuOpen = false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                Usage
               </button>
               <div class="um-divider"></div>
               <div class="um-section-label">Appearance</div>
@@ -321,7 +329,7 @@
           <button class="mode-btn" :class="{ active: inputMode === 'upload' }" @click="inputMode = 'upload'">📎 Upload File</button>
         </div>
         <template v-if="inputMode === 'brief'">
-          <textarea v-model="briefText" class="ta brief-ta" rows="5" placeholder="Describe your Salesforce architecture project…" />
+          <textarea v-model="briefText" class="ta brief-ta" rows="5" placeholder="Describe your project…" />
           <div class="action-row">
             <button class="btn-primary" @click="submitBrief" :disabled="!briefText.trim()">Start Session →</button>
           </div>
@@ -353,6 +361,26 @@
         </template>
       </div>
 
+      <!-- Token usage footer -->
+      <div v-if="sessionUsage.loaded && sessionId" class="usage-footer">
+        <div class="uf-summary" @click="usageExpanded = !usageExpanded" style="cursor:pointer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span>↑ {{ fmtTokens(sessionUsage.input_tokens) }} &nbsp;↓ {{ fmtTokens(sessionUsage.output_tokens) }}</span>
+          <span class="uf-sep">·</span>
+          <span class="uf-cost">est. {{ fmtCost(sessionUsage.cost_usd) }}</span>
+          <svg :style="{ transform: usageExpanded ? 'rotate(180deg)' : '', transition: 'transform .2s' }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="10" height="10"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <transition name="fade">
+          <div v-if="usageExpanded" class="uf-breakdown">
+            <div v-for="row in sessionUsage.breakdown" :key="row.agent + row.model" class="uf-row">
+              <span class="uf-agent">{{ AGENT_LABELS[row.agent] || row.agent }}</span>
+              <span class="uf-nums">↑ {{ fmtTokens(row.input_tokens) }} &nbsp;↓ {{ fmtTokens(row.output_tokens) }}</span>
+              <span class="uf-cost">{{ fmtCost(row.cost_usd) }}</span>
+            </div>
+          </div>
+        </transition>
+      </div>
+
       <!-- Banners -->
       <div v-if="isComplete"     class="banner ok">🎉 Document approved and finalised.</div>
       <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
@@ -376,6 +404,45 @@
         <div v-else class="doc-content" v-html="renderContent(documentPanel.content)" />
       </div>
     </div>
+
+    <!-- ═══════════════════ USAGE MODAL ════════════════════ -->
+    <transition name="fade">
+      <div v-if="usageOpen" class="del-overlay" @click.self="usageOpen = false">
+        <div class="settings-dialog" style="width:540px" @click.stop>
+          <div class="settings-header">
+            <span class="settings-title">Usage &amp; Cost Estimate</span>
+            <button class="settings-close" @click="usageOpen = false">✕</button>
+          </div>
+          <div class="settings-body">
+            <div v-if="globalUsage.loading" style="text-align:center;padding:20px;color:var(--muted)">Loading…</div>
+            <template v-else>
+              <div class="settings-section-label">All Sessions ({{ globalUsage.session_count }} with usage data)</div>
+              <div class="usage-total-card">
+                <div class="utc-stat"><span class="utc-val">{{ fmtTokens(globalUsage.totals.input_tokens) }}</span><span class="utc-lbl">↑ Input</span></div>
+                <div class="utc-divider"/>
+                <div class="utc-stat"><span class="utc-val">{{ fmtTokens(globalUsage.totals.output_tokens) }}</span><span class="utc-lbl">↓ Output</span></div>
+                <div class="utc-divider"/>
+                <div class="utc-stat"><span class="utc-val utc-cost">{{ fmtCost(globalUsage.totals.cost_usd) }}</span><span class="utc-lbl">Est. cost</span></div>
+              </div>
+              <div v-if="globalUsage.breakdown.length" class="settings-section-label" style="margin-top:4px">By Agent</div>
+              <div v-if="globalUsage.breakdown.length" class="usage-table">
+                <div class="ut-header">
+                  <span>Agent</span><span>↑ Input</span><span>↓ Output</span><span>Est. cost</span>
+                </div>
+                <div v-for="row in globalUsage.breakdown" :key="row.agent+row.model" class="ut-row">
+                  <span>{{ AGENT_LABELS[row.agent] || row.agent }}</span>
+                  <span>{{ fmtTokens(row.input_tokens) }}</span>
+                  <span>{{ fmtTokens(row.output_tokens) }}</span>
+                  <span class="ut-cost">{{ fmtCost(row.cost_usd) }}</span>
+                </div>
+              </div>
+              <p v-if="!globalUsage.breakdown.length" style="color:var(--muted);font-size:13px;margin:0">No usage data yet. Start a session to see costs.</p>
+              <p class="usage-disclaimer">Prices are estimates based on published API rates and may not reflect your exact billing.</p>
+            </template>
+          </div>
+        </div>
+      </div>
+    </transition>
 
     <!-- ═══════════════════ SETTINGS MODAL ═══════════════════ -->
     <transition name="fade">
@@ -469,7 +536,7 @@ import { useAgentChat } from '../composables/useAgentChat.js'
 const {
   sessionId, messages, currentStage, pendingQuestions, pendingConfirmation,
   isStreaming, isComplete, isHalted, isInvalidInput, error,
-  documentPanel, sidebar,
+  documentPanel, sidebar, sessionUsage,
   loadSessions, newChat, restoreSession,
   pinSession, unpinSession, deleteSession, renameSession,
   startSession, uploadDocument, confirmUnderstanding, sendReply,
@@ -523,6 +590,9 @@ async function saveRename(threadId) {
 const isDark          = ref(false)
 const userMenuOpen    = ref(false)
 const settingsOpen    = ref(false)
+const usageOpen       = ref(false)
+const usageExpanded   = ref(false)
+const globalUsage     = reactive({ totals: { input_tokens: 0, output_tokens: 0, cost_usd: 0 }, breakdown: [], session_count: 0, loading: false })
 const settingsKeys    = reactive({ anthropic: '', perplexity: '', google: '' })
 const keysConfigured  = reactive({ anthropic: false, perplexity: false, google: false })
 const settingsSaving  = ref(false)
@@ -567,6 +637,21 @@ async function fetchKeyStatus() {
       keysConfigured.google     = !!data.google
     }
   } catch (_) {}
+}
+
+async function openUsage() {
+  usageOpen.value   = true
+  globalUsage.loading = true
+  try {
+    const res  = await fetch('/api/usage/summary')
+    if (res.ok) {
+      const data = await res.json()
+      globalUsage.totals        = data.totals        ?? { input_tokens: 0, output_tokens: 0, cost_usd: 0 }
+      globalUsage.breakdown     = data.breakdown     ?? []
+      globalUsage.session_count = data.session_count ?? 0
+    }
+  } catch (_) {}
+  finally { globalUsage.loading = false }
 }
 
 function openSettings() {
@@ -628,6 +713,10 @@ function renderContent(c) {
   else if (typeof c !== 'string') c = String(c)
   return marked.parse(c)
 }
+
+const AGENT_LABELS = { intake: 'Intake Agent', discovery: 'Discovery Agent', researcher: 'Research Agent', reviewer: 'Review Agent', approver: 'Approver Gate' }
+function fmtTokens(n) { return n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n) }
+function fmtCost(c)   { return c < 0.01 ? `$${(c).toFixed(4)}` : `$${c.toFixed(3)}` }
 
 function handleNewChat()        { newChat(); currentView.value = 'chat' }
 function openChatsView()       { searchQuery.value = ''; currentView.value = 'chats' }
@@ -848,6 +937,55 @@ function doPDF() {
 .settings-msg.err { background: var(--fail-bg);  color: var(--fail-tx); }
 
 .um-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 4px 0; }
+
+/* ── Session usage footer ────────────────────────────────────────────────── */
+.usage-footer {
+  flex-shrink: 0; padding: 5px 28px;
+  background: var(--surf2); border-top: 1px solid var(--bdr);
+  font-size: 11px; color: var(--muted);
+}
+.uf-summary {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 0; user-select: none;
+}
+.uf-sep  { color: var(--bdr); }
+.uf-cost { color: var(--pri); font-weight: 600; }
+.uf-breakdown {
+  padding: 6px 0 4px; display: flex; flex-direction: column; gap: 3px;
+}
+.uf-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 0; font-size: 11px;
+}
+.uf-agent { flex: 1; color: var(--tx); }
+.uf-nums  { color: var(--muted); }
+.uf-row .uf-cost { margin-left: auto; }
+
+/* ── Usage modal ─────────────────────────────────────────────────────────── */
+.usage-total-card {
+  display: flex; align-items: center;
+  background: var(--surf2); border: 1px solid var(--bdr);
+  border-radius: 10px; padding: 16px 20px; gap: 0;
+}
+.utc-stat  { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.utc-val   { font-size: 20px; font-weight: 700; color: var(--tx); }
+.utc-cost  { color: var(--pri); }
+.utc-lbl   { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.utc-divider { width: 1px; height: 40px; background: var(--bdr); flex-shrink: 0; }
+.usage-table  { border: 1px solid var(--bdr); border-radius: 8px; overflow: hidden; font-size: 13px; }
+.ut-header {
+  display: grid; grid-template-columns: 1fr 80px 80px 80px;
+  padding: 8px 12px; background: var(--surf2);
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--muted); border-bottom: 1px solid var(--bdr);
+}
+.ut-row {
+  display: grid; grid-template-columns: 1fr 80px 80px 80px;
+  padding: 8px 12px; border-bottom: 1px solid var(--bdr); color: var(--tx);
+}
+.ut-row:last-child { border-bottom: none; }
+.ut-cost { color: var(--pri); font-weight: 600; }
+.usage-disclaimer { font-size: 11px; color: var(--muted); margin: 4px 0 0; }
 
 /* ═══════════════════ DELETE CONFIRMATION ══════════════════ */
 .del-overlay {

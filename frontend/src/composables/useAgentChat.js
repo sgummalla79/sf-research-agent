@@ -17,6 +17,9 @@ export function useAgentChat() {
   // Document panel
   const documentPanel = reactive({ open: false, content: '', version: 0, loading: false })
 
+  // Token usage for current session
+  const sessionUsage = reactive({ input_tokens: 0, output_tokens: 0, cost_usd: 0, breakdown: [], loaded: false })
+
   // Sidebar
   const sidebar = reactive({
     open:    true,
@@ -155,11 +158,11 @@ export function useAgentChat() {
       case 'done': {
         if (currentMsg) { currentMsg.isStreaming = false; setCurrentMsg(null) }
         currentStage.value = null
-        if (event.status === 'complete')      isComplete.value     = true
-        else if (event.status === 'halted')   isHalted.value       = true
+        if (event.status === 'complete')           isComplete.value     = true
+        else if (event.status === 'halted')        isHalted.value       = true
         else if (event.status === 'invalid_input') isInvalidInput.value = true
-        // Refresh sidebar so new session appears / moves to top
         loadSessions()
+        if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
       }
 
@@ -172,6 +175,20 @@ export function useAgentChat() {
   }
 
   // ── Reset ─────────────────────────────────────────────────────────────────
+
+  async function fetchSessionUsage(sid) {
+    if (!sid) return
+    try {
+      const res  = await fetch(`/api/usage/session/${sid}`)
+      if (!res.ok) return
+      const data = await res.json()
+      sessionUsage.input_tokens  = data.totals?.input_tokens  ?? 0
+      sessionUsage.output_tokens = data.totals?.output_tokens ?? 0
+      sessionUsage.cost_usd      = data.totals?.cost_usd      ?? 0
+      sessionUsage.breakdown     = data.breakdown             ?? []
+      sessionUsage.loaded        = true
+    } catch (_) {}
+  }
 
   function _resetChat() {
     sessionId.value           = null
@@ -187,6 +204,11 @@ export function useAgentChat() {
     documentPanel.open        = false
     documentPanel.content     = ''
     documentPanel.version     = 0
+    sessionUsage.input_tokens  = 0
+    sessionUsage.output_tokens = 0
+    sessionUsage.cost_usd      = 0
+    sessionUsage.breakdown     = []
+    sessionUsage.loaded        = false
   }
 
   // ── Session CRUD ──────────────────────────────────────────────────────────
@@ -261,6 +283,8 @@ export function useAgentChat() {
       pendingQuestions.value = qs
     } else if (data.current_stage === 'complete') isComplete.value = true
     else if (data.current_stage === 'halted')     isHalted.value   = true
+
+    fetchSessionUsage(sid)
   }
 
   // ── Sessions API ──────────────────────────────────────────────────────────
@@ -356,7 +380,7 @@ export function useAgentChat() {
     sessionId, messages, currentStage,
     pendingQuestions, pendingConfirmation,
     isStreaming, isComplete, isHalted, isInvalidInput, error,
-    documentPanel, sidebar,
+    documentPanel, sidebar, sessionUsage,
     // session ops
     loadSessions, newChat, restoreSession,
     pinSession, unpinSession, deleteSession, renameSession,

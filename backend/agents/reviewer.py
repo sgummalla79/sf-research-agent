@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from config import CLAUDE_MODEL
 from utils.api_keys import get_keys
+from utils.pricing import usage_record
 from state import AgentState, ReviewResult
 
 
@@ -92,7 +93,7 @@ VERDICT RULES:
 
 
 def run_reviewer(state: AgentState) -> dict:
-    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(ReviewResult)
+    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(ReviewResult, include_raw=True)
 
     scope_note = ""
     if state.discovery_questions:
@@ -118,15 +119,18 @@ Return your structured verdict with:
 
     # Reviewer does NOT need conversation history — it works entirely from
     # structured state: document_draft + discovery_questions (already in prompt).
-    result: ReviewResult = invoke_with_retry(llm, [
+    raw    = invoke_with_retry(llm, [
         SystemMessage(content=REVIEWER_SYSTEM_PROMPT),
         HumanMessage(content=prompt),
     ])
+    result: ReviewResult = raw["parsed"]
+    urec   = usage_record("reviewer", CLAUDE_MODEL, getattr(raw.get("raw"), "usage_metadata", None))
 
     status = "PASSED" if result.passed else "FAILED"
     return {
         "current_stage": "review",
         "review_result": result,
+        "usage_records": [urec],
         "messages": [
             AIMessage(name="reviewer", content=f"[Reviewer] Review {status}. {result.feedback}")
         ],

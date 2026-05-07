@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import operator
 from typing import Annotated, Literal, Optional
 from pydantic import BaseModel, Field
 from langgraph.graph.message import add_messages
@@ -67,6 +68,9 @@ class AgentState(BaseModel):
 
     # ── Conversation history (append-only via LangGraph reducer) ─────────────
     messages: Annotated[list[BaseMessage], add_messages] = Field(default_factory=list)
+
+    # ── Token usage (append-only — each agent appends its records) ────────────
+    usage_records: Annotated[list[dict], operator.add] = Field(default_factory=list)
 
     class Config:
         arbitrary_types_allowed = True

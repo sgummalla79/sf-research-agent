@@ -50,6 +50,18 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 """
 
+_CREATE_USAGE_TABLE = """
+CREATE TABLE IF NOT EXISTS token_usage (
+    thread_id     TEXT NOT NULL,
+    agent         TEXT NOT NULL,
+    model         TEXT NOT NULL,
+    input_tokens  INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    cost_usd      REAL    DEFAULT 0,
+    created_at    TEXT NOT NULL
+);
+"""
+
 # ── SQL — SQLite (? placeholders) ─────────────────────────────────────────────
 
 _SL = dict(
@@ -188,6 +200,57 @@ class DBContext:
         )
         return {"pinned": pinned[:MAX_PINNED], "recent": recent}
 
+    async def save_usage_records(self, thread_id: str, records: list[dict]) -> None:
+        """Replace all token_usage rows for this thread with the current full list."""
+        if self._backend == "sqlite":
+            await self._conn_or_pool.execute("DELETE FROM token_usage WHERE thread_id = ?", (thread_id,))
+            for r in records:
+                await self._conn_or_pool.execute(
+                    "INSERT INTO token_usage (thread_id, agent, model, input_tokens, output_tokens, cost_usd, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (thread_id, r["agent"], r["model"], r["input_tokens"], r["output_tokens"], r["cost_usd"], r["created_at"]),
+                )
+            await self._conn_or_pool.commit()
+        else:
+            async with self._conn_or_pool.connection() as conn:
+                await conn.execute("DELETE FROM token_usage WHERE thread_id = %s", (thread_id,))
+                for r in records:
+                    await conn.execute(
+                        "INSERT INTO token_usage (thread_id, agent, model, input_tokens, output_tokens, cost_usd, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                        (thread_id, r["agent"], r["model"], r["input_tokens"], r["output_tokens"], r["cost_usd"], r["created_at"]),
+                    )
+
+    async def get_session_usage(self, thread_id: str) -> dict:
+        rows = await self._fetchall(
+            "SELECT agent, model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd) FROM token_usage WHERE thread_id = ? GROUP BY agent, model" if self._backend == "sqlite"
+            else "SELECT agent, model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd) FROM token_usage WHERE thread_id = %s GROUP BY agent, model",
+            (thread_id,)
+        )
+        breakdown = [{"agent": r[0], "model": r[1], "input_tokens": r[2], "output_tokens": r[3], "cost_usd": round(r[4], 6)} for r in rows]
+        return {
+            "breakdown": breakdown,
+            "totals": {
+                "input_tokens":  sum(r["input_tokens"]  for r in breakdown),
+                "output_tokens": sum(r["output_tokens"] for r in breakdown),
+                "cost_usd":      round(sum(r["cost_usd"] for r in breakdown), 6),
+            },
+        }
+
+    async def get_global_usage(self) -> dict:
+        rows = await self._fetchall(
+            "SELECT agent, model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd) FROM token_usage GROUP BY agent, model"
+        )
+        breakdown = [{"agent": r[0], "model": r[1], "input_tokens": r[2], "output_tokens": r[3], "cost_usd": round(r[4], 6)} for r in rows]
+        count_row = await self._fetchone("SELECT COUNT(DISTINCT thread_id) FROM token_usage")
+        return {
+            "breakdown": breakdown,
+            "totals": {
+                "input_tokens":  sum(r["input_tokens"]  for r in breakdown),
+                "output_tokens": sum(r["output_tokens"] for r in breakdown),
+                "cost_usd":      round(sum(r["cost_usd"] for r in breakdown), 6),
+            },
+            "session_count": count_row[0] if count_row else 0,
+        }
+
     async def save_api_key(self, key_name: str, encrypted_value: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
         if self._backend == "sqlite":
@@ -269,6 +332,7 @@ async def _sqlite_backend():
     async with aiosqlite.connect(str(db_path)) as conn:
         await conn.execute(_CREATE_SESSIONS_TABLE)
         await conn.execute(_CREATE_SETTINGS_TABLE)
+        await conn.execute(_CREATE_USAGE_TABLE)
         await conn.commit()
         await _migrate(conn, "sqlite")
 
@@ -301,6 +365,7 @@ async def _postgres_backend():
             pg_ddl = _CREATE_SESSIONS_TABLE.replace("?", "%s")
             await conn.execute(pg_ddl)
             await conn.execute(_CREATE_SETTINGS_TABLE)
+            await conn.execute(_CREATE_USAGE_TABLE)
             await conn.commit()
             await _migrate(conn, "postgres")
 

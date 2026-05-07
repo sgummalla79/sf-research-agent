@@ -111,7 +111,7 @@ def _sse(event_type: str, payload: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **payload})}\n\n"
 
 
-async def _stream_graph(graph, input_, config) -> AsyncGenerator[str, None]:
+async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, None]:
     """
     Run the graph with astream_events and translate LangGraph events into SSE messages.
     After the stream ends, inspect state to detect interrupt vs completion.
@@ -180,8 +180,17 @@ async def _stream_graph(graph, input_, config) -> AsyncGenerator[str, None]:
                 else:
                     yield _sse("stage_end", {"stage": name})
 
-        # ── Stream ended — check if graph is paused (interrupt) or complete ──
+        # ── Stream ended — persist token usage, then check interrupt/complete ──
         state = await graph.aget_state(config)
+
+        if db:
+            records = (state.values or {}).get("usage_records", [])
+            if records:
+                thread_id = config["configurable"]["thread_id"]
+                try:
+                    await db.save_usage_records(thread_id, records)
+                except Exception:
+                    pass  # never let usage errors break the SSE stream
 
         if state.next:
             # Graph is interrupted — determine interrupt type from the value.
@@ -241,7 +250,7 @@ async def start_chat(body: StartRequest, request: Request):
     )
 
     return StreamingResponse(
-        _stream_graph(graph, initial_state, config),
+        _stream_graph(graph, initial_state, config, db),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -317,7 +326,7 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
     )
 
     return StreamingResponse(
-        _stream_graph(graph, initial_state, config),
+        _stream_graph(graph, initial_state, config, db),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -457,7 +466,7 @@ async def reply_chat(session_id: str, body: ReplyRequest, request: Request):
     asyncio.create_task(db.update_last_modified(session_id))
 
     return StreamingResponse(
-        _stream_graph(graph, Command(resume=body.answers), config),
+        _stream_graph(graph, Command(resume=body.answers), config, db),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
