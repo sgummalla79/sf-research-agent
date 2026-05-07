@@ -81,6 +81,25 @@
 
         </div>
 
+        <!-- User footer — expanded -->
+        <div class="sb-footer" @click.stop>
+          <button class="avatar-btn" @click="userMenuOpen = !userMenuOpen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            </svg>
+          </button>
+          <transition name="um-pop">
+            <div v-if="userMenuOpen" class="user-menu">
+              <div class="um-section-label">Appearance</div>
+              <button class="um-item" @click="isDark = !isDark; userMenuOpen = false">
+                <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                {{ isDark ? 'Light mode' : 'Dark mode' }}
+              </button>
+            </div>
+          </transition>
+        </div>
+
       </template>
 
       <!-- ── COLLAPSED ────────────────────────────────────── -->
@@ -107,6 +126,25 @@
             <path d="M13 3H4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h1v3l3-3h5a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/>
           </svg>
         </button>
+
+        <!-- Avatar at bottom — collapsed -->
+        <div class="sb-footer-col" @click.stop>
+          <button class="col-icon-btn avatar-col" title="Menu" @click="userMenuOpen = !userMenuOpen">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            </svg>
+          </button>
+          <transition name="um-pop">
+            <div v-if="userMenuOpen" class="user-menu user-menu-col">
+              <div class="um-section-label">Appearance</div>
+              <button class="um-item" @click="isDark = !isDark; userMenuOpen = false">
+                <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                {{ isDark ? 'Light mode' : 'Dark mode' }}
+              </button>
+            </div>
+          </transition>
+        </div>
 
       </template>
     </div>
@@ -159,14 +197,6 @@
     <!-- ═══════════════════ CHAT PANE ═══════════════════ -->
     <div v-else class="chat-pane">
 
-      <!-- Header -->
-      <div class="chat-header">
-        <span class="chat-title">Salesforce Architect Agent</span>
-        <div class="header-right">
-          <button class="theme-btn" @click="isDark = !isDark">{{ isDark ? '☀️' : '🌙' }}</button>
-        </div>
-      </div>
-
       <!-- Progress strip -->
       <div class="progress-strip" :class="[currentStage, { visible: !!currentStage }]">
         <span class="p-dot" />
@@ -177,7 +207,6 @@
       <div class="messages" ref="messagesEl">
         <div v-if="!messages.length && !isStreaming" class="empty-state">
           <div class="empty-icon">🏗️</div>
-          <p class="empty-title">Salesforce Architect Agent</p>
           <p class="empty-sub">Write a project brief or upload a document to begin.</p>
         </div>
 
@@ -416,6 +445,7 @@ async function saveRename(threadId) {
 }
 
 const isDark          = ref(false)
+const userMenuOpen    = ref(false)
 const briefText       = ref('')
 const correctionText  = ref('')
 const replyAnswers    = ref([])
@@ -446,7 +476,10 @@ const filteredChats = computed(() => {
   return q ? all.filter(s => (s.brief_snippet || '').toLowerCase().includes(q)) : all
 })
 
-onMounted(() => loadSessions())
+onMounted(() => {
+  loadSessions()
+  document.addEventListener('click', () => { userMenuOpen.value = false })
+})
 watch(pendingQuestions, qs => { replyAnswers.value = qs.map(() => '') })
 watch(messages, async () => {
   await nextTick()
@@ -753,6 +786,60 @@ function doPDF() {
 .col-icon-btn.brand { margin-top: 10px; }
 .col-icon-btn.brand .sf-logo { pointer-events: none; }
 
+/* ── User footer (expanded) ──────────────────────────────── */
+.sb-footer {
+  flex-shrink: 0; position: relative;
+  padding: 8px 10px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.avatar-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.15);
+  color: var(--sb-tx); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s;
+}
+.avatar-btn:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.28); }
+
+/* User footer (collapsed) */
+.sb-footer-col {
+  flex-shrink: 0; position: relative;
+  margin-top: auto; padding: 8px 0 10px;
+  display: flex; justify-content: center;
+  border-top: 1px solid rgba(255,255,255,0.07);
+}
+.avatar-col { margin: 0; }
+
+/* User menu popup */
+.user-menu {
+  position: absolute; bottom: calc(100% + 6px); left: 8px;
+  width: calc(100% - 16px);
+  background: #1e2d42; border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px; padding: 6px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+  z-index: 200;
+}
+.user-menu-col { left: 4px; width: 180px; }
+.um-section-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--sb-muted);
+  padding: 4px 8px 6px;
+}
+.um-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 8px 10px; border: none; border-radius: 7px;
+  background: transparent; color: var(--sb-tx); font-size: 13px;
+  cursor: pointer; text-align: left;
+  transition: background .12s;
+}
+.um-item:hover { background: var(--sb-hover); }
+
+/* Menu pop transition */
+.um-pop-enter-active { transition: opacity .15s ease, transform .15s ease; }
+.um-pop-leave-active { transition: opacity .1s ease, transform .1s ease; }
+.um-pop-enter-from   { opacity: 0; transform: translateY(6px); }
+.um-pop-leave-to     { opacity: 0; transform: translateY(4px); }
+
 
 /* ═══════════════════════ CHAT PANE ═══════════════════════ */
 .chat-pane {
@@ -760,14 +847,6 @@ function doPDF() {
   background: var(--bg); min-width: 0;
 }
 
-.chat-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 28px; background: var(--hbg); color: var(--hfg); flex-shrink: 0;
-}
-.chat-title   { font-size: 14px; font-weight: 600; }
-.header-right { display: flex; align-items: center; gap: 12px; }
-.session-id   { font-size: 11px; color: #94a3b8; font-family: monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.theme-btn    { background: none; border: none; cursor: pointer; font-size: 18px; }
 
 /* Progress strip */
 /* ── Agent progress strip ─────────────────────────────────────── */
