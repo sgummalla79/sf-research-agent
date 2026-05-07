@@ -96,7 +96,7 @@ Keep this value secret — it is the key used to encrypt your API keys in the da
 
 Uses **SQLite** — no Docker or database server required.
 
-### 1. Backend
+### 1. Backend (one-time)
 
 ```bash
 cd backend
@@ -109,28 +109,34 @@ pip install -r requirements.txt
 
 cp .env.example .env
 # Edit .env: set DB_BACKEND=sqlite and generate SETTINGS_SECRET (see above)
-
-uvicorn api.app:app --reload --port 8000
 ```
 
-Verify the backend is healthy:
+### 2. Start everything with one command
+
+From the **project root**:
+
+```bash
+pnpm install   # first time only — installs concurrently
+pnpm dev       # starts backend + frontend together
+```
+
+Or with npm:
+
+```bash
+npm install
+npm run dev
+```
+
+Both processes run in parallel with colour-coded output (`blue = backend`, `green = frontend`). Either process crashing stops both.
+
+Open **http://localhost:5173**, then follow [First-Time Setup](#first-time-setup) to add your API keys.
+
+### Verify backend is healthy
 
 ```bash
 curl http://localhost:8000/health
 # {"status":"ok","graph":"ready"}
 ```
-
-### 2. Frontend
-
-Open a second terminal:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Open **http://localhost:5173**, then follow [First-Time Setup](#first-time-setup) to add your API keys.
 
 ---
 
