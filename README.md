@@ -240,10 +240,17 @@ sf-research-agent/
 
 ---
 
+## Architecture Diagram
+
+![SF Research Agent Architecture](docs/architecture.svg)
+
+---
+
 ## Documentation
 
 | Document | Description |
 |---|---|
+| [Architecture Diagram](docs/architecture.svg) | Full-color multi-agent pipeline and component diagram |
 | [UI Design](docs/UI_DESIGN.md) | Layout, shell structure, sidebar, modals, color system |
 | [Functional Requirements](docs/FUNCTIONAL_REQUIREMENTS.md) | Feature spec, user flows, agent pipeline, settings, usage |
 | [Technical Requirements](docs/TECHNICAL_REQUIREMENTS.md) | Architecture, API endpoints, DB schema, security, infrastructure |
