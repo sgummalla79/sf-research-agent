@@ -11,6 +11,8 @@
                         ┌──────────────▼──────────────┐
                         │       FastAPI Backend        │
                         │   /api/chat/* endpoints      │
+                        │   /api/settings/*            │
+                        │   /api/usage/*               │
                         └──────────────┬──────────────┘
                                        │
                         ┌──────────────▼──────────────┐
@@ -28,7 +30,9 @@
                         ┌──────────────▼──────────────┐
                         │   PostgreSQL / SQLite        │
                         │  (LangGraph checkpointer     │
-                        │   + agent_sessions table)    │
+                        │   + agent_sessions           │
+                        │   + app_settings             │
+                        │   + token_usage)             │
                         └─────────────────────────────┘
 ```
 
@@ -52,6 +56,7 @@
 | PostgreSQL driver | psycopg3 | 3.1+ |
 | SQLite driver | aiosqlite | 0.19+ |
 | Retry logic | tenacity | 8.2+ |
+| Encryption | cryptography (Fernet) | 42.0+ |
 | File parsing | pypdf, python-docx | 4.0+ / 1.1+ |
 | Env config | python-dotenv | 1.0+ |
 
@@ -89,6 +94,7 @@ class AgentState(BaseModel):
     review_result:        Optional[ReviewResult]
     approval_result:      Optional[ApprovalResult]
     messages:             Annotated[list[BaseMessage], add_messages]
+    usage_records:        Annotated[list[dict], operator.add]   # appended by each agent
 ```
 
 ### Graph topology
@@ -106,20 +112,6 @@ intake ──► discovery ⟲ (interrupt per question group)
                               │ (APPROVED)
                              END
 ```
-
-### Routing rules
-
-| Edge | Condition | Target |
-|---|---|---|
-| intake → ? | `current_stage == "invalid_input"` | END |
-| intake → ? | otherwise | discovery |
-| discovery → ? | `discovery_complete == True` | researcher |
-| discovery → ? | otherwise | discovery (interrupt loop) |
-| reviewer → ? | `review_result.passed == True` | approver |
-| reviewer → ? | otherwise | researcher |
-| approver → ? | `approval_result.status == "approved"` | END |
-| approver → ? | `revision_count >= MAX_REVISIONS` | END (halted) |
-| approver → ? | otherwise | researcher |
 
 ---
 
@@ -139,7 +131,11 @@ intake ──► discovery ⟲ (interrupt per question group)
 
 ### Parallel execution (Researcher)
 
-Perplexity and Gemini run concurrently via `ThreadPoolExecutor(max_workers=2)`. Claude writing waits for both to complete. No additional latency beyond the slower of the two research calls.
+Perplexity and Gemini run concurrently via `ThreadPoolExecutor(max_workers=2)`. Claude writing waits for both to complete.
+
+### Token usage capture
+
+Every LLM call captures `response.usage_metadata`. Structured-output calls use `include_raw=True` to access token counts alongside the parsed Pydantic result. Usage records are appended to `AgentState.usage_records` and flushed to the `token_usage` table after each graph stream segment.
 
 ---
 
@@ -164,6 +160,20 @@ Perplexity and Gemini run concurrently via `ThreadPoolExecutor(max_workers=2)`. 
 | DELETE | `/api/chat/session/{id}/pin` | Unpin session |
 | PATCH | `/api/chat/session/{id}` | Rename session `{"title": "..."}` |
 | DELETE | `/api/chat/session/{id}` | Delete session + uploaded files |
+
+### Settings
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/settings/keys` | Returns `{anthropic: bool, perplexity: bool, google: bool}` — configured status only, never values |
+| POST | `/api/settings/keys` | Validate keys against provider APIs, then encrypt and store. Returns HTTP 422 with per-key errors if any key is rejected. |
+
+### Usage
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/usage/session/{id}` | Token usage + cost breakdown by model for one session |
+| GET | `/api/usage/summary` | Total usage + breakdown across all sessions |
 
 ### System
 
@@ -196,26 +206,63 @@ Perplexity and Gemini run concurrently via `ThreadPoolExecutor(max_workers=2)`. 
 - `checkpoint_blobs` — content-addressed state values
 - `checkpoint_writes` — in-flight node writes
 
-### Application table
+### Application tables
 
 ```sql
 CREATE TABLE agent_sessions (
     thread_id      TEXT PRIMARY KEY,
-    created_at     TEXT NOT NULL,          -- ISO 8601 UTC
-    brief_snippet  TEXT,                   -- smart title (Haiku-generated)
-    last_modified  TEXT,                   -- updated on every /reply call
-    pinned         INTEGER DEFAULT 0,      -- 0 or 1
-    pinned_at      TEXT                    -- ISO 8601 UTC when pinned
+    created_at     TEXT NOT NULL,
+    brief_snippet  TEXT,
+    last_modified  TEXT,
+    pinned         INTEGER DEFAULT 0,
+    pinned_at      TEXT
+);
+
+CREATE TABLE app_settings (
+    key_name        TEXT PRIMARY KEY,      -- "anthropic" | "perplexity" | "google"
+    encrypted_value TEXT NOT NULL,         -- Fernet-encrypted API key
+    updated_at      TEXT NOT NULL
+);
+
+CREATE TABLE token_usage (
+    thread_id     TEXT NOT NULL,
+    agent         TEXT NOT NULL,           -- "intake" | "discovery" | "researcher" | etc.
+    model         TEXT NOT NULL,           -- "claude-sonnet-4-6" | "sonar-pro" | etc.
+    input_tokens  INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    cost_usd      REAL DEFAULT 0,
+    created_at    TEXT NOT NULL
 );
 ```
 
-**Sorting logic (Python-side):**
-- Pinned sessions: sorted by `pinned_at DESC`
-- Recent sessions: sorted by `last_modified DESC` (falls back to `created_at` if NULL)
+**Usage query pattern:** group by `model` to aggregate across all agents that used the same model.
 
 ---
 
-## 7. File Handling
+## 7. API Key Security
+
+### Storage
+
+- API keys are **never stored in `.env`** and never committed to source control
+- Stored encrypted in `app_settings` table using **Fernet symmetric encryption** (AES-128-CBC + HMAC)
+- Encryption key (`SETTINGS_SECRET`) lives only in `.env` and never reaches the client
+
+### Validation
+
+Before a key is saved, it is validated against its provider's API:
+- **Anthropic** — `anthropic.Anthropic(api_key=key).models.list()`
+- **Perplexity** — `openai.OpenAI(api_key=key, base_url=...).models.list()`
+- **Google** — `google.generativeai.list_models()`
+
+All three validations run in parallel via `ThreadPoolExecutor`. HTTP 422 is returned with per-key error messages if any key is rejected.
+
+### Runtime
+
+An in-memory cache holds decrypted keys after startup. Agents call `get_keys()` synchronously. If any key is missing, a `RuntimeError` with a user-friendly message propagates as an SSE `error` event.
+
+---
+
+## 8. File Handling
 
 ### Upload flow
 
@@ -224,7 +271,6 @@ CREATE TABLE agent_sessions (
 3. Saved to `UPLOAD_DIR/{stem}_{uuid}{ext}`
 4. Documents: text extracted immediately; stored in `AgentState.raw_document_text`
 5. Images: saved to disk; Claude Vision reads from disk during intake
-6. Graph state stores the file path for audit trail
 
 ### Supported formats
 
@@ -233,17 +279,13 @@ CREATE TABLE agent_sessions (
 | Documents | `.pdf`, `.docx`, `.doc`, `.txt`, `.md` |
 | Images | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp` |
 
-### Cleanup
-
-Uploaded files are deleted when their associated session is deleted (manual or TTL expiry).
-
 ---
 
-## 8. Memory & Token Management
+## 9. Memory & Token Management
 
 ### Message windowing (Discovery agent)
 
-Only the last 30 messages from `state.messages` are passed to the Discovery LLM. This prevents unbounded context growth across long discovery sessions.
+Only the last 30 messages from `state.messages` are passed to the Discovery LLM.
 
 ### Selective context per agent
 
@@ -254,43 +296,49 @@ Only the last 30 messages from `state.messages` are passed to the Discovery LLM.
 | Reviewer | None | Uses `state.document_draft` + `state.discovery_questions` |
 | Approver | None | Uses `state.project_brief` + `state.document_draft` + `state.review_result` |
 
-This prevents discovery Q&A noise from polluting the researcher, reviewer, and approver contexts.
-
-### Agent name tagging
-
-Every `AIMessage` added to state includes `name="{agent}"` (e.g. `name="reviewer"`). Used by the restore endpoint to reconstruct stage tags in the frontend.
-
 ---
 
-## 9. Error Resilience
+## 10. Error Resilience
 
 ### LLM retry (all agents)
 
 `invoke_with_retry` wraps every LLM call with tenacity:
 - Retries on: rate limits (429), timeouts, 503, connection errors, "overloaded"
 - Policy: exponential backoff, min 2s, max 32s, up to 5 attempts
-- Non-retryable errors propagate immediately
 
 ### Database backend switching
 
-The checkpointer factory reads `DB_BACKEND` at startup and returns either `AsyncPostgresSaver` or `AsyncSqliteSaver`. No code changes required to switch backends — only `.env` changes needed.
+The checkpointer factory reads `DB_BACKEND` at startup. Switch between SQLite and PostgreSQL via `.env` only — no code changes required.
 
 ---
 
-## 10. Security
+## 11. Security
 
 | Concern | Mitigation |
 |---|---|
-| API keys | Never committed — `backend/.env` is in `.gitignore`; `backend/.env.example` contains no values |
+| API keys | Stored Fernet-encrypted in DB. Never in `.env`, never committed. Never returned to client. |
+| SETTINGS_SECRET | In `.env` only (gitignored). Protects all stored API keys. |
 | CORS | `ALLOWED_ORIGINS` env var; defaults to `*` for dev, must be restricted in prod |
 | File uploads | Extension allowlist + size limit enforced both client and server |
 | Session isolation | Sessions identified by UUID4 `thread_id`; no auth currently (add JWT/API key before production exposure) |
-| Credential storage | All credentials in Named Credentials or environment — never in code |
 | SQL injection | All queries use parameterised statements |
 
 ---
 
-## 11. Performance Targets (10 concurrent sessions)
+## 12. Model Pricing (for cost estimation)
+
+Prices in USD per 1,000,000 tokens. Update `backend/utils/pricing.py` when rates change.
+
+| Model | Input | Output |
+|---|---|---|
+| `claude-sonnet-4-6` | $3.00 | $15.00 |
+| `claude-haiku-4-5-20251001` | $0.80 | $4.00 |
+| `sonar-pro` | $3.00 | $15.00 |
+| `gemini-2.5-pro` | $1.25 | $10.00 |
+
+---
+
+## 13. Performance Targets (10 concurrent sessions)
 
 | Metric | Target |
 |---|---|
@@ -303,27 +351,29 @@ The checkpointer factory reads `DB_BACKEND` at startup and returns either `Async
 | Approver | < 15s |
 | Session list load | < 500ms |
 | Session title generation | < 1s (background, non-blocking) |
+| API key validation (Save Settings) | 2–5s (3 providers in parallel) |
 
 ---
 
-## 12. Observability
+## 14. Observability
 
 - Structured logging via Python `logging` module
-- Startup validation: missing env vars cause immediate `sys.exit(1)` with clear message
+- Startup validation: missing `SETTINGS_SECRET` or `POSTGRES_URI` cause immediate `sys.exit(1)`
 - `/health` endpoint for load balancer probes
 - Session cleanup logs count of expired sessions deleted
-- LangGraph pending deprecation warnings suppressed cleanly
+- LangGraph pending deprecation warnings suppressed
 
 ---
 
-## 13. Future Considerations
+## 15. Future Considerations
 
 | Item | Notes |
 |---|---|
 | Authentication | Add JWT or API key auth to all `/api/` routes before public deployment |
 | Rate limiting | Add `slowapi` to limit `/start` and `/upload` per IP |
-| Switch to Gemini | Replace Perplexity with Gemini 2.5 Pro + Search grounding when Google AI Pro is available; one function change in `backend/agents/researcher.py` |
+| Switch to Gemini Search | Replace Perplexity with Gemini 2.5 Pro + Search grounding when available; one function change in `backend/agents/researcher.py` |
 | RAG integration | Connect Salesforce Help documentation as a vector store for the research step |
 | Salesforce Metadata API | Validate architecture recommendations against real org limits via Tooling API |
 | Export to Word | Add DOCX export alongside PDF and Markdown |
 | Multi-user / teams | Add workspace concept; share sessions between team members |
+| Per-user key isolation | If multi-user is added, scope API keys per user rather than globally |

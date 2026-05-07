@@ -8,6 +8,7 @@ A multi-agent AI system that produces formal Salesforce Architecture Recommendat
 
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
+- [First-Time Setup](#first-time-setup)
 - [Environment Variables](#environment-variables)
 - [Development Setup](#development-setup)
 - [Production Setup](#production-setup)
@@ -22,6 +23,8 @@ The agent conducts a dynamic discovery session, runs parallel research using Per
 
 **Supported input types:** typed brief, uploaded document (PDF, DOCX, TXT, MD), or architecture diagram/image.
 
+**Privacy:** All conversations are stored locally only. API keys are encrypted at rest. Nothing is sent to or persisted by model providers beyond the live API call.
+
 ---
 
 ## Prerequisites
@@ -31,6 +34,23 @@ The agent conducts a dynamic discovery session, runs parallel research using Per
 | Python | 3.11+ |
 | Node.js | 18+ |
 | npm | 9+ |
+
+---
+
+## First-Time Setup
+
+API keys (Anthropic, Perplexity, Google) are **not** stored in `.env`. They are configured through the in-app **Settings UI** (avatar icon → Settings) and stored encrypted in the database.
+
+1. Start the backend and frontend (see [Development Setup](#development-setup))
+2. Open **http://localhost:5173**
+3. Click the **avatar icon** (bottom-left) → **Settings**
+4. Enter your three API keys — they are validated against each provider before being saved
+5. Click **Save Keys** — you are ready to start sessions
+
+You will need:
+- **Anthropic API key** — [console.anthropic.com](https://console.anthropic.com)
+- **Perplexity API key** — [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
+- **Google API key** — [aistudio.google.com](https://aistudio.google.com)
 
 ---
 
@@ -44,9 +64,7 @@ cp backend/.env.example backend/.env
 
 | Variable | Required | Description |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Yes | Claude API key — [console.anthropic.com](https://console.anthropic.com) |
-| `PERPLEXITY_API_KEY` | Yes | Perplexity API key — [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api) |
-| `GOOGLE_API_KEY` | Yes | Gemini API key — [aistudio.google.com](https://aistudio.google.com) |
+| `SETTINGS_SECRET` | **Yes** | Fernet encryption key for API key storage — generate once (see below) |
 | `DB_BACKEND` | Yes | `sqlite` (dev) or `postgres` (prod) |
 | `SQLITE_PATH` | Dev only | Path to SQLite file, default `data/agent.db` |
 | `POSTGRES_URI` | Prod only | Full PostgreSQL connection string |
@@ -61,6 +79,16 @@ cp backend/.env.example backend/.env
 | `MAX_FILE_SIZE_MB` | No | Default: `10` |
 | `MAX_PDF_PAGES` | No | Default: `50` |
 | `ALLOWED_ORIGINS` | No | Default: `*` — tighten in production |
+
+### Generating SETTINGS_SECRET
+
+Run this once and paste the output into your `.env`:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Keep this value secret — it is the key used to encrypt your API keys in the database.
 
 ---
 
@@ -80,12 +108,12 @@ source .venv/bin/activate        # Mac/Linux
 pip install -r requirements.txt
 
 cp .env.example .env
-# Set DB_BACKEND=sqlite and fill in the three API keys
+# Edit .env: set DB_BACKEND=sqlite and generate SETTINGS_SECRET (see above)
 
 uvicorn api.app:app --reload --port 8000
 ```
 
-Verify:
+Verify the backend is healthy:
 
 ```bash
 curl http://localhost:8000/health
@@ -102,7 +130,7 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:5173**
+Open **http://localhost:5173**, then follow [First-Time Setup](#first-time-setup) to add your API keys.
 
 ---
 
@@ -124,6 +152,7 @@ docker run --name sf-agent-db \
 DB_BACKEND=postgres
 POSTGRES_URI=postgresql://agent:agent@localhost:5432/research_agent
 ALLOWED_ORIGINS=https://yourdomain.com
+SETTINGS_SECRET=<your-fernet-key>
 ```
 
 ### 2. Build frontend
@@ -180,19 +209,31 @@ server {
 sf-research-agent/
 ├── backend/                    # Python API + AI agents
 │   ├── agents/                 # LangGraph nodes (intake, discovery, researcher, reviewer, approver)
-│   ├── api/                    # FastAPI app + SSE streaming routes
+│   ├── api/
+│   │   ├── routes/
+│   │   │   ├── chat.py         # SSE streaming endpoints
+│   │   │   ├── settings.py     # API key management (GET/POST /api/settings/keys)
+│   │   │   └── usage.py        # Token usage endpoints (GET /api/usage/*)
+│   │   └── app.py              # FastAPI app, lifespan, CORS
 │   ├── graph/                  # LangGraph StateGraph builder + conditional edges
-│   ├── persistence/            # SQLite / PostgreSQL checkpointer factory
-│   ├── utils/                  # File parser, storage, LLM retry wrapper
-│   ├── state.py                # AgentState schema
+│   ├── persistence/            # SQLite / PostgreSQL checkpointer + session/usage/settings tables
+│   ├── utils/
+│   │   ├── api_keys.py         # Fernet encryption, in-memory key cache
+│   │   ├── key_validator.py    # Live API key validation (Anthropic, Perplexity, Google)
+│   │   ├── pricing.py          # Model pricing constants + cost calculation
+│   │   ├── file_parser.py      # PDF/DOCX/TXT/MD text extraction
+│   │   ├── file_storage.py     # Upload save/delete
+│   │   └── llm_retry.py        # Tenacity retry wrapper for all LLM calls
+│   ├── state.py                # AgentState schema (includes usage_records)
 │   ├── config.py               # Environment variable loading
-│   ├── main.py                 # CLI entry point (dev helper)
 │   ├── requirements.txt        # Python dependencies
 │   └── .env.example            # Environment variable template
 ├── frontend/                   # Vue 3 chat UI
 │   └── src/
-│       ├── components/         # ChatWindow.vue
-│       └── composables/        # useAgentChat.js
+│       ├── components/
+│       │   └── ChatWindow.vue  # Main UI (sidebar, chat pane, doc panel, modals)
+│       └── composables/
+│           └── useAgentChat.js # SSE stream handler, session state, usage fetching
 ├── docs/                       # Design and requirements documents
 └── README.md
 ```
@@ -203,6 +244,6 @@ sf-research-agent/
 
 | Document | Description |
 |---|---|
-| [UI Design](docs/UI_DESIGN.md) | Component layout, sidebar, dark mode, color system |
-| [Functional Requirements](docs/FUNCTIONAL_REQUIREMENTS.md) | Feature spec, user flows, agent pipeline |
-| [Technical Requirements](docs/TECHNICAL_REQUIREMENTS.md) | Architecture, API, DB schema, infrastructure |
+| [UI Design](docs/UI_DESIGN.md) | Layout, shell structure, sidebar, modals, color system |
+| [Functional Requirements](docs/FUNCTIONAL_REQUIREMENTS.md) | Feature spec, user flows, agent pipeline, settings, usage |
+| [Technical Requirements](docs/TECHNICAL_REQUIREMENTS.md) | Architecture, API endpoints, DB schema, security, infrastructure |
