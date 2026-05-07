@@ -818,11 +818,11 @@ function doPDF() {
   height: 28px; padding: 0 20px;
   background: var(--sb-bg);
   border-top: 1px solid rgba(255,255,255,0.06);
-  font-size: 11px; color: #6b7f99; letter-spacing: 0.01em;
+  font-size: 11px; color: #a8bdd4; letter-spacing: 0.01em;
   white-space: nowrap; overflow: hidden;
 }
-.privacy-banner svg { flex-shrink: 0; opacity: 0.5; }
-.privacy-banner strong { font-weight: 600; color: #8a9fba; }
+.privacy-banner svg { flex-shrink: 0; opacity: 0.8; }
+.privacy-banner strong { font-weight: 700; color: #d0e2f4; }
 
 /* ── Shell ───────────────────────────────────────────────────────────────────── */
 
