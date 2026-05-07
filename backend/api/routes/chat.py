@@ -476,7 +476,11 @@ async def retry_chat(session_id: str, request: Request):
     if current_stage in ("complete", "halted", "invalid_input"):
         raise HTTPException(status_code=400, detail="Session is already finished — nothing to retry.")
 
-    if state.next:
+    # Only block if there is an actual human-in-the-loop interrupt pending.
+    # state.next being non-empty is NOT enough — it is also truthy when a node
+    # errored mid-run and LangGraph still has the node queued for re-execution.
+    has_interrupt = any(getattr(t, "interrupts", None) for t in (state.tasks or []))
+    if has_interrupt:
         raise HTTPException(
             status_code=400,
             detail="Session is waiting for your input — answer the pending question instead of retrying.",
