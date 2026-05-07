@@ -1,0 +1,213 @@
+"""
+Stage 1 — Initial Intake Agent
+Model: Claude (reasoning + vision)
+
+Three paths:
+  brief    → pass through as-is; stamp session metadata.
+  document → Claude reads extracted text → extracts project brief →
+             PAUSES for user confirmation before discovery starts.
+  image    → Claude Vision validates + extracts →
+             PAUSES for user confirmation before discovery starts.
+
+The confirmation interrupt ensures the user reads and verifies what was
+understood BEFORE discovery questions appear. They can also type corrections
+which get appended to the project brief.
+"""
+
+import base64
+from datetime import datetime, timezone
+from pathlib import Path
+
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langgraph.types import interrupt
+from pydantic import BaseModel
+
+from config import CLAUDE_MODEL
+from utils.llm_retry import invoke_with_retry
+from state import AgentState
+
+
+# ── Document extraction prompt ────────────────────────────────────────────────
+
+INTAKE_DOCUMENT_PROMPT = """You are a Principal Salesforce Architect reading a client-provided document.
+
+Extract a structured Project Brief covering:
+1. Business objective — what problem is the client trying to solve?
+2. Salesforce clouds / products mentioned or strongly implied.
+3. Key functional requirements (case management, portal, data unification, integrations, etc.).
+4. Known constraints (timeline, budget signals, team size, existing systems, compliance).
+5. Stakeholders or business units mentioned.
+6. Gaps — things you could not determine from the document.
+
+Write in the first person: "Based on this document, the client is looking to..."
+End with a short "Gaps & Open Items" paragraph.
+Do NOT invent requirements — only extract what is genuinely present or strongly implied."""
+
+
+# ── Image validation + extraction prompt ──────────────────────────────────────
+
+INTAKE_IMAGE_SYSTEM_PROMPT = """You are a Principal Salesforce Architect analyzing an uploaded image.
+
+STEP 1 — VALIDATE
+Determine if the image is related to software/system architecture, IT infrastructure,
+process flows, data models, integration design, or any technical architectural topic.
+
+Architecture-related images include:
+- System / solution architecture diagrams
+- Data flow or data pipeline diagrams
+- Network or infrastructure diagrams
+- UML diagrams (class, sequence, component, deployment)
+- Entity Relationship Diagrams (ERDs)
+- Cloud architecture diagrams (Salesforce, AWS, Azure, GCP)
+- Whiteboard or napkin sketches of system design
+- Process flow / BPMN diagrams
+- Integration architecture diagrams
+- Salesforce org structure, flow, or configuration sketches
+- Handwritten architecture notes or diagrams
+
+NOT architecture-related: personal photos, unrelated screenshots, memes, nature photos,
+presentation slides with no architecture content, or logos.
+
+STEP 2 — EXTRACT (only if architecture-related)
+Extract a structured Project Brief covering:
+- What systems / components are shown
+- The likely business problem being addressed
+- Salesforce clouds or products visible or implied
+- Integration points, data flows, or processes depicted
+- Any constraints or requirements visible
+- Gaps — things unclear or cut off in the image
+
+Write the brief in the first person: "This diagram shows..."
+End with a "Gaps & Open Items" paragraph."""
+
+
+class ImageAnalysisResult(BaseModel):
+    is_architecture_related: bool
+    extracted_brief: str
+    rejection_reason: str
+
+
+_MEDIA_TYPES = {
+    ".jpg":  "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png":  "image/png",
+    ".gif":  "image/gif",
+    ".webp": "image/webp",
+}
+
+
+def _analyze_image(image_path: str) -> ImageAnalysisResult:
+    suffix     = Path(image_path).suffix.lower()
+    media_type = _MEDIA_TYPES.get(suffix, "image/jpeg")
+
+    with open(image_path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode("utf-8")
+
+    llm = ChatAnthropic(model=CLAUDE_MODEL).with_structured_output(ImageAnalysisResult)
+
+    return invoke_with_retry(llm, [
+        SystemMessage(content=INTAKE_IMAGE_SYSTEM_PROMPT),
+        HumanMessage(content=[
+            {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64}"}},
+            {"type": "text",      "text": "Analyse this image and return your structured assessment."},
+        ]),
+    ])
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _extract_correction(raw) -> str:
+    """
+    interrupt() resumes with whatever was passed to Command(resume=...).
+    ReplyRequest sends answers: list[str], so raw arrives as a list.
+    Extract the first element and normalise to a plain string.
+    """
+    if isinstance(raw, list):
+        raw = raw[0] if raw else ""
+    return (raw or "").strip()
+
+
+# ── Node function ─────────────────────────────────────────────────────────────
+
+def run_intake(state: AgentState) -> dict:
+    base = {
+        "current_stage": "intake",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # ── Image path ────────────────────────────────────────────────────────────
+    if state.source_type == "image" and state.uploaded_image_path:
+        result = _analyze_image(state.uploaded_image_path)
+
+        if not result.is_architecture_related:
+            return {
+                **base,
+                "current_stage": "invalid_input",
+                "messages": [
+                    HumanMessage(content="[Image uploaded]"),
+                    AIMessage(name="intake", content=(
+                        f"I'm unable to use this image as the basis for an architecture session.\n\n"
+                        f"**Reason:** {result.rejection_reason}\n\n"
+                        "Please upload an architecture diagram, system design sketch, "
+                        "whiteboard photo, UML diagram, or similar technical drawing."
+                    )),
+                ],
+            }
+
+        extracted_brief = result.extracted_brief
+        # Pause — let user read and verify the extraction before discovery starts
+        correction = _extract_correction(interrupt({
+            "__type":  "confirm_understanding",
+            "content": extracted_brief,
+        }))
+
+        if correction:
+            extracted_brief += f"\n\n**User correction:** {correction}"
+
+        return {
+            **base,
+            "project_brief": extracted_brief,
+            "messages": [
+                HumanMessage(content="[Architecture image uploaded]"),
+                AIMessage(name="intake", content=extracted_brief),
+            ],
+        }
+
+    # ── Document path ─────────────────────────────────────────────────────────
+    if state.source_type == "document" and state.raw_document_text:
+        llm      = ChatAnthropic(model=CLAUDE_MODEL)
+        response = invoke_with_retry(llm, [
+            SystemMessage(content=INTAKE_DOCUMENT_PROMPT),
+            HumanMessage(content=(
+                f"Extract a structured Project Brief from this document.\n\n"
+                f"---\n{state.raw_document_text}\n---"
+            )),
+        ])
+
+        extracted_brief = response.content
+        # Pause — let user read and verify the extraction before discovery starts
+        correction = _extract_correction(interrupt({
+            "__type":  "confirm_understanding",
+            "content": extracted_brief,
+        }))
+
+        if correction:
+            extracted_brief += f"\n\n**User correction:** {correction}"
+
+        return {
+            **base,
+            "project_brief": extracted_brief,
+            "messages": [
+                HumanMessage(content="[Document uploaded]"),
+                AIMessage(name="intake", content=extracted_brief),
+            ],
+        }
+
+    # ── Plain text brief — no confirmation needed, user wrote it themselves ───
+    return {
+        **base,
+        "messages": [
+            HumanMessage(content=f"Project brief:\n\n{state.project_brief}")
+        ],
+    }
