@@ -96,40 +96,77 @@ Keep this value secret — it is the key used to encrypt your API keys in the da
 
 Uses **SQLite** — no Docker or database server required.
 
-### 1. Backend (one-time)
+### Step 1 — Install pnpm (if not already installed)
 
+pnpm is used to run both servers with one command. Install it once:
+
+**Mac / Linux**
+```bash
+npm install -g pnpm
+# or via Homebrew:  brew install pnpm
+```
+
+**Windows (PowerShell)**
+```powershell
+npm install -g pnpm
+# or via winget:  winget install pnpm.pnpm
+```
+
+Verify: `pnpm --version`
+
+---
+
+### Step 2 — Set up the Python backend (one-time)
+
+**Mac / Linux**
 ```bash
 cd backend
-
 python -m venv .venv
-source .venv/bin/activate        # Mac/Linux
-# .venv\Scripts\activate         # Windows
-
+source .venv/bin/activate
 pip install -r requirements.txt
-
 cp .env.example .env
 # Edit .env: set DB_BACKEND=sqlite and generate SETTINGS_SECRET (see above)
 ```
 
-### 2. Start everything with one command
-
-From the **project root**:
-
-```bash
-pnpm install   # first time only — installs concurrently
-pnpm dev       # starts backend + frontend together
+**Windows (Command Prompt or PowerShell)**
+```cmd
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+rem Edit .env: set DB_BACKEND=sqlite and generate SETTINGS_SECRET (see above)
 ```
 
-Or with npm:
+---
 
+### Step 3 — Start both servers with one command
+
+Go back to the **project root** and run:
+
+**Mac / Linux**
 ```bash
-npm install
-npm run dev
+pnpm install   # first time only
+pnpm dev
 ```
 
-Both processes run in parallel with colour-coded output (`blue = backend`, `green = frontend`). Either process crashing stops both.
+**Windows**
+```cmd
+pnpm install
+pnpm dev:win
+```
 
-Open **http://localhost:5173**, then follow [First-Time Setup](#first-time-setup) to add your API keys.
+Both processes start in parallel with colour-coded output:
+- `blue  = backend` (FastAPI on port 8000)
+- `green = frontend` (Vite on port 5173)
+
+If either process crashes, the other stops automatically.
+
+---
+
+### Step 4 — Open the app
+
+Open **http://localhost:5173**, then follow [First-Time Setup](#first-time-setup) to configure your API keys.
 
 ### Verify backend is healthy
 
@@ -137,6 +174,10 @@ Open **http://localhost:5173**, then follow [First-Time Setup](#first-time-setup
 curl http://localhost:8000/health
 # {"status":"ok","graph":"ready"}
 ```
+
+> **Without pnpm?** You can still run the two processes manually in separate terminals:
+> - Terminal 1: `cd backend && .venv/bin/uvicorn api.app:app --reload --port 8000` (Mac/Linux) or `.venv\Scripts\uvicorn ...` (Windows)
+> - Terminal 2: `cd frontend && npm run dev`
 
 ---
 
