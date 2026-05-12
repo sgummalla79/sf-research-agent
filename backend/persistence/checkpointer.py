@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from config import DB_BACKEND, DB_POOL_SIZE, POSTGRES_URI, SESSION_TTL_DAYS, SQLITE_PATH
+from config import DATABASE_URL, DB_BACKEND, DB_POOL_SIZE, POSTGRES_URI, SESSION_TTL_DAYS, SQLITE_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,14 @@ CREATE TABLE IF NOT EXISTS token_usage (
     output_tokens INTEGER DEFAULT 0,
     cost_usd      REAL    DEFAULT 0,
     created_at    TEXT NOT NULL
+);
+"""
+
+_CREATE_CONFIG_TABLE = """
+CREATE TABLE IF NOT EXISTS app_config (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 """
 
@@ -271,6 +279,46 @@ class DBContext:
         rows = await self._fetchall("SELECT key_name, encrypted_value FROM app_settings")
         return {r[0]: r[1] for r in rows}
 
+    async def delete_provider(self, provider_id: str) -> None:
+        """Remove a provider's API key and cached model list."""
+        sql_key = (
+            "DELETE FROM app_settings WHERE key_name = ?"
+            if self._backend == "sqlite" else
+            "DELETE FROM app_settings WHERE key_name = %s"
+        )
+        sql_cfg = (
+            "DELETE FROM app_config WHERE key = ?"
+            if self._backend == "sqlite" else
+            "DELETE FROM app_config WHERE key = %s"
+        )
+        await self._exec(sql_key, (provider_id,))
+        await self._exec(sql_cfg, (f"models_{provider_id}",))
+
+    async def save_config(self, key: str, value: str) -> None:
+        """Persist a plain-text config value (not encrypted)."""
+        now = datetime.now(timezone.utc).isoformat()
+        if self._backend == "sqlite":
+            await self._exec(
+                "INSERT OR REPLACE INTO app_config (key, value, updated_at) VALUES (?, ?, ?)",
+                (key, value, now),
+            )
+        else:
+            await self._exec(
+                "INSERT INTO app_config (key, value, updated_at) VALUES (%s, %s, %s)"
+                " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at",
+                (key, value, now),
+            )
+
+    async def get_config(self, key: str) -> str | None:
+        """Return a stored config value, or None if not set."""
+        sql = (
+            "SELECT value FROM app_config WHERE key = ?"
+            if self._backend == "sqlite" else
+            "SELECT value FROM app_config WHERE key = %s"
+        )
+        row = await self._fetchone(sql, (key,))
+        return row[0] if row else None
+
     async def delete_expired_sessions(self) -> int:
         cutoff  = (datetime.now(timezone.utc) - timedelta(days=SESSION_TTL_DAYS)).isoformat()
         rows    = await self._fetchall(self._q("expired"), (cutoff,))
@@ -334,6 +382,7 @@ async def _sqlite_backend():
         await conn.execute(_CREATE_SESSIONS_TABLE)
         await conn.execute(_CREATE_SETTINGS_TABLE)
         await conn.execute(_CREATE_USAGE_TABLE)
+        await conn.execute(_CREATE_CONFIG_TABLE)
         await conn.commit()
         await _migrate(conn, "sqlite")
 
@@ -352,21 +401,26 @@ async def _sqlite_backend():
 # ── PostgreSQL backend ────────────────────────────────────────────────────────
 
 @asynccontextmanager
-async def _postgres_backend():
+async def _postgres_backend(url: str):
     from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
     from psycopg_pool import AsyncConnectionPool
 
-    if not POSTGRES_URI:
-        raise ValueError("POSTGRES_URI is required when DB_BACKEND=postgres.")
-
+    # min_size=1 avoids holding idle connections on serverless DBs (Neon, Supabase).
+    # max_size is tunable via DB_POOL_SIZE.
     async with AsyncConnectionPool(
-        POSTGRES_URI, min_size=5, max_size=DB_POOL_SIZE, kwargs={"autocommit": True},
+        url,
+        min_size=1,
+        max_size=DB_POOL_SIZE,
+        kwargs={"autocommit": True},
+        open=False,
     ) as pool:
+        await pool.open(wait=True)
         async with pool.connection() as conn:
             pg_ddl = _CREATE_SESSIONS_TABLE.replace("?", "%s")
             await conn.execute(pg_ddl)
             await conn.execute(_CREATE_SETTINGS_TABLE)
             await conn.execute(_CREATE_USAGE_TABLE)
+            await conn.execute(_CREATE_CONFIG_TABLE)
             await conn.commit()
             await _migrate(conn, "postgres")
 
@@ -375,7 +429,9 @@ async def _postgres_backend():
 
         ctx = DBContext(checkpointer=checkpointer, _backend="postgres", _conn_or_pool=pool)
         cleanup_task = asyncio.create_task(_cleanup_loop(ctx))
-        logger.info("DB backend: PostgreSQL at %s", POSTGRES_URI.split("@")[-1])
+        # Log host only — never log credentials
+        host = url.split("@")[-1].split("/")[0] if "@" in url else url
+        logger.info("DB backend: PostgreSQL at %s", host)
         try:
             yield ctx
         finally:
@@ -397,9 +453,14 @@ async def _cleanup_loop(ctx: DBContext) -> None:
 
 @asynccontextmanager
 async def get_async_checkpointer():
-    if DB_BACKEND == "sqlite":
-        async with _sqlite_backend() as ctx:
+    """
+    Select the DB backend automatically from DATABASE_URL:
+      postgresql:// or postgres://  →  PostgreSQL (Neon, Supabase, local, …)
+      (empty / unset)               →  SQLite
+    """
+    if DB_BACKEND == "postgres":
+        async with _postgres_backend(DATABASE_URL) as ctx:
             yield ctx
     else:
-        async with _postgres_backend() as ctx:
+        async with _sqlite_backend() as ctx:
             yield ctx

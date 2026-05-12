@@ -1,17 +1,14 @@
 """
 Stage 4 — Peer Validation Agent
-Model: Claude (reasoning)
 
 One-way review: reads the document, returns a structured verdict.
 Never "chats" with the researcher — verdict is passed via state only.
 """
 
-from langchain_anthropic import ChatAnthropic
 from utils.llm_retry import invoke_with_retry
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from config import CLAUDE_MODEL
-from utils.api_keys import get_keys
+from utils.llm_factory import get_llm_for_slot, slot_model
 from utils.pricing import usage_record
 from state import AgentState, ReviewResult
 
@@ -93,7 +90,7 @@ VERDICT RULES:
 
 
 def run_reviewer(state: AgentState) -> dict:
-    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(ReviewResult, include_raw=True)
+    llm = get_llm_for_slot("reviewer", state.session_agent_config).with_structured_output(ReviewResult, include_raw=True)
 
     scope_note = ""
     if state.discovery_questions:
@@ -124,7 +121,7 @@ Return your structured verdict with:
         HumanMessage(content=prompt),
     ])
     result: ReviewResult = raw["parsed"]
-    urec   = usage_record("reviewer", CLAUDE_MODEL, getattr(raw.get("raw"), "usage_metadata", None))
+    urec   = usage_record("reviewer", slot_model("reviewer", state.session_agent_config), getattr(raw.get("raw"), "usage_metadata", None))
 
     status = "PASSED" if result.passed else "FAILED"
     return {

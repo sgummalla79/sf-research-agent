@@ -1,5 +1,11 @@
 <template>
   <div class="shell" :class="{ dark: isDark }">
+
+  <!-- ══════════════════ SETTINGS PAGE (full-page overlay) ══════════════════ -->
+  <SettingsPage v-if="appView === 'settings'" @back="appView = 'chat'" />
+
+  <!-- ══════════════════ MAIN CHAT SHELL ══════════════════ -->
+  <div v-else class="shell-chat">
   <!-- ══════════════════ PRIVACY BANNER ══════════════════ -->
   <div class="shell-body">
 
@@ -326,10 +332,24 @@
       <div class="doc-panel-header">
         <span class="doc-panel-title">📄 Architecture Document v{{ documentPanel.version }}</span>
         <div class="doc-panel-actions">
+          <button class="ol-btn" title="Models used" @click="sessionModelsOpen = !sessionModelsOpen">⚙ Models</button>
           <button class="ol-btn" @click="downloadMD">⬇ Markdown</button>
           <button class="ol-btn accent" @click="doPDF">⬇ PDF</button>
           <button class="ol-btn close" @click="closeDocumentPanel">✕</button>
         </div>
+      </div>
+      <!-- Session model lock info -->
+      <div v-if="sessionModelsOpen && sessionId" class="session-models-bar">
+        <div v-if="!sessionModelConfig" class="sm-loading">Loading model config…</div>
+        <template v-else>
+          <div class="sm-heading">Models locked for this session (read-only)</div>
+          <div class="sm-rows">
+            <div v-for="(cfg, slot) in sessionModelConfig" :key="slot" class="sm-row">
+              <span class="sm-slot">{{ slotLabels[slot] || slot }}</span>
+              <span class="sm-value">{{ cfg.provider }} / {{ cfg.model }}</span>
+            </div>
+          </div>
+        </template>
       </div>
       <div class="doc-panel-body">
         <div v-if="documentPanel.loading" class="doc-loading"><span class="spin large" /> Loading…</div>
@@ -519,13 +539,16 @@
       </div>
     </transition>
 
-  </div>
+  </div><!-- /shell-chat -->
+
+  </div><!-- /shell -->
 </template>
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
 import { marked } from 'marked'
 import { useAgentChat } from '../composables/useAgentChat.js'
+import SettingsPage from './SettingsPage.vue'
 
 const {
   sessionId, messages, currentStage, pendingQuestions, pendingConfirmation,
@@ -536,6 +559,9 @@ const {
   startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
   openDocumentPanel, closeDocumentPanel, downloadMD,
 } = useAgentChat()
+
+// App-level view
+const appView      = ref('chat')   // 'chat' | 'settings'
 
 // View state
 const currentView  = ref('chat')   // 'chat' | 'chats'
@@ -584,6 +610,16 @@ async function saveRename(threadId) {
 const isDark          = ref(true)
 const userMenuOpen    = ref(false)
 const settingsOpen    = ref(false)
+const sessionModelsOpen  = ref(false)
+const sessionModelConfig = ref(null)
+const slotLabels = {
+  discovery:            'Discovery',
+  researcher_search:    'Research: Web Search',
+  researcher_reasoning: 'Research: Architecture',
+  researcher_writer:    'Research: Writer',
+  reviewer:             'Review',
+  approver:             'Approver',
+}
 const usageOpen       = ref(false)
 const globalUsage     = reactive({ totals: { input_tokens: 0, output_tokens: 0, cost_usd: 0 }, breakdown: [], session_count: 0, loading: false })
 const settingsKeys    = reactive({ anthropic: '', perplexity: '', google: '' })
@@ -649,15 +685,8 @@ async function openUsage() {
 }
 
 function openSettings() {
-  settingsKeys.anthropic  = ''
-  settingsKeys.perplexity = ''
-  settingsKeys.google     = ''
-  settingsSaveMsg.value   = null
-  settingsKeyErrors.anthropic  = ''
-  settingsKeyErrors.perplexity = ''
-  settingsKeyErrors.google     = ''
-  settingsOpen.value      = true
-  fetchKeyStatus()
+  userMenuOpen.value = false
+  appView.value = 'settings'
 }
 
 async function saveSettings() {
@@ -707,6 +736,20 @@ onMounted(() => {
   document.addEventListener('click', () => { userMenuOpen.value = false })
 })
 watch(pendingQuestions, qs => { replyAnswers.value = qs.map(() => '') })
+
+// Fetch the session's locked model config whenever the session changes
+watch(() => sessionId.value, async (id) => {
+  sessionModelConfig.value = null
+  sessionModelsOpen.value  = false
+  if (!id) return
+  try {
+    const res = await fetch(`/api/chat/session-config/${id}`)
+    if (res.ok) {
+      const data = await res.json()
+      sessionModelConfig.value = data.config || null
+    }
+  } catch (_) {}
+})
 watch(messages, async () => {
   await nextTick()
   if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight
@@ -809,6 +852,7 @@ function doPDF() {
   --sb-tx:    #c8d4e6;
   --sb-muted: #6b7f99;
   --c-intake:#3b82f6;--c-discovery:#6366f1;--c-researcher:#8b5cf6;--c-reviewer:#f59e0b;--c-approver:#10b981;
+  --inp: #f8fafc; --hover: #f1f5f9; --active-nav: #eff6ff; --sidebar: #f8fafc;
 }
 .shell.dark {
   --bg:#0f172a;--surf:#1e293b;--surf2:#0f172a;--bdr:#334155;
@@ -818,6 +862,7 @@ function doPDF() {
   --hbg:#020617;--hfg:#f1f5f9;--cbg:#0f172a;--ibdr:#475569;--ifocus:#3b82f6;
   --pass-bg:#052e16;--pass-bdr:#166534;--pass-tx:#86efac;
   --fail-bg:#1f0000;--fail-bdr:#991b1b;--fail-tx:#fca5a5;
+  --inp:#0f172a;--hover:#1e293b;--active-nav:#172554;--sidebar:#0f172a;
 }
 
 /* ── Privacy banner ──────────────────────────────────────────────────────────── */
@@ -843,6 +888,10 @@ function doPDF() {
   font-family: system-ui, -apple-system, sans-serif;
   color: var(--tx);
 }
+/* SettingsPage fills the full shell when open — deep selector needed because sp-root is scoped */
+.shell :deep(.sp-root) { flex: 1; min-height: 0; }
+/* Transparent wrapper — children stay direct flex items of .shell */
+.shell-chat { display: contents; }
 .shell-body {
   display: flex; flex-direction: row;
   flex: 1; min-height: 0;
@@ -1352,6 +1401,13 @@ function doPDF() {
 .doc-panel-header { display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 18px;background:var(--hbg);color:var(--hfg);flex-shrink:0 }
 .doc-panel-title  { font-size:13px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
 .doc-panel-actions { display:flex;gap:8px;flex-shrink:0 }
+.session-models-bar { background:var(--surf);border-bottom:1px solid var(--bdr);padding:12px 18px;display:flex;flex-direction:column;gap:8px;flex-shrink:0 }
+.sm-loading { font-size:12px;color:var(--muted); }
+.sm-heading { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted); }
+.sm-rows { display:flex;flex-direction:column;gap:4px; }
+.sm-row { display:flex;gap:10px;align-items:center;font-size:12px; }
+.sm-slot { color:var(--muted);min-width:140px;flex-shrink:0; }
+.sm-value { font-family:monospace;color:var(--tx); }
 .ol-btn { padding:5px 12px;border:1px solid rgba(255,255,255,.2);border-radius:7px;background:rgba(255,255,255,.1);color:var(--hfg);font-size:12px;font-weight:500;cursor:pointer;transition:background .15s;white-space:nowrap }
 .ol-btn:hover  { background:rgba(255,255,255,.2) }
 .ol-btn.accent { background:var(--pri);border-color:var(--pri) }

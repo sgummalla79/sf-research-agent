@@ -27,6 +27,7 @@ from pydantic import BaseModel
 from api.schemas import ReplyRequest, StartRequest
 from config import MAX_FILE_SIZE_MB
 from state import AgentState
+from utils.agent_config import get_agent_config
 from utils.file_parser import extract_text, SUPPORTED_EXTENSIONS
 from utils.file_storage import save_upload
 
@@ -54,9 +55,9 @@ async def _generate_title(text: str) -> str:
     """
     import anthropic
     from config import CLAUDE_HAIKU_MODEL
-    from utils.api_keys import get_keys
+    from utils.api_keys import get_key
 
-    client = anthropic.AsyncAnthropic(api_key=get_keys()["anthropic"])
+    client = anthropic.AsyncAnthropic(api_key=get_key("anthropic"))
     resp   = await client.messages.create(
         model=CLAUDE_HAIKU_MODEL,
         max_tokens=25,
@@ -244,9 +245,13 @@ async def start_chat(body: StartRequest, request: Request):
     await db.record_session(session_id, body.brief[:80].replace('\n', ' '))
     asyncio.create_task(_save_title(db, session_id, body.brief))
 
+    agent_cfg = get_agent_config()
+    await db.save_config(f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
+
     initial_state = AgentState(
         session_id=session_id,
         project_brief=body.brief,
+        session_agent_config=agent_cfg,
     )
 
     return StreamingResponse(
@@ -317,12 +322,16 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
     await db.record_session(session_id, f"{'🖼' if is_image else '📄'} {file.filename}"[:80])
     asyncio.create_task(_save_title(db, session_id, title_source))
 
+    agent_cfg = get_agent_config()
+    await db.save_config(f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
+
     initial_state = AgentState(
         session_id=session_id,
         source_type="image" if is_image else "document",
         uploaded_file_path="" if is_image else saved_path,
         uploaded_image_path=saved_path if is_image else "",
         raw_document_text=raw_text,
+        session_agent_config=agent_cfg,
     )
 
     return StreamingResponse(
@@ -334,6 +343,20 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
             "X-Session-Id": session_id,
         },
     )
+
+
+@router.get("/session-config/{session_id}")
+async def get_session_config(session_id: str, request: Request) -> dict:
+    """Return the LLM config that was locked when this session started (read-only)."""
+    import json
+    db  = request.app.state.db
+    raw = await db.get_config(f"session_agent_config_{session_id}")
+    if not raw:
+        return {"config": {}}
+    try:
+        return {"config": json.loads(raw)}
+    except Exception:
+        return {"config": {}}
 
 
 @router.get("/document/{session_id}")

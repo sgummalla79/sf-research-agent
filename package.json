@@ -2,12 +2,12 @@
   "name": "sf-research-agent",
   "private": true,
   "scripts": {
-    "dev":         "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"npm run dev:backend\"     \"npm run dev:frontend\"",
-    "dev:win":     "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"npm run dev:backend:win\" \"npm run dev:frontend\"",
-    "dev:backend":     "cd backend && .venv/bin/uvicorn api.app:app --reload --port 8000",
-    "dev:backend:win": "cd backend && .venv\\Scripts\\uvicorn api.app:app --reload --port 8000",
-    "dev:frontend":    "cd frontend && npm run dev",
-    "build":           "cd frontend && npm run build"
+    "dev:mac":     "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"pnpm run dev:backend:mac\" \"pnpm run dev:frontend\"",
+    "dev:win":     "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"pnpm run dev:backend:win\" \"pnpm run dev:frontend\"",
+    "dev:backend:mac": "cd backend && ([ -d .venv ] || python3 -m venv .venv) && .venv/bin/pip install -r requirements.txt -q --disable-pip-version-check && (lsof -ti:8000 | xargs kill -9 2>/dev/null; true) && .venv/bin/uvicorn api.app:app --reload --port 8000",
+    "dev:backend:win": "cd backend && if not exist .venv python -m venv .venv && .venv\\Scripts\\pip install -r requirements.txt -q --disable-pip-version-check && .venv\\Scripts\\uvicorn api.app:app --reload --port 8000",
+    "dev:frontend":    "cd frontend && pnpm install --silent && pnpm run dev",
+    "build":           "cd frontend && pnpm run build"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

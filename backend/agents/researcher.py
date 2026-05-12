@@ -2,32 +2,26 @@
 Stage 3 — Deep Research & Drafting Agent
 Three-step approach with parallel research:
 
-  Step 1a — Perplexity Sonar Pro  (runs in parallel)
+  Step 1a — researcher_search slot (default: Perplexity Sonar Pro, runs in parallel)
     Real-time web search: current governor limits, Spring/Summer release notes,
     known issues, and citations from Salesforce Help + Trailhead.
-    Answers: "What are the CURRENT values and recent changes?"
 
-  Step 1b — Gemini 2.5 Pro  (runs in parallel with Step 1a)
-    Deep architectural reasoning with Google Search grounding and 1M token context.
-    Answers: "What are the BEST PATTERNS and architectural approaches?"
+  Step 1b — researcher_reasoning slot (default: Gemini 2.5 Pro, runs in parallel)
+    Deep architectural reasoning with 1M token context.
 
   Steps 1a + 1b run concurrently — no extra latency cost.
 
-  Step 2 — Claude Sonnet
+  Step 2 — researcher_writer slot (default: Claude Sonnet)
     Receives both research outputs as combined context.
     Writes (or revises) the full 8-section Architecture Recommendation Document.
 """
 
 from concurrent.futures import ThreadPoolExecutor
 
-from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_openai import ChatOpenAI
 from utils.llm_retry import invoke_with_retry
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from config import CLAUDE_MODEL, GEMINI_MODEL, PERPLEXITY_API_BASE, PERPLEXITY_MODEL
-from utils.api_keys import get_keys
+from utils.llm_factory import get_llm_for_slot, slot_model
 from utils.pricing import usage_record
 from state import AgentState
 
@@ -86,7 +80,7 @@ Focus exclusively on CURRENT, VERIFIABLE facts:
 Do not give architectural opinions — only verifiable, cited facts."""
 
 
-def _gather_perplexity(state: AgentState, scope: dict) -> str:
+def _gather_perplexity(state: AgentState, scope: dict) -> tuple:
     # Base topics always included when Salesforce is involved
     topics = []
 
@@ -154,21 +148,14 @@ For each topic: current value/status, relevant limits, any recent changes, sourc
 ## Topics to research
 {topic_list}"""
 
-    keys = get_keys()
-    llm = ChatOpenAI(
-        model=PERPLEXITY_MODEL,
-        api_key=keys["perplexity"],
-        base_url=PERPLEXITY_API_BASE,
-    )
-
+    llm = get_llm_for_slot("researcher_search", state.session_agent_config)
     response = invoke_with_retry(llm, [
         SystemMessage(content=PERPLEXITY_SYSTEM_PROMPT),
         HumanMessage(content=prompt),
     ])
-
     return (
-        f"## PERPLEXITY RESEARCH — Current Facts & Citations\n\n{response.content}",
-        usage_record("researcher", PERPLEXITY_MODEL, getattr(response, "usage_metadata", None)),
+        f"## SEARCH RESEARCH — Current Facts & Citations\n\n{response.content}",
+        usage_record("researcher", slot_model("researcher_search", state.session_agent_config), getattr(response, "usage_metadata", None)),
     )
 
 
@@ -189,7 +176,7 @@ Do not focus on specific limit values — those will come from a separate resear
 Focus on HOW to design the system, not WHAT the current numbers are."""
 
 
-def _gather_gemini(state: AgentState, scope: dict) -> str:
+def _gather_gemini(state: AgentState, scope: dict) -> tuple:
     topics = [
         "Salesforce Well-Architected Framework 2026 — how to apply Trust, Adaptability, Customer Success, and Efficiency pillars to a multi-cloud implementation",
         "Salesforce integration architecture patterns — when to use REST API vs Bulk API 2.0 vs Platform Events vs CDC vs Composite API",
@@ -230,20 +217,14 @@ Brief: {state.project_brief}
 ## Architectural topics
 {topic_list}"""
 
-    keys = get_keys()
-    llm = ChatGoogleGenerativeAI(
-        model=GEMINI_MODEL,
-        google_api_key=keys["google"],
-    )
-
+    llm = get_llm_for_slot("researcher_reasoning", state.session_agent_config)
     response = invoke_with_retry(llm, [
         SystemMessage(content=GEMINI_SYSTEM_PROMPT),
         HumanMessage(content=prompt),
     ])
-
     return (
-        f"## GEMINI RESEARCH — Architectural Patterns & Design Guidance\n\n{response.content}",
-        usage_record("researcher", GEMINI_MODEL, getattr(response, "usage_metadata", None)),
+        f"## ARCHITECTURE RESEARCH — Patterns & Design Guidance\n\n{response.content}",
+        usage_record("researcher", slot_model("researcher_reasoning", state.session_agent_config), getattr(response, "usage_metadata", None)),
     )
 
 
@@ -336,8 +317,7 @@ def _write_document(
     perplexity_research: str,
     gemini_research: str,
 ) -> str:
-    keys = get_keys()
-    llm  = ChatAnthropic(model=CLAUDE_MODEL, api_key=keys["anthropic"])
+    llm = get_llm_for_slot("researcher_writer", state.session_agent_config)
 
     discovery = _discovery_summary(state)
 
@@ -410,7 +390,7 @@ Instructions:
         HumanMessage(content=user_prompt),
     ])
 
-    return response.content, usage_record("researcher", CLAUDE_MODEL, getattr(response, "usage_metadata", None))
+    return response.content, usage_record("researcher", slot_model("researcher_writer", state.session_agent_config), getattr(response, "usage_metadata", None))
 
 
 # ── Node function ─────────────────────────────────────────────────────────────

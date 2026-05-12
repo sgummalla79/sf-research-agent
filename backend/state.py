@@ -72,5 +72,10 @@ class AgentState(BaseModel):
     # ── Token usage (append-only — each agent appends its records) ────────────
     usage_records: Annotated[list[dict], operator.add] = Field(default_factory=list)
 
+    # ── LLM config snapshot — frozen at session start, never mutated ─────────
+    # Keys are agent slot names; values are {provider, model} dicts.
+    # Agents read from here so changing global config never affects running sessions.
+    session_agent_config: dict = Field(default_factory=dict)
+
     class Config:
         arbitrary_types_allowed = True
