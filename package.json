@@ -2,12 +2,20 @@
   "name": "sf-research-agent",
   "private": true,
   "scripts": {
-    "dev":         "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"npm run dev:backend\"     \"npm run dev:frontend\"",
-    "dev:win":     "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"npm run dev:backend:win\" \"npm run dev:frontend\"",
-    "dev:backend":     "cd backend && .venv/bin/uvicorn api.app:app --reload --port 8000",
-    "dev:backend:win": "cd backend && .venv\\Scripts\\uvicorn api.app:app --reload --port 8000",
-    "dev:frontend":    "cd frontend && npm run dev",
-    "build":           "cd frontend && npm run build"
+    "dev:mac":           "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"npm run dev:backend:mac\" \"npm run dev:frontend:mac\"",
+    "dev:win":           "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"npm run dev:backend:win\" \"npm run dev:frontend:win\"",
+    "dev:backend:mac":   "cd backend && .venv/bin/uvicorn api.app:app --reload --port 8000",
+    "dev:backend:win":   "cd backend && .venv\\Scripts\\uvicorn api.app:app --reload --port 8000",
+    "dev:frontend:mac":  "cd frontend && npm run dev",
+    "dev:frontend:win":  "cd frontend && npm run dev",
+    "build:mac":         "cd frontend && npm run build",
+    "build:win":         "cd frontend && npm run build",
+    "stop:mac":          "npm run stop:backend:mac && npm run stop:frontend:mac",
+    "stop:win":          "npm run stop:backend:win && npm run stop:frontend:win",
+    "stop:backend:mac":  "lsof -ti:8000 | xargs kill -9 2>/dev/null || true",
+    "stop:backend:win":  "powershell -Command \"Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
+    "stop:frontend:mac": "lsof -ti:5173 | xargs kill -9 2>/dev/null || true",
+    "stop:frontend:win": "powershell -Command \"Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
