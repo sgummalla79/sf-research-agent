@@ -19,7 +19,7 @@ import json
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, Request, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse
 from langgraph.types import Command
 
@@ -28,6 +28,7 @@ from api.schemas import ReplyRequest, StartRequest
 from config import MAX_FILE_SIZE_MB
 from state import AgentState
 from utils.agent_config import get_agent_config
+from utils.auth import get_user_id
 from utils.file_parser import extract_text, SUPPORTED_EXTENSIONS
 from utils.file_storage import save_upload
 
@@ -235,14 +236,13 @@ async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, N
 
 
 @router.post("/start")
-async def start_chat(body: StartRequest, request: Request):
+async def start_chat(body: StartRequest, request: Request, user_id: str = Depends(get_user_id)):
     graph      = request.app.state.graph
     db         = request.app.state.db
     session_id = str(uuid.uuid4())
     config     = {"configurable": {"thread_id": session_id}}
 
-    # Save raw snippet immediately; replace with smart title in background
-    await db.record_session(session_id, body.brief[:80].replace('\n', ' '))
+    await db.record_session(session_id, body.brief[:80].replace('\n', ' '), user_id)
     asyncio.create_task(_save_title(db, session_id, body.brief))
 
     agent_cfg = get_agent_config()
@@ -266,7 +266,7 @@ async def start_chat(body: StartRequest, request: Request):
 
 
 @router.post("/upload")
-async def upload_document(request: Request, file: UploadFile = File(...)):
+async def upload_document(request: Request, file: UploadFile = File(...), user_id: str = Depends(get_user_id)):
     """
     Accept a PDF, DOCX, TXT, or MD file.
     1. Enforce file type and size limits.
@@ -319,7 +319,7 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
 
     # For documents: title from extracted text. For images: title from filename.
     title_source = raw_text[:500] if (not is_image and raw_text) else f"Architecture diagram: {file.filename}"
-    await db.record_session(session_id, f"{'🖼' if is_image else '📄'} {file.filename}"[:80])
+    await db.record_session(session_id, f"{'🖼' if is_image else '📄'} {file.filename}"[:80], user_id)
     asyncio.create_task(_save_title(db, session_id, title_source))
 
     agent_cfg = get_agent_config()
@@ -399,14 +399,14 @@ async def _retitle_session(db, graph, session_id: str) -> None:
 
 
 @router.get("/sessions")
-async def list_sessions(request: Request):
+async def list_sessions(request: Request, user_id: str = Depends(get_user_id)):
     """
     Returns {pinned:[...], recent:[...]} sorted correctly.
     Fires background retitling for untitled sessions.
     """
     db    = request.app.state.db
     graph = request.app.state.graph
-    data  = await db.list_sessions()
+    data  = await db.list_sessions(user_id)
 
     all_sessions = data["pinned"] + data["recent"]
     untitled     = [s for s in all_sessions if not s.get("brief_snippet")]
@@ -544,28 +544,28 @@ class RenameRequest(BaseModel):
 
 
 @router.post("/session/{session_id}/pin")
-async def pin_session(session_id: str, request: Request):
+async def pin_session(session_id: str, request: Request, user_id: str = Depends(get_user_id)):
     try:
-        await request.app.state.db.pin_session(session_id)
+        await request.app.state.db.pin_session(session_id, user_id)
         return {"ok": True}
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
 
 @router.delete("/session/{session_id}/pin")
-async def unpin_session(session_id: str, request: Request):
-    await request.app.state.db.unpin_session(session_id)
+async def unpin_session(session_id: str, request: Request, user_id: str = Depends(get_user_id)):
+    await request.app.state.db.unpin_session(session_id, user_id)
     return {"ok": True}
 
 
 @router.delete("/session/{session_id}")
-async def delete_session(session_id: str, request: Request):
-    await request.app.state.db.delete_session(session_id)
+async def delete_session(session_id: str, request: Request, user_id: str = Depends(get_user_id)):
+    await request.app.state.db.delete_session(session_id, user_id)
     return {"ok": True}
 
 
 @router.patch("/session/{session_id}")
-async def rename_session(session_id: str, body: RenameRequest, request: Request):
-    await request.app.state.db.rename_session(session_id, body.title)
+async def rename_session(session_id: str, body: RenameRequest, request: Request, user_id: str = Depends(get_user_id)):
+    await request.app.state.db.rename_session(session_id, body.title, user_id)
     return {"ok": True}
 

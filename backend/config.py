@@ -3,6 +3,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# ── Auth (shared with Express server) ────────────────────────────────────────
+# Must match JWT_SECRET in express-server/.env — Express signs service tokens
+# with this secret; FastAPI validates them. Leave empty to run standalone in
+# dev mode (all requests resolve to "dev-user").
+JWT_SECRET = os.getenv("JWT_SECRET", "")
+
 # ── API keys are managed via the Settings UI, not environment variables ───────
 # Use utils.api_keys.get_key() in agent code to retrieve them at call time.
 

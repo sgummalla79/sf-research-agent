@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     brief_snippet  TEXT,
     last_modified  TEXT,
     pinned         INTEGER DEFAULT 0,
-    pinned_at      TEXT
+    pinned_at      TEXT,
+    user_id        TEXT    NOT NULL DEFAULT 'dev-user'
 );
 """
 
@@ -143,9 +144,19 @@ class DBContext:
 
     # ── public API ────────────────────────────────────────────────────────────
 
-    async def record_session(self, thread_id: str, brief_snippet: str = "") -> None:
+    async def record_session(self, thread_id: str, brief_snippet: str = "", user_id: str = "dev-user") -> None:
         now = datetime.now(timezone.utc).isoformat()
-        await self._exec(self._q("insert"), (thread_id, now, brief_snippet[:120], now))
+        if self._backend == "sqlite":
+            await self._exec(
+                "INSERT OR REPLACE INTO agent_sessions (thread_id, created_at, brief_snippet, last_modified, user_id) VALUES (?, ?, ?, ?, ?)",
+                (thread_id, now, brief_snippet[:120], now, user_id),
+            )
+        else:
+            await self._exec(
+                "INSERT INTO agent_sessions (thread_id, created_at, brief_snippet, last_modified, user_id)"
+                " VALUES (%s, %s, %s, %s, %s) ON CONFLICT (thread_id) DO NOTHING",
+                (thread_id, now, brief_snippet[:120], now, user_id),
+            )
 
     async def update_session_title(self, thread_id: str, title: str) -> None:
         await self._exec(self._q("set_title"), (title[:120], thread_id))
@@ -154,21 +165,41 @@ class DBContext:
         now = datetime.now(timezone.utc).isoformat()
         await self._exec(self._q("set_lm"), (now, thread_id))
 
-    async def pin_session(self, thread_id: str) -> None:
+    async def pin_session(self, thread_id: str, user_id: str = "dev-user") -> None:
         row = await self._fetchone(self._q("pin_count"))
         if row and row[0] >= MAX_PINNED:
             raise ValueError(f"Maximum {MAX_PINNED} pinned conversations reached.")
         now = datetime.now(timezone.utc).isoformat()
-        await self._exec(self._q("pin"), (now, thread_id))
+        sql = (
+            "UPDATE agent_sessions SET pinned = 1, pinned_at = ? WHERE thread_id = ? AND user_id = ?"
+            if self._backend == "sqlite" else
+            "UPDATE agent_sessions SET pinned = 1, pinned_at = %s WHERE thread_id = %s AND user_id = %s"
+        )
+        await self._exec(sql, (now, thread_id, user_id))
 
-    async def unpin_session(self, thread_id: str) -> None:
-        await self._exec(self._q("unpin"), (thread_id,))
+    async def unpin_session(self, thread_id: str, user_id: str = "dev-user") -> None:
+        sql = (
+            "UPDATE agent_sessions SET pinned = 0, pinned_at = NULL WHERE thread_id = ? AND user_id = ?"
+            if self._backend == "sqlite" else
+            "UPDATE agent_sessions SET pinned = 0, pinned_at = NULL WHERE thread_id = %s AND user_id = %s"
+        )
+        await self._exec(sql, (thread_id, user_id))
 
-    async def rename_session(self, thread_id: str, title: str) -> None:
-        await self._exec(self._q("rename"), (title[:120], thread_id))
+    async def rename_session(self, thread_id: str, title: str, user_id: str = "dev-user") -> None:
+        sql = (
+            "UPDATE agent_sessions SET brief_snippet = ? WHERE thread_id = ? AND user_id = ?"
+            if self._backend == "sqlite" else
+            "UPDATE agent_sessions SET brief_snippet = %s WHERE thread_id = %s AND user_id = %s"
+        )
+        await self._exec(sql, (title[:120], thread_id, user_id))
 
-    async def delete_session(self, thread_id: str) -> None:
-        await self._exec(self._q("del_sess"), (thread_id,))
+    async def delete_session(self, thread_id: str, user_id: str = "dev-user") -> None:
+        sql = (
+            "DELETE FROM agent_sessions WHERE thread_id = ? AND user_id = ?"
+            if self._backend == "sqlite" else
+            "DELETE FROM agent_sessions WHERE thread_id = %s AND user_id = %s"
+        )
+        await self._exec(sql, (thread_id, user_id))
         # Remove LangGraph checkpoint data
         if self._backend == "sqlite":
             for table in ("checkpoint_writes", "checkpoint_blobs", "checkpoints"):
@@ -183,8 +214,13 @@ class DBContext:
                         f"DELETE FROM {table} WHERE thread_id = %s", (thread_id,)  # noqa: S608
                     )
 
-    async def list_sessions(self) -> dict:
-        rows  = await self._fetchall(self._q("list_all"))
+    async def list_sessions(self, user_id: str = "dev-user") -> dict:
+        sql = (
+            "SELECT thread_id, created_at, brief_snippet, last_modified, pinned, pinned_at FROM agent_sessions WHERE user_id = ?"
+            if self._backend == "sqlite" else
+            "SELECT thread_id, created_at, brief_snippet, last_modified, pinned, pinned_at FROM agent_sessions WHERE user_id = %s"
+        )
+        rows  = await self._fetchall(sql, (user_id,))
         items = [
             {
                 "thread_id":     r[0],
@@ -244,12 +280,32 @@ class DBContext:
             },
         }
 
-    async def get_global_usage(self) -> dict:
-        rows = await self._fetchall(
-            "SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd) FROM token_usage GROUP BY model ORDER BY SUM(cost_usd) DESC"
-        )
+    async def get_global_usage(self, user_id: str = "dev-user") -> dict:
+        if self._backend == "sqlite":
+            rows = await self._fetchall(
+                "SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd)"
+                " FROM token_usage WHERE thread_id IN (SELECT thread_id FROM agent_sessions WHERE user_id = ?)"
+                " GROUP BY model ORDER BY SUM(cost_usd) DESC",
+                (user_id,),
+            )
+            count_row = await self._fetchone(
+                "SELECT COUNT(DISTINCT thread_id) FROM token_usage"
+                " WHERE thread_id IN (SELECT thread_id FROM agent_sessions WHERE user_id = ?)",
+                (user_id,),
+            )
+        else:
+            rows = await self._fetchall(
+                "SELECT model, SUM(input_tokens), SUM(output_tokens), SUM(cost_usd)"
+                " FROM token_usage WHERE thread_id IN (SELECT thread_id FROM agent_sessions WHERE user_id = %s)"
+                " GROUP BY model ORDER BY SUM(cost_usd) DESC",
+                (user_id,),
+            )
+            count_row = await self._fetchone(
+                "SELECT COUNT(DISTINCT thread_id) FROM token_usage"
+                " WHERE thread_id IN (SELECT thread_id FROM agent_sessions WHERE user_id = %s)",
+                (user_id,),
+            )
         breakdown = [{"model": r[0], "input_tokens": r[1], "output_tokens": r[2], "cost_usd": round(r[3], 6)} for r in rows]
-        count_row = await self._fetchone("SELECT COUNT(DISTINCT thread_id) FROM token_usage")
         return {
             "breakdown": breakdown,
             "totals": {
@@ -355,6 +411,7 @@ async def _migrate(conn, backend: str) -> None:
         ("last_modified", "TEXT"),
         ("pinned",        "INTEGER DEFAULT 0"),
         ("pinned_at",     "TEXT"),
+        ("user_id",       "TEXT NOT NULL DEFAULT 'dev-user'"),
     ]
     for col, typ in new_cols:
         try:
