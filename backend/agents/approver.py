@@ -1,17 +1,15 @@
 """
 Stage 5 — Approver Gate Agent
-Model: Claude (reasoning)
 
 The final human-proxy gate. Approves or rejects with mandatory structured output.
 Rejection always includes required_changes so the researcher has actionable feedback.
 """
 
-from langchain_anthropic import ChatAnthropic
 from utils.llm_retry import invoke_with_retry
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from config import CLAUDE_MODEL, MAX_REVISIONS
-from utils.api_keys import get_keys
+from config import MAX_REVISIONS
+from utils.llm_factory import get_llm_for_slot, slot_model
 from utils.pricing import usage_record
 from state import AgentState, ApprovalResult
 
@@ -89,7 +87,7 @@ APPROVAL FORMAT:
 
 
 def run_approver(state: AgentState) -> dict:
-    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(ApprovalResult, include_raw=True)
+    llm = get_llm_for_slot("approver", state.session_agent_config).with_structured_output(ApprovalResult, include_raw=True)
 
     revision_note = (
         f"\nIMPORTANT: This is revision {state.revision_count} of {MAX_REVISIONS} allowed. "
@@ -130,7 +128,7 @@ Apply your 7-lens strategic review. Return your structured verdict."""
         HumanMessage(content=prompt),
     ])
     result: ApprovalResult = raw["parsed"]
-    urec   = usage_record("approver", CLAUDE_MODEL, getattr(raw.get("raw"), "usage_metadata", None))
+    urec   = usage_record("approver", slot_model("approver", state.session_agent_config), getattr(raw.get("raw"), "usage_metadata", None))
 
     new_revision_count = state.revision_count + (1 if result.status == "rejected" else 0)
 

@@ -18,13 +18,11 @@ import base64
 from datetime import datetime, timezone
 from pathlib import Path
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.types import interrupt
 from pydantic import BaseModel
 
-from config import CLAUDE_MODEL
-from utils.api_keys import get_keys
+from utils.llm_factory import get_llm_for_slot, slot_model
 from utils.llm_retry import invoke_with_retry
 from utils.pricing import usage_record
 from state import AgentState
@@ -99,14 +97,14 @@ _MEDIA_TYPES = {
 }
 
 
-def _analyze_image(image_path: str) -> ImageAnalysisResult:
+def _analyze_image(image_path: str, session_cfg: dict) -> ImageAnalysisResult:
     suffix     = Path(image_path).suffix.lower()
     media_type = _MEDIA_TYPES.get(suffix, "image/jpeg")
 
     with open(image_path, "rb") as f:
         b64 = base64.b64encode(f.read()).decode("utf-8")
 
-    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(ImageAnalysisResult, include_raw=True)
+    llm = get_llm_for_slot("intake", session_cfg).with_structured_output(ImageAnalysisResult, include_raw=True)
 
     raw = invoke_with_retry(llm, [
         SystemMessage(content=INTAKE_IMAGE_SYSTEM_PROMPT),
@@ -115,7 +113,7 @@ def _analyze_image(image_path: str) -> ImageAnalysisResult:
             {"type": "text",      "text": "Analyse this image and return your structured assessment."},
         ]),
     ])
-    return raw["parsed"], usage_record("intake", CLAUDE_MODEL, getattr(raw.get("raw"), "usage_metadata", None))
+    return raw["parsed"], usage_record("intake", slot_model("intake", session_cfg), getattr(raw.get("raw"), "usage_metadata", None))
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -141,7 +139,7 @@ def run_intake(state: AgentState) -> dict:
 
     # ── Image path ────────────────────────────────────────────────────────────
     if state.source_type == "image" and state.uploaded_image_path:
-        result, urec = _analyze_image(state.uploaded_image_path)
+        result, urec = _analyze_image(state.uploaded_image_path, state.session_agent_config)
 
         if not result.is_architecture_related:
             return {
@@ -181,7 +179,7 @@ def run_intake(state: AgentState) -> dict:
 
     # ── Document path ─────────────────────────────────────────────────────────
     if state.source_type == "document" and state.raw_document_text:
-        llm      = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"])
+        llm      = get_llm_for_slot("intake", state.session_agent_config)
         response = invoke_with_retry(llm, [
             SystemMessage(content=INTAKE_DOCUMENT_PROMPT),
             HumanMessage(content=(
@@ -191,7 +189,7 @@ def run_intake(state: AgentState) -> dict:
         ])
 
         extracted_brief = response.content
-        urec_doc = usage_record("intake", CLAUDE_MODEL, getattr(response, "usage_metadata", None))
+        urec_doc = usage_record("intake", slot_model("intake", state.session_agent_config), getattr(response, "usage_metadata", None))
         # Pause — let user read and verify the extraction before discovery starts
         correction = _extract_correction(interrupt({
             "__type":  "confirm_understanding",

@@ -1,20 +1,18 @@
 """
 Stage 2 — Dynamic Discovery Agent
-Model: Claude (reasoning)
 
 Intelligently determines what type of architectural discussion is happening,
 then asks ONLY the questions relevant to that type. Does not blindly run
 through a Salesforce-specific checklist for every session.
 """
 
-from langchain_anthropic import ChatAnthropic
 from utils.llm_retry import invoke_with_retry
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.types import interrupt
 from pydantic import BaseModel
 
-from config import CLAUDE_MODEL, MAX_DISCOVERY_QUESTIONS
-from utils.api_keys import get_keys
+from config import MAX_DISCOVERY_QUESTIONS
+from utils.llm_factory import get_llm_for_slot, slot_model
 from utils.pricing import usage_record
 from state import AgentState, DiscoveryQuestion
 
@@ -196,7 +194,7 @@ _DISCOVERY_WINDOW = 30
 
 
 def run_discovery(state: AgentState) -> dict:
-    llm = ChatAnthropic(model=CLAUDE_MODEL, api_key=get_keys()["anthropic"]).with_structured_output(DiscoveryOutput, include_raw=True)
+    llm = get_llm_for_slot("discovery", state.session_agent_config).with_structured_output(DiscoveryOutput, include_raw=True)
 
     windowed = list(
         state.messages[-_DISCOVERY_WINDOW:]
@@ -215,7 +213,7 @@ def run_discovery(state: AgentState) -> dict:
 
     raw    = invoke_with_retry(llm, messages)
     result: DiscoveryOutput = raw["parsed"]
-    urec   = usage_record("discovery", CLAUDE_MODEL, getattr(raw.get("raw"), "usage_metadata", None))
+    urec   = usage_record("discovery", slot_model("discovery", state.session_agent_config), getattr(raw.get("raw"), "usage_metadata", None))
 
     answered_count = sum(1 for q in result.updated_questions if q.answer)
     cap_reached = answered_count >= MAX_DISCOVERY_QUESTIONS
