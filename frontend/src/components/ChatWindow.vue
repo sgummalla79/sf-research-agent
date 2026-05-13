@@ -289,6 +289,7 @@
         @upload="handleChatUpload"
         @flow-select="startWithFlow"
         @cancel-flow="pendingFlow = null"
+        @manage-skills="appView = 'configuration'"
       />
 
       <!-- Mid-session flow selection popup -->

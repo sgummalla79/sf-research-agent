@@ -16,12 +16,32 @@
         </div>
       </div>
 
+      <!-- Slash command skill picker (floats above textarea) -->
+      <transition name="fade">
+        <div v-if="showSlashMenu" class="cb-slash-menu" @click.stop>
+          <div class="cb-slash-header">Skills — type to filter</div>
+          <button v-for="flow in slashFilteredFlows" :key="flow.id"
+            class="cb-slash-item" @click="selectFromSlash(flow)">
+            <span class="cb-slash-icon">{{ flow.icon }}</span>
+            <div>
+              <div class="cb-slash-name">{{ flow.name }}</div>
+              <div class="cb-slash-desc">{{ flow.description }}</div>
+            </div>
+          </button>
+          <div v-if="!slashFilteredFlows.length" class="cb-slash-empty">No matching skills</div>
+        </div>
+      </transition>
+
       <!-- Textarea -->
       <textarea v-model="text" class="cb-ta"
         :placeholder="pendingFlow ? `Describe your project for ${pendingFlow.name}…` : 'How can I help you today?'"
         rows="2"
+        @input="handleInput"
         @keydown.meta.enter.prevent="handleSend"
-        @keydown.ctrl.enter.prevent="handleSend" />
+        @keydown.ctrl.enter.prevent="handleSend"
+        @keydown.esc="showSlashMenu = false"
+        @keydown.arrow-down.prevent="slashMenuFocusNext"
+        @keydown.arrow-up.prevent="slashMenuFocusPrev" />
 
       <!-- Bottom bar -->
       <div class="cb-bar">
@@ -46,18 +66,38 @@
               accept=".pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg,.gif,.webp"
               @change="onFileChange" />
 
+            <!-- Skills → submenu -->
             <template v-if="flows.length">
               <div class="cpm-divider" />
-              <div class="cpm-section-label">Agent Flows</div>
-              <button v-for="flow in flows" :key="flow.id"
-                class="cpm-item cpm-flow-item"
-                @click="onFlowSelect(flow)">
-                <span class="cpm-flow-icon">{{ flow.icon }}</span>
-                <span>{{ flow.name }}</span>
+              <div class="cpm-skills-row"
+                @mouseenter="skillsOpen = true"
+                @mouseleave="skillsOpen = false"
+                @click.stop="skillsOpen = !skillsOpen">
+                <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                </svg>
+                <span>Skills</span>
                 <svg class="cpm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="12" height="12">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
-              </button>
+
+                <!-- Submenu -->
+                <div v-if="skillsOpen" class="cpm-skills-submenu" @click.stop>
+                  <button v-for="flow in flows" :key="flow.id"
+                    class="cpm-item"
+                    @click="onFlowSelect(flow); plusMenuOpen = false; skillsOpen = false">
+                    <span class="cpm-flow-icon">{{ flow.icon }}</span>
+                    {{ flow.name }}
+                  </button>
+                  <div class="cpm-divider" />
+                  <button class="cpm-item" @click="emit('manage-skills'); plusMenuOpen = false; skillsOpen = false">
+                    <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
+                      <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                    Manage skills
+                  </button>
+                </div>
+              </div>
             </template>
           </div>
         </div>
@@ -119,7 +159,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   chatModels:  { type: Array,  default: () => [] },
@@ -127,19 +167,51 @@ const props = defineProps({
   pendingFlow: { type: Object, default: null },
 })
 
-const emit = defineEmits(['submit', 'upload', 'flow-select', 'cancel-flow'])
+const emit = defineEmits(['submit', 'upload', 'flow-select', 'cancel-flow', 'manage-skills'])
 
 // ── Internal state ────────────────────────────────────────────────────────────
 const text             = ref('')
 const selectedModel    = ref({ model: 'claude-sonnet-4-6', display: 'Sonnet 4.6', description: 'Responsive everyday work' })
 const extendedThinking = ref(false)
 const plusMenuOpen     = ref(false)
+const skillsOpen       = ref(false)
 const modelPickerOpen  = ref(false)
 const selectedFile     = ref(null)
 const imagePreviewUrl  = ref(null)
 const isDragging       = ref(false)
 const uploadError      = ref(null)
 const fileInputEl      = ref(null)
+
+// Slash command
+const showSlashMenu       = ref(false)
+const slashQuery          = ref('')
+const slashFilteredFlows  = computed(() => {
+  const q = slashQuery.value.toLowerCase()
+  return q
+    ? props.flows.filter(f => f.id.includes(q) || f.name.toLowerCase().includes(q))
+    : props.flows
+})
+
+function handleInput() {
+  const val = text.value
+  if (val.startsWith('/') && props.flows.length) {
+    slashQuery.value    = val.slice(1)
+    showSlashMenu.value = true
+  } else {
+    showSlashMenu.value = false
+    slashQuery.value    = ''
+  }
+}
+
+function selectFromSlash(flow) {
+  text.value          = ''
+  showSlashMenu.value = false
+  slashQuery.value    = ''
+  onFlowSelect(flow)
+}
+
+function slashMenuFocusNext() { /* keyboard nav stub — extend later */ }
+function slashMenuFocusPrev() { /* keyboard nav stub — extend later */ }
 
 // Sync default model when chatModels prop arrives (fetched async by parent)
 watch(() => props.chatModels, (models) => {
@@ -193,7 +265,12 @@ function onFlowSelect(flow) {
 }
 
 // ── Close popups on outside click ─────────────────────────────────────────────
-function closeMenus() { plusMenuOpen.value = false; modelPickerOpen.value = false }
+function closeMenus() {
+  plusMenuOpen.value  = false
+  skillsOpen.value    = false
+  modelPickerOpen.value = false
+  showSlashMenu.value = false
+}
 onMounted(() => document.addEventListener('click', closeMenus))
 onUnmounted(() => document.removeEventListener('click', closeMenus))
 </script>
@@ -204,6 +281,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 
 /* Chat box */
 .chat-box {
+  position: relative;
   background: var(--surf);
   border: 1px solid var(--bdr);
   border-radius: 18px;
@@ -278,7 +356,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   width: 230px; background: var(--surf);
   border: 1px solid var(--bdr); border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0,0,0,.14);
-  z-index: 300; overflow: hidden; padding: 4px 0;
+  z-index: 300; overflow: visible; padding: 4px 0;
 }
 .cpm-item {
   display: flex; align-items: center; gap: 10px;
@@ -297,6 +375,51 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 .cpm-flow-item { justify-content: space-between; }
 .cpm-flow-icon { font-size: 15px; flex-shrink: 0; }
 .cpm-chevron   { flex-shrink: 0; color: var(--muted); margin-left: auto; }
+
+/* Skills → row with nested submenu */
+.cpm-skills-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 9px 14px; cursor: pointer;
+  font-size: 14px; color: var(--tx);
+  transition: background .1s; position: relative;
+}
+.cpm-skills-row:hover { background: var(--hover); }
+.cpm-skills-submenu {
+  position: absolute; left: 100%; bottom: 0;
+  width: 220px; background: var(--surf);
+  border: 1px solid var(--bdr); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.14);
+  z-index: 400; overflow: hidden; padding: 4px 0;
+}
+
+/* Slash command picker */
+.cb-slash-menu {
+  position: absolute; bottom: calc(100% + 6px); left: 0; right: 0;
+  background: var(--surf); border: 1px solid var(--bdr); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.14);
+  z-index: 300; overflow: hidden;
+  max-height: 280px; overflow-y: auto;
+}
+.cb-slash-header {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--muted);
+  padding: 8px 14px 4px;
+}
+.cb-slash-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  width: 100%; padding: 10px 14px;
+  background: none; border: none; cursor: pointer;
+  text-align: left; transition: background .1s;
+}
+.cb-slash-item:hover { background: var(--hover); }
+.cb-slash-icon  { font-size: 18px; flex-shrink: 0; padding-top: 1px; }
+.cb-slash-name  { font-size: 14px; font-weight: 600; color: var(--tx); }
+.cb-slash-desc  { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.4; }
+.cb-slash-empty { padding: 10px 14px; font-size: 13px; color: var(--muted); }
+
+/* Slide-up transition for slash menu */
+.fade-enter-active, .fade-leave-active { transition: opacity .12s, transform .12s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(4px); }
 
 /* Upload error */
 .cb-upload-err { flex: 1; font-size: 12.5px; color: #ef4444; }
