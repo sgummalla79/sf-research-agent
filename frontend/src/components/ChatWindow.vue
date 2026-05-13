@@ -448,20 +448,17 @@
     <!-- Avatar area — matches sidebar width -->
     <div class="sf-avatar-area" :class="{ collapsed: !sidebar.open }">
       <button class="avatar-btn" @click="userMenuOpen = !userMenuOpen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+        <img v-if="user?.picture" :src="user.picture" class="avatar-photo" />
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
           <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
         </svg>
+        <div v-if="sidebar.open && user" class="avatar-user-info">
+          <span class="avatar-user-name">{{ user.name || user.email }}</span>
+          <span class="avatar-user-email">{{ user.email }}</span>
+        </div>
       </button>
       <transition name="um-pop">
         <div v-if="userMenuOpen" class="user-menu">
-          <div v-if="user" class="um-user-row">
-            <img v-if="user.picture" :src="user.picture" class="um-avatar" />
-            <div class="um-user-info">
-              <span class="um-user-name">{{ user.name || user.email }}</span>
-              <span class="um-user-email">{{ user.email }}</span>
-            </div>
-          </div>
-          <div class="um-divider"></div>
           <button class="um-item" @click="openSettings(); userMenuOpen = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Settings
@@ -1098,11 +1095,10 @@ function doPDF() {
 .sf-avatar-area {
   width: 240px; flex-shrink: 0;
   display: flex; align-items: center;
-  padding: 8px 10px; position: relative;
-  transition: width 0.22s ease;
+  padding: 6px 8px; position: relative;
   border-right: 1px solid rgba(255,255,255,0.06);
 }
-.sf-avatar-area.collapsed { width: 52px; justify-content: center; padding: 8px 0; }
+.sf-avatar-area.collapsed { width: 52px; justify-content: center; padding: 6px 0; }
 .usage-bar-empty { flex: 1; }
 
 /* ═══════════════════════ SIDEBAR ═══════════════════════ */
@@ -1426,14 +1422,38 @@ function doPDF() {
 .col-icon-btn.brand .sf-logo { pointer-events: none; }
 
 /* ── User footer (expanded) ──────────────────────────────── */
-.avatar-btn {
-  width: 36px; height: 36px; border-radius: 50%;
-  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.15);
-  color: var(--sb-tx); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background .15s, border-color .15s;
+.avatar-photo {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover;
 }
-.avatar-btn:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.28); }
+.avatar-user-info {
+  display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: left;
+}
+.avatar-user-name {
+  font-size: 12.5px; font-weight: 600; color: var(--sb-tx);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.avatar-user-email {
+  font-size: 10.5px; color: var(--sb-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.avatar-btn {
+  width: 100%; border-radius: 8px; border: none;
+  background: transparent; color: var(--sb-tx); cursor: pointer;
+  display: flex; align-items: center; gap: 9px;
+  padding: 5px 6px;
+  transition: background .13s;
+}
+.avatar-btn:hover { background: var(--sb-hover); }
+/* When sidebar is collapsed, shrink back to icon-only circle */
+.sf-avatar-area.collapsed .avatar-btn {
+  width: 36px; height: 36px; border-radius: 50%; padding: 0;
+  justify-content: center;
+  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.15);
+}
+.sf-avatar-area.collapsed .avatar-btn:hover {
+  background: rgba(255,255,255,0.18);
+}
 
 /* User menu popup */
 .user-menu {
