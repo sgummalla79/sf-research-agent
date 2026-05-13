@@ -23,19 +23,24 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from pathlib import Path
+
 from api.routes.chat import router as chat_router
 from api.routes.settings import router as settings_router
 from api.routes.usage import router as usage_router
 from api.routes.providers import router as providers_router
 from api.routes.flows import router as flows_router
 from api.routes.prompts import router as prompts_router
-from graph.builder import build_graph
+from framework.engine import SkillEngine
+from framework.registry import SkillRegistry
 from persistence.checkpointer import get_async_checkpointer
 from utils.api_keys import decrypt, populate_cache, populate_config_cache
 from utils.agent_config import populate_agent_config, DEFAULT_AGENT_CONFIG
 from config import DATABASE_URL, DB_BACKEND
 from utils.models_cache import populate_models_cache
 from utils.provider_registry import PROVIDER_ORDER
+
+_SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +77,22 @@ def _validate_env() -> None:
 async def lifespan(app: FastAPI):
     _validate_env()
     async with get_async_checkpointer() as db:
-        app.state.graph = build_graph(db.checkpointer)
-        app.state.db    = db
+        app.state.db = db
+
+        # ── Build skill registry + one compiled graph per skill ────────────
+        skill_registry = SkillRegistry(_SKILLS_DIR)
+        skill_registry.load_all()
+        app.state.skill_registry = skill_registry
+
+        engine = SkillEngine()
+        graphs: dict = {}
+        for skill in skill_registry.list_all():
+            graphs[skill.manifest.id] = engine.build(skill, db.checkpointer)
+            logger.info("Graph compiled for skill '%s'", skill.manifest.id)
+
+        app.state.graphs = graphs
+        # Fallback graph for chat sessions (any skill graph works — all include the chat node)
+        app.state.graph  = next(iter(graphs.values())) if graphs else None
 
         # ── Load API keys ──────────────────────────────────────────────────
         stored = await db.get_all_api_keys()
@@ -111,12 +130,16 @@ async def lifespan(app: FastAPI):
         else:
             populate_agent_config(DEFAULT_AGENT_CONFIG)
 
-        # ── Seed agent prompt versions (v1 from code defaults, once) ──────────
-        from flows.registry import get_all_flows
-        for flow_id, flow_cfg in get_all_flows().items():
-            if not await db.is_flow_seeded(flow_id):
-                logger.info("Seeding agent prompts for flow '%s'", flow_id)
-                await db.seed_flow_prompts(flow_id, flow_cfg.prompts)
+        # ── Seed skill prompt versions (v1 from agents/*.md, once per key) ──
+        for skill in skill_registry.list_all():
+            flow_id    = skill.manifest.id
+            agent_keys = list(skill.all_agent_prompts.keys())
+            if not await db.is_skill_seeded(flow_id, agent_keys):
+                logger.info(
+                    "Seeding prompts for skill '%s' (%d agents)",
+                    flow_id, len(agent_keys),
+                )
+                await db.seed_flow_prompts(flow_id, skill.all_agent_prompts)
 
         logger.info("Technical Architecture Agent started — graph ready.")
         yield
@@ -144,7 +167,7 @@ app.include_router(prompts_router)
 
 @app.get("/health", tags=["ops"])
 async def health():
-    graph_ready = hasattr(app.state, "graph") and app.state.graph is not None
-    if not graph_ready:
+    graphs_ready = hasattr(app.state, "graphs") and bool(app.state.graphs)
+    if not graphs_ready:
         return JSONResponse(status_code=503, content={"status": "starting"})
-    return {"status": "ok", "graph": "ready"}
+    return {"status": "ok", "graph": "ready", "skills": list(app.state.graphs.keys())}

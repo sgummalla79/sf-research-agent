@@ -28,7 +28,8 @@ from api.schemas import ReplyRequest, StartRequest
 from config import MAX_FILE_SIZE_MB
 from state import AgentState
 from utils.agent_config import get_agent_config
-from flows.registry import get_flow, CHAT_DEFAULT_MODEL
+from flows.registry import CHAT_DEFAULT_MODEL
+from framework.registry import SkillNotFoundError
 from utils.file_parser import extract_text, SUPPORTED_EXTENSIONS
 from utils.file_storage import save_upload
 
@@ -237,8 +238,9 @@ async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, N
 
 @router.post("/start")
 async def start_chat(body: StartRequest, request: Request):
-    graph      = request.app.state.graph
-    db         = request.app.state.db
+    db              = request.app.state.db
+    skill_registry  = request.app.state.skill_registry
+    graphs          = request.app.state.graphs
     session_id = str(uuid.uuid4())
     config     = {"configurable": {"thread_id": session_id}}
 
@@ -249,23 +251,31 @@ async def start_chat(body: StartRequest, request: Request):
     agent_cfg = get_agent_config()
     await db.save_config(f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
 
-    # Load flow config — merge code defaults with latest published prompt snapshot
-    flow_config:          dict     = {}
-    flow_snapshot_id:     int|None = None
-    flow_snapshot_version:int|None = None
+    # ── Resolve graph + flow_config from skill registry ──────────────────────
+    flow_config:           dict     = {}
+    flow_snapshot_id:      int|None = None
+    flow_snapshot_version: int|None = None
+
     if body.session_type == "agent_flow":
         try:
-            flow     = get_flow(body.flow_id)
+            skill    = skill_registry.get(body.flow_id)
             snapshot = await db.get_latest_snapshot(body.flow_id)
             if snapshot:
                 db_prompts            = await db.get_prompt_content_for_snapshot(body.flow_id, snapshot)
-                flow_config           = {**flow.prompts, **db_prompts}
+                flow_config           = {**skill.all_agent_prompts, **db_prompts}
                 flow_snapshot_id      = snapshot["id"]
                 flow_snapshot_version = snapshot["snapshot_version"]
             else:
-                flow_config = dict(flow.prompts)
-        except ValueError:
-            pass  # unknown flow → agents fall back to built-in prompts
+                flow_config = dict(skill.all_agent_prompts)
+        except SkillNotFoundError:
+            pass  # unknown skill → empty flow_config, agents use defaults
+
+    # Pick the compiled graph: skill-specific for agent flows, fallback for chat
+    graph = (
+        graphs.get(body.flow_id, request.app.state.graph)
+        if body.session_type == "agent_flow"
+        else request.app.state.graph
+    )
 
     initial_state = AgentState(
         session_id=session_id,

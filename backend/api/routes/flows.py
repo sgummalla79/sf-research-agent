@@ -1,27 +1,28 @@
 """
 Flows routes.
 
-GET /api/flows              → list available agent flows + chat models
+GET /api/flows  →  list available agent flows + chat models
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
-from flows.registry import get_all_flows, CHAT_MODELS, CHAT_DEFAULT_MODEL
+from flows.registry import CHAT_MODELS, CHAT_DEFAULT_MODEL
 
 router = APIRouter(prefix="/api/flows", tags=["flows"])
 
 
 @router.get("")
-async def list_flows() -> dict:
-    """Return all available agent flows and the curated chat model list."""
+async def list_flows(request: Request) -> dict:
+    """Return all available agent flows (from skill registry) and the chat model list."""
+    skill_registry = request.app.state.skill_registry
     flows = [
         {
-            "id":          f.id,
-            "name":        f.name,
-            "description": f.description,
-            "icon":        f.icon,
+            "id":          skill.manifest.id,
+            "name":        skill.manifest.name,
+            "description": skill.manifest.description,
+            "icon":        skill.manifest.icon,
         }
-        for f in get_all_flows().values()
+        for skill in skill_registry.list_all()
     ]
     return {
         "flows":              flows,

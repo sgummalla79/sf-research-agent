@@ -392,6 +392,19 @@ class DBContext:
     def _p(self) -> str:
         return "?" if self._backend == "sqlite" else "%s"
 
+    async def is_skill_seeded(self, flow_id: str, agent_keys: list[str]) -> bool:
+        """Check if ALL specified agent keys are already seeded for a flow."""
+        p = self._p()
+        for key in agent_keys:
+            row = await self._fetchone(
+                f"SELECT COUNT(*) FROM agent_prompt_versions "
+                f"WHERE flow_id = {p} AND agent_key = {p} AND status = 'published'",
+                (flow_id, key),
+            )
+            if not row or row[0] == 0:
+                return False
+        return True
+
     async def is_flow_seeded(self, flow_id: str) -> bool:
         p = self._p()
         row = await self._fetchone(
