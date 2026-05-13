@@ -18,7 +18,7 @@
 
         <!-- Brand header -->
         <div class="sb-header">
-          <SudarshanChakra :size="22" />
+          <SudarshanChakra :size="22" color="#ffd080" />
           <span class="sb-app-name">Prajna</span>
           <button class="sb-collapse-btn" title="Collapse sidebar" @click="sidebar.open = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
