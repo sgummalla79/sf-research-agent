@@ -6,9 +6,9 @@
   <svg :width="size" :height="size" viewBox="0 0 100 100" fill="none"
     xmlns="http://www.w3.org/2000/svg">
 
-    <!-- Outer 12-pointed star (tips r=47, notches r=37, every 15°) -->
+    <!-- Outer 12-pointed star -->
     <polygon
-      fill="none" :stroke="color" stroke-width="1.4" stroke-linejoin="round"
+      fill="none" :stroke="color" :stroke-width="sw * 1.1" stroke-linejoin="round"
       points="
         50,3     60.4,13.2   73.2,9.7    77.5,23
         90.3,27.2  87,40.9   97,50    87,59.1
@@ -19,11 +19,10 @@
       "/>
 
     <!-- Outer ring -->
-    <circle cx="50" cy="50" r="33" :stroke="color" stroke-width="1.3"/>
+    <circle cx="50" cy="50" r="33" :stroke="color" :stroke-width="sw"/>
 
-    <!-- 12 spokes — each is a vertical line rotated around center -->
-    <!-- line from inner hub edge (r=9 → y=41) to outer ring (r=33 → y=17) -->
-    <g :stroke="color" stroke-width="1.1">
+    <!-- 12 spokes -->
+    <g :stroke="color" :stroke-width="sw * 0.85">
       <line x1="50" y1="17" x2="50" y2="41"/>
       <line x1="50" y1="17" x2="50" y2="41" transform="rotate(30,50,50)"/>
       <line x1="50" y1="17" x2="50" y2="41" transform="rotate(60,50,50)"/>
@@ -39,10 +38,10 @@
     </g>
 
     <!-- Inner ring -->
-    <circle cx="50" cy="50" r="16" :stroke="color" stroke-width="1.3"/>
+    <circle cx="50" cy="50" r="16" :stroke="color" :stroke-width="sw"/>
 
-    <!-- Central hub — partially filled -->
-    <circle cx="50" cy="50" r="8" :stroke="color" stroke-width="1.4"
+    <!-- Central hub -->
+    <circle cx="50" cy="50" r="8" :stroke="color" :stroke-width="sw * 1.1"
       :fill="color" fill-opacity="0.2"/>
     <circle cx="50" cy="50" r="3.5" :fill="color"/>
 
@@ -50,8 +49,11 @@
 </template>
 
 <script setup>
-defineProps({
-  size:  { type: [Number, String], default: 24 },
-  color: { type: String, default: '#f5a55a' },   // Prajna gold — used everywhere
+const props = defineProps({
+  size:        { type: [Number, String], default: 24 },
+  color:       { type: String,          default: '#f5a55a' },
+  strokeWidth: { type: Number,          default: 3 },   // thicker by default for visibility
 })
+// expose as short alias for template
+const sw = props.strokeWidth
 </script>
