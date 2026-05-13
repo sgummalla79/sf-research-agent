@@ -29,10 +29,12 @@
           <div class="ap-model-top">
             <select class="ap-model-select" v-model="selectedModelKey" @change="onModelChange">
               <option value="__global__">Smart default</option>
-              <option v-for="m in relevantModels" :key="`${m.provider}/${m.model}`"
-                :value="`${m.provider}/${m.model}`">
-                {{ m.label }}
-              </option>
+              <optgroup v-for="grp in PROVIDER_GROUPS" :key="grp.id" :label="grp.label">
+                <option v-for="m in grp.models" :key="`${grp.id}/${m.model}`"
+                  :value="`${grp.id}/${m.model}`">
+                  {{ m.label }}
+                </option>
+              </optgroup>
             </select>
             <button class="ap-suggest-btn" @click="suggestModel" title="Auto-suggest best model for this agent role">
               ✦ Suggest
@@ -120,40 +122,39 @@ const history          = ref([])
 const selectedModelKey = ref('__global__')   // '__global__' | 'provider/model'
 const suggestNote      = ref('')
 
-// Curated model lists per llm_slot — only show what's relevant for the role.
-// Mirrors SMART_SLOT_DEFAULTS in backend/framework/defaults.py.
-const CLAUDE_MODELS = [
-  { provider: 'anthropic', model: 'claude-sonnet-4-6',         label: 'Claude Sonnet 4.6' },
-  { provider: 'anthropic', model: 'claude-opus-4-7',           label: 'Claude Opus 4.7' },
-  { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
+// Curated model list shown for every agent, grouped by provider.
+// Each provider shows only its most relevant models — not the full API catalogue.
+const PROVIDER_GROUPS = [
+  {
+    id: 'anthropic', label: 'Anthropic',
+    models: [
+      { model: 'claude-opus-4-7',           label: 'Claude Opus 4.7' },
+      { model: 'claude-sonnet-4-6',         label: 'Claude Sonnet 4.6' },
+      { model: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
+    ],
+  },
+  {
+    id: 'google', label: 'Google',
+    models: [
+      { model: 'gemini-2.5-pro',   label: 'Gemini 2.5 Pro' },
+      { model: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    ],
+  },
+  {
+    id: 'perplexity', label: 'Perplexity',
+    models: [
+      { model: 'sonar-pro', label: 'Sonar Pro' },
+      { model: 'sonar',     label: 'Sonar' },
+    ],
+  },
 ]
 
-const SLOT_MODELS = {
-  researcher_search: [
-    { provider: 'perplexity', model: 'sonar-pro',        label: 'Sonar Pro' },
-    { provider: 'perplexity', model: 'sonar',             label: 'Sonar' },
-  ],
-  researcher_reasoning: [
-    { provider: 'google', model: 'gemini-2.5-pro',        label: 'Gemini 2.5 Pro' },
-    { provider: 'google', model: 'gemini-2.0-flash',      label: 'Gemini 2.0 Flash' },
-  ],
-  approver: [
-    { provider: 'anthropic', model: 'claude-opus-4-7',    label: 'Claude Opus 4.7' },
-    { provider: 'anthropic', model: 'claude-sonnet-4-6',  label: 'Claude Sonnet 4.6' },
-  ],
-}
-
-// Slot → best-model key for the Suggest button
+// Slot → best-model key for the Suggest button (mirrors SMART_SLOT_DEFAULTS)
 const SLOT_SUGGESTIONS = {
   researcher_search:    'perplexity/sonar-pro',
   researcher_reasoning: 'google/gemini-2.5-pro',
   approver:             'anthropic/claude-opus-4-7',
 }
-
-const relevantModels = computed(() => {
-  const slot = selected.value?.llm_slot
-  return SLOT_MODELS[slot] ?? CLAUDE_MODELS
-})
 
 // Compact label shown next to the agent name in the header
 const activeModelLabel = computed(() => {
