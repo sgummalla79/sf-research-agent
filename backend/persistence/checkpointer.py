@@ -579,6 +579,66 @@ class DBContext:
             )
         return {"snapshot_version": next_snap, "agent_key": agent_key, "version": draft_ver}
 
+    async def publish_skill(self, flow_id: str, agent_keys: list[str]) -> dict:
+        """Publish all drafts for a skill atomically and create one new snapshot."""
+        import json as _json
+        p   = self._p()
+        now = datetime.now(timezone.utc).isoformat()
+
+        published = []
+        for agent_key in agent_keys:
+            draft = await self._fetchone(
+                f"SELECT id, version FROM agent_prompt_versions"
+                f" WHERE flow_id = {p} AND agent_key = {p} AND status = 'draft'",
+                (flow_id, agent_key),
+            )
+            if not draft:
+                continue
+            draft_id, _ = draft
+            if self._backend == "sqlite":
+                await self._exec(
+                    "UPDATE agent_prompt_versions SET status = 'published', published_at = ? WHERE id = ?",
+                    (now, draft_id),
+                )
+            else:
+                await self._exec(
+                    "UPDATE agent_prompt_versions SET status = 'published', published_at = %s WHERE id = %s",
+                    (now, draft_id),
+                )
+            published.append(agent_key)
+
+        # Snapshot = latest published version per agent across the whole skill
+        rows = await self._fetchall(
+            f"SELECT agent_key, MAX(version) FROM agent_prompt_versions"
+            f" WHERE flow_id = {p} AND status = 'published' GROUP BY agent_key",
+            (flow_id,),
+        )
+        agent_versions = {r[0]: r[1] for r in rows}
+        max_snap = await self._fetchone(
+            f"SELECT MAX(snapshot_version) FROM flow_prompt_snapshots WHERE flow_id = {p}",
+            (flow_id,),
+        )
+        next_snap = (max_snap[0] or 0) + 1
+        if self._backend == "sqlite":
+            await self._exec(
+                "INSERT INTO flow_prompt_snapshots"
+                " (flow_id, snapshot_version, agent_versions, created_at, triggered_by)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (flow_id, next_snap, _json.dumps(agent_versions), now, "skill_publish"),
+            )
+        else:
+            await self._exec(
+                "INSERT INTO flow_prompt_snapshots"
+                " (flow_id, snapshot_version, agent_versions, created_at, triggered_by)"
+                " VALUES (%s, %s, %s, %s, %s)",
+                (flow_id, next_snap, _json.dumps(agent_versions), now, "skill_publish"),
+            )
+        return {
+            "snapshot_version": next_snap,
+            "published_agents": published,
+            "total_agents":     len(agent_keys),
+        }
+
     async def get_latest_snapshot(self, flow_id: str) -> dict | None:
         import json
         p   = self._p()

@@ -46,21 +46,14 @@
         <div class="ap-actions">
           <button v-if="dirty && currentPublishedContent"
             class="ap-btn ap-btn-ghost" @click="revertToPublished" :disabled="saving">
-            ↩ Revert to published
+            ↩ Revert
           </button>
-          <template v-if="hasDraft">
-            <button class="ap-btn ap-btn-secondary" @click="saveDraft" :disabled="saving || !dirty">
-              {{ saving ? 'Saving…' : 'Update Draft' }}
-            </button>
-            <button class="ap-btn ap-btn-ghost ap-btn-danger" @click="discardDraft" :disabled="saving">
-              Discard draft
-            </button>
-            <button class="ap-btn ap-btn-primary" @click="publishDraft" :disabled="saving">
-              {{ saving ? 'Publishing…' : `Publish v${draftVersion}` }}
-            </button>
-          </template>
-          <button v-else class="ap-btn ap-btn-secondary" @click="saveDraft" :disabled="saving || !dirty">
-            {{ saving ? 'Saving…' : 'Save as Draft' }}
+          <button v-if="hasDraft" class="ap-btn ap-btn-ghost ap-btn-danger"
+            @click="discardDraft" :disabled="saving">
+            Discard draft
+          </button>
+          <button class="ap-btn ap-btn-secondary" @click="saveDraft" :disabled="saving || !dirty">
+            {{ saving ? 'Saving…' : hasDraft ? 'Update Draft' : 'Save as Draft' }}
           </button>
         </div>
 
@@ -73,24 +66,6 @@
           @input="dirty = true" />
       </div>
 
-      <!-- ── Right: version history panel ── -->
-      <aside class="ap-history-panel">
-        <div class="ap-history-heading">Version History</div>
-        <div class="ap-history-empty" v-if="!history.length">No versions yet.</div>
-        <div v-for="v in history" :key="v.id"
-          class="ap-hv-row" :class="{ current: v.version === currentPublishedVersion }">
-          <div class="ap-hv-top">
-            <span class="ap-hv-num">v{{ v.version }}</span>
-            <span class="ap-hv-badge" :class="v.status">{{ v.status }}</span>
-            <span v-if="v.version === currentPublishedVersion && v.status === 'published'"
-              class="ap-hv-current">● current</span>
-          </div>
-          <div class="ap-hv-date">{{ fmtDate(v.published_at || v.created_at) }}</div>
-          <div v-if="v.model_config" class="ap-hv-model">{{ v.model_config.model }}</div>
-          <button v-if="v.status === 'published' && v.version !== currentPublishedVersion"
-            class="ap-hv-restore" @click="restoreVersion(v)">Restore</button>
-        </div>
-      </aside>
 
     </div>
 
@@ -116,7 +91,6 @@ const editorContent    = ref('')
 const dirty            = ref(false)
 const saving           = ref(false)
 const saveMsg          = ref(null)
-const history          = ref([])
 
 // Model picker
 const selectedModelKey = ref('__global__')   // '__global__' | 'provider/model'
@@ -187,12 +161,6 @@ function suggestModel() {
 
 const hasDraft = computed(() => !!selected.value?.draft)
 
-const draftVersion = computed(() => selected.value?.draft?.version ?? null)
-
-const currentPublishedVersion = computed(() =>
-  selected.value?.latest_published?.version ?? null
-)
-
 const currentPublishedContent = computed(() =>
   selected.value?.latest_published?.content ?? null
 )
@@ -239,14 +207,6 @@ async function loadAgents() {
   } catch (_) {}
 }
 
-async function loadHistory() {
-  if (!selected.value) return
-  try {
-    const res  = await fetch(`/api/prompts/${props.flowId}/${selected.value.agent_key}/history`)
-    const data = await res.json()
-    history.value = data.history || []
-  } catch (_) {}
-}
 
 function syncSelected(agent) {
   selected.value      = agent
@@ -260,8 +220,6 @@ function syncSelected(agent) {
 
 function selectAgent(agent) {
   syncSelected(agent)
-  history.value = []
-  loadHistory()
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -284,34 +242,8 @@ async function saveDraft() {
       dirty.value   = false
       saveMsg.value = { type: 'ok', text: 'Draft saved.' }
       await loadAgents()
-      await loadHistory()
     } else {
       saveMsg.value = { type: 'err', text: 'Save failed.' }
-    }
-  } catch (_) {
-    saveMsg.value = { type: 'err', text: 'Network error.' }
-  } finally {
-    saving.value = false
-  }
-}
-
-async function publishDraft() {
-  if (!selected.value) return
-  saving.value  = true
-  saveMsg.value = null
-  try {
-    const res = await fetch(`/api/prompts/${props.flowId}/${selected.value.agent_key}/publish`, {
-      method: 'POST',
-    })
-    const data = await res.json()
-    if (res.ok) {
-      saveMsg.value = { type: 'ok',
-        text: `Published v${data.version}. New flow snapshot v${data.snapshot_version} created.` }
-      dirty.value = false
-      await loadAgents()
-      await loadHistory()
-    } else {
-      saveMsg.value = { type: 'err', text: data.detail || 'Publish failed.' }
     }
   } catch (_) {
     saveMsg.value = { type: 'err', text: 'Network error.' }
@@ -327,7 +259,6 @@ async function discardDraft() {
   try {
     await fetch(`/api/prompts/${props.flowId}/${selected.value.agent_key}/draft`, { method: 'DELETE' })
     await loadAgents()
-    await loadHistory()
   } finally {
     saving.value = false
   }
@@ -337,20 +268,7 @@ function revertToPublished() {
   if (!currentPublishedContent.value) return
   editorContent.value = currentPublishedContent.value
   dirty.value         = false
-  saveMsg.value       = { type: 'ok', text: `Reverted to published v${currentPublishedVersion.value}.` }
-}
-
-async function restoreVersion(v) {
-  editorContent.value = v.content
-  dirty.value         = true
-  saveMsg.value       = { type: 'ok', text: `Loaded v${v.version} into editor — save as draft to keep.` }
-}
-
-// ── Utils ─────────────────────────────────────────────────────────────────────
-
-function fmtDate(iso) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  saveMsg.value       = { type: 'ok', text: 'Reverted to published version.' }
 }
 
 onMounted(async () => {

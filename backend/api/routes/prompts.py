@@ -54,7 +54,8 @@ async def get_flow_prompts(flow_id: str, request: Request):
         }
         for key in skill.manifest.ordered_agent_keys
     ]
-    return {"flow_id": flow_id, "agents": agents}
+    has_draft = any(a["draft"] for a in agents)
+    return {"flow_id": flow_id, "agents": agents, "has_draft": has_draft}
 
 
 # ── Draft management ──────────────────────────────────────────────────────────
@@ -73,15 +74,16 @@ async def discard_draft(flow_id: str, agent_key: str, request: Request):
     return {"status": "discarded"}
 
 
-# ── Publish ───────────────────────────────────────────────────────────────────
+# ── Skill-level publish ───────────────────────────────────────────────────────
 
-@router.post("/{flow_id}/{agent_key}/publish")
-async def publish_agent(flow_id: str, agent_key: str, request: Request):
-    _validate_key(request, flow_id, agent_key)
-    try:
-        result = await _db(request).publish_prompt(flow_id, agent_key)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+@router.post("/{flow_id}/publish")
+async def publish_skill(flow_id: str, request: Request):
+    """Publish all agent drafts for a skill at once and create one new snapshot."""
+    skill = _skill(request, flow_id)
+    agent_keys = skill.manifest.ordered_agent_keys
+    result = await _db(request).publish_skill(flow_id, agent_keys)
+    if not result["published_agents"]:
+        raise HTTPException(400, "No unpublished drafts to publish.")
     return result
 
 

@@ -83,13 +83,29 @@
 
       <!-- Skill overview (SKILL.md) -->
       <div v-if="sel?.type === 'manifest' && activeSkill" class="cp-manifest">
+
+        <!-- Header row: icon + name + version badge + publish button -->
         <div class="cp-manifest-header">
           <span class="cp-manifest-icon">{{ activeSkill.icon }}</span>
-          <div>
-            <div class="cp-manifest-name">{{ activeSkill.name }}</div>
+          <div class="cp-manifest-header-body">
+            <div class="cp-manifest-name-row">
+              <span class="cp-manifest-name">{{ activeSkill.name }}</span>
+              <span v-if="skillVersion[activeSkill.id]" class="cp-version-badge">
+                v{{ skillVersion[activeSkill.id] }}
+              </span>
+              <span v-if="skillHasDraft[activeSkill.id]" class="cp-draft-badge">draft pending</span>
+            </div>
             <div class="cp-manifest-desc">{{ activeSkill.description }}</div>
           </div>
+          <button class="cp-publish-btn"
+            :disabled="!skillHasDraft[activeSkill.id] || publishing"
+            @click="publishSkill(activeSkill.id)">
+            {{ publishing ? 'Publishing…' : 'Publish Skill' }}
+          </button>
         </div>
+
+        <div v-if="publishMsg" class="cp-publish-msg" :class="publishMsg.type">{{ publishMsg.text }}</div>
+
         <div class="cp-manifest-section">
           <div class="cp-manifest-label">Pipeline</div>
           <div class="cp-pipeline">
@@ -99,6 +115,7 @@
             </template>
           </div>
         </div>
+
         <div class="cp-manifest-section">
           <div class="cp-manifest-label">Agents</div>
           <div class="cp-agent-list">
@@ -106,10 +123,22 @@
               class="cp-agent-chip"
               @click="select({ type: 'agent', skillId: activeSkill.id, agentKey: agent.agent_key, label: agent.label })">
               {{ agent.label }}
-              <span v-if="agent.draft" class="cp-draft-dot" />
+              <span v-if="agent.draft" class="cp-draft-dot" title="Unpublished draft" />
             </div>
           </div>
         </div>
+
+        <!-- Version history -->
+        <div class="cp-manifest-section">
+          <div class="cp-manifest-label">Version History</div>
+          <div v-if="!skillSnapshots[activeSkill.id]?.length" class="cp-vh-empty">No published versions yet.</div>
+          <div v-for="snap in (skillSnapshots[activeSkill.id] || [])" :key="snap.id" class="cp-vh-row">
+            <span class="cp-vh-ver">v{{ snap.snapshot_version }}</span>
+            <span class="cp-vh-date">{{ fmtDate(snap.created_at) }}</span>
+            <span v-if="snap.snapshot_version === skillVersion[activeSkill.id]" class="cp-vh-current">● current</span>
+          </div>
+        </div>
+
       </div>
 
       <!-- Agent prompt editor -->
@@ -163,13 +192,18 @@ defineEmits(['back'])
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-const skills      = ref([])           // installed skills from /api/flows
-const skillAgents = reactive({})      // skillId → agents[]
-const expanded    = reactive({})      // skillId → bool
-const openFolders = reactive({})      // `${skillId}/${folder}` → bool
-const sel         = ref(null)         // current selection
+const skills         = ref([])          // installed skills from /api/flows
+const skillAgents    = reactive({})     // skillId → agents[]
+const skillHasDraft  = reactive({})     // skillId → bool
+const skillVersion   = reactive({})     // skillId → latest snapshot_version
+const skillSnapshots = reactive({})     // skillId → snapshots[]
+const expanded       = reactive({})     // skillId → bool
+const openFolders    = reactive({})     // `${skillId}/${folder}` → bool
+const sel            = ref(null)        // current selection
 const directoryOpen     = ref(false)
 const uninstallConfirm  = reactive({ show: false, skill: null })
+const publishing        = ref(false)
+const publishMsg        = ref(null)
 
 const otherFolders = [
   { id: 'assets' },
@@ -199,36 +233,69 @@ async function fetchSkills() {
     if (skills.value.length) {
       const first = skills.value[0]
       expanded[first.id] = true
-      await loadAgents(first.id)
+      await Promise.all([loadAgents(first.id), loadSnapshots(first.id)])
       openFolders[`${first.id}/agents`] = true
-      // Fetch pipeline info
-      await fetchSkillPipeline(first.id)
       sel.value = { type: 'manifest', skillId: first.id }
     }
   } catch (_) {}
 }
 
 async function loadAgents(skillId) {
-  if (skillAgents[skillId]) return
   try {
     const res  = await fetch(`/api/prompts/${skillId}`)
     const data = await res.json()
-    skillAgents[skillId] = data.agents || []
+    skillAgents[skillId]   = data.agents   || []
+    skillHasDraft[skillId] = !!data.has_draft
   } catch (_) {
-    skillAgents[skillId] = []
+    skillAgents[skillId]   = []
+    skillHasDraft[skillId] = false
   }
 }
 
-async function fetchSkillPipeline(skillId) {
-  // Enrich skill with pipeline info from manifest endpoint (future)
-  // For now pipeline is not in /api/flows — show agents list instead
+async function loadSnapshots(skillId) {
+  try {
+    const res  = await fetch(`/api/prompts/${skillId}/snapshots`)
+    const data = await res.json()
+    const snaps = data.snapshots || []
+    skillSnapshots[skillId] = snaps
+    skillVersion[skillId]   = snaps[0]?.snapshot_version ?? null
+  } catch (_) {}
 }
+
+async function publishSkill(skillId) {
+  publishing.value = true
+  publishMsg.value = null
+  try {
+    const res  = await fetch(`/api/prompts/${skillId}/publish`, { method: 'POST' })
+    const data = await res.json()
+    if (res.ok) {
+      publishMsg.value = { type: 'ok', text: `Published — skill is now v${data.snapshot_version}.` }
+      await loadAgents(skillId)
+      await loadSnapshots(skillId)
+    } else {
+      publishMsg.value = { type: 'err', text: data.detail || 'Publish failed.' }
+    }
+  } catch (_) {
+    publishMsg.value = { type: 'err', text: 'Network error.' }
+  } finally {
+    publishing.value = false
+  }
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 
 // ── Tree interactions ─────────────────────────────────────────────────────────
 
 async function toggleSkill(skillId) {
   expanded[skillId] = !expanded[skillId]
-  if (expanded[skillId]) await loadAgents(skillId)
+  if (expanded[skillId]) {
+    await loadAgents(skillId)
+    await loadSnapshots(skillId)
+  }
 }
 
 function toggleFolder(skillId, folder) {
@@ -413,6 +480,43 @@ onMounted(fetchSkills)
 .cp-ph-icon { font-size: 40px; }
 .cp-ph-name { font-size: 16px; font-weight: 600; color: var(--tx); }
 .cp-ph-desc { font-size: 14px; max-width: 380px; line-height: 1.6; }
+
+/* Skill manifest — publish row */
+.cp-manifest-header { display: flex; align-items: flex-start; gap: 14px; }
+.cp-manifest-header-body { flex: 1; min-width: 0; }
+.cp-manifest-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cp-version-badge {
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
+  background: var(--sbg); color: var(--stx); flex-shrink: 0;
+}
+.cp-draft-badge {
+  font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
+  background: #fef3c7; color: #92400e; flex-shrink: 0;
+}
+.cp-publish-btn {
+  flex-shrink: 0; padding: 8px 18px; border-radius: 8px;
+  background: var(--pri); color: #fff; border: none; font-size: 13px;
+  font-weight: 600; cursor: pointer;
+}
+.cp-publish-btn:hover:not(:disabled) { background: var(--pri-h); }
+.cp-publish-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.cp-publish-msg {
+  font-size: 12.5px; padding: 8px 12px; border-radius: 7px; margin-top: -4px;
+}
+.cp-publish-msg.ok  { background: #f0fdf4; color: #15803d; }
+.cp-publish-msg.err { background: #fef2f2; color: #b91c1c; }
+
+/* Version history in manifest */
+.cp-vh-empty { font-size: 13px; color: var(--muted); }
+.cp-vh-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 0; border-bottom: 1px solid var(--bdr); font-size: 13px;
+}
+.cp-vh-row:last-child { border-bottom: none; }
+.cp-vh-ver  { font-weight: 700; color: var(--tx); min-width: 28px; }
+.cp-vh-date { color: var(--muted); flex: 1; }
+.cp-vh-current { font-size: 11px; font-weight: 600; color: var(--pri); }
 
 /* Empty state */
 .cp-empty-state {
