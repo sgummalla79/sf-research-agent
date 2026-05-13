@@ -53,7 +53,7 @@ def _load_flows() -> dict[str, FlowConfig]:
     return {
         "architect": FlowConfig(
             id="architect",
-            name="Architecture Engagement",
+            name="Technical Architect",
             description="Formal Architecture Recommendation Document via a 5-stage pipeline: "
                         "intake → discovery → research → review → approval. "
                         "Covers any platform — Salesforce, ServiceNow, Microsoft 365, "
