@@ -1429,11 +1429,11 @@ function doPDF() {
   display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: left;
 }
 .avatar-user-name {
-  font-size: 12.5px; font-weight: 600; color: var(--sb-tx);
+  font-size: 14px; font-weight: 600; color: var(--sb-tx);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .avatar-user-email {
-  font-size: 10.5px; color: var(--sb-muted);
+  font-size: 12px; color: var(--sb-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
