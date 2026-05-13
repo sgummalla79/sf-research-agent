@@ -29,6 +29,7 @@ from config import MAX_FILE_SIZE_MB
 from state import AgentState
 from utils.agent_config import get_agent_config
 from chat_models import CHAT_DEFAULT_MODEL
+from framework.defaults import SMART_SLOT_DEFAULTS
 from framework.registry import SkillNotFoundError
 from utils.file_parser import extract_text, SUPPORTED_EXTENSIONS
 from utils.file_storage import save_upload
@@ -276,7 +277,17 @@ async def start_chat(body: StartRequest, request: Request):
         except SkillNotFoundError:
             pass  # unknown skill → empty flow_config, agents use defaults
 
-    # Save merged agent_cfg (global defaults + any per-agent model overrides)
+    # Fill any slots used by this skill that are missing from agent_cfg with smart defaults
+    if body.session_type == "agent_flow":
+        try:
+            _skill = skill_registry.get(body.flow_id)
+            for slot in set(_skill.manifest.agent_slot_map.values()):
+                if slot not in agent_cfg and slot in SMART_SLOT_DEFAULTS:
+                    agent_cfg[slot] = SMART_SLOT_DEFAULTS[slot]
+        except Exception:
+            pass
+
+    # Save merged agent_cfg (global defaults + per-agent overrides + smart defaults)
     await db.save_config(f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
 
     # Pick the compiled graph: skill-specific for agent flows, fallback for chat

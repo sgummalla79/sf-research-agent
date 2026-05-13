@@ -18,7 +18,10 @@
       <!-- Header -->
       <div class="ap-editor-header">
         <div>
-          <div class="ap-editor-title">{{ selected.label }}</div>
+          <div class="ap-title-row">
+            <span class="ap-editor-title">{{ selected.label }}</span>
+            <span v-if="activeModelLabel" class="ap-model-badge">{{ activeModelLabel }}</span>
+          </div>
           <div class="ap-editor-meta" :class="metaClass">{{ metaText }}</div>
         </div>
         <div class="ap-editor-actions">
@@ -54,6 +57,8 @@
         placeholder="Enter the system prompt for this agent…"
         @input="dirty = true" />
 
+      <div class="ap-separator" />
+
       <!-- Model picker -->
       <div class="ap-model-section">
         <div class="ap-model-label">
@@ -69,7 +74,11 @@
               </option>
             </optgroup>
           </select>
+          <button class="ap-suggest-btn" @click="suggestModel" title="Auto-suggest best model for this agent role">
+            ✦ Suggest
+          </button>
         </div>
+        <div v-if="suggestNote" class="ap-suggest-note">{{ suggestNote }}</div>
       </div>
 
       <!-- Version history -->
@@ -124,6 +133,28 @@ const selectedModelKey  = ref('__global__')  // '__global__' | 'provider/model'
 const providerModels    = ref([])             // [{id, name, models:[]}]
 const globalDefaultLabel = ref('')           // e.g. "Sonnet 4.6"
 
+// Best-model suggestions per llm_slot — mirrors SMART_SLOT_DEFAULTS in the backend
+const SLOT_SUGGESTIONS = {
+  researcher_search:    'perplexity/sonar-pro',
+  researcher_reasoning: 'google/gemini-2.5-pro',
+  approver:             'anthropic/claude-opus-4-7',
+  intake:               'anthropic/claude-sonnet-4-6',
+  discovery:            'anthropic/claude-sonnet-4-6',
+  reviewer:             'anthropic/claude-sonnet-4-6',
+  researcher_writer:    'anthropic/claude-sonnet-4-6',
+}
+
+const suggestNote = ref('')
+
+// Compact label shown next to the agent name in the header
+const activeModelLabel = computed(() => {
+  if (!selectedModelKey.value || selectedModelKey.value === '__global__') {
+    return globalDefaultLabel.value ? globalDefaultLabel.value : ''
+  }
+  const parts = selectedModelKey.value.split('/')
+  return parts[parts.length - 1]   // just the model name, no provider prefix
+})
+
 function modelConfigFromKey(key) {
   if (!key || key === '__global__') return null
   const [provider, ...rest] = key.split('/')
@@ -133,7 +164,25 @@ function keyFromModelConfig(cfg) {
   if (!cfg) return '__global__'
   return `${cfg.provider}/${cfg.model}`
 }
-function onModelChange() { dirty.value = true }
+function onModelChange() { dirty.value = true; suggestNote.value = '' }
+
+function suggestModel() {
+  const slot       = selected.value?.llm_slot
+  const suggested  = slot ? (SLOT_SUGGESTIONS[slot] ?? 'anthropic/claude-sonnet-4-6') : 'anthropic/claude-sonnet-4-6'
+  const [provider, model] = suggested.split('/')
+  const available  = providerModels.value.some(p => p.id === provider && p.models.includes(model))
+
+  if (available) {
+    selectedModelKey.value = suggested
+    dirty.value            = true
+    suggestNote.value      = `✓ Suggested ${model} for this agent's role.`
+  } else {
+    // Fall back to any available model from that provider, or just set the key anyway
+    selectedModelKey.value = suggested
+    dirty.value            = true
+    suggestNote.value      = `${model} suggested — connect ${provider} in Settings to use it.`
+  }
+}
 
 // ── Computed helpers ──────────────────────────────────────────────────────────
 
@@ -388,8 +437,16 @@ onMounted(async () => {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
   flex-wrap: wrap;
 }
-.ap-editor-title { font-size: 18px; font-weight: 700; color: var(--tx); margin-bottom: 4px; }
+.ap-title-row    { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.ap-editor-title { font-size: 18px; font-weight: 700; color: var(--tx); }
+.ap-model-badge  {
+  font-size: 11.5px; font-weight: 500; color: var(--muted);
+  padding: 2px 8px; border-radius: 6px;
+  background: var(--surf2); border: 1px solid var(--bdr);
+  font-family: monospace; white-space: nowrap;
+}
 .ap-editor-meta  { font-size: 13px; }
+.ap-separator    { height: 1px; background: var(--bdr); margin: 4px 0; }
 .meta-draft      { color: #d97706; }
 .meta-published  { color: var(--stx); }
 
@@ -433,6 +490,15 @@ onMounted(async () => {
 }
 .ap-model-hint { font-size: 12px; font-weight: 400; color: var(--muted); }
 .ap-model-row  { display: flex; align-items: center; gap: 10px; }
+.ap-suggest-btn {
+  padding: 7px 14px; border-radius: 8px; white-space: nowrap;
+  border: 1.5px solid var(--bdr); background: var(--surf); color: var(--tx);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: background .13s, border-color .13s;
+}
+.ap-suggest-btn:hover { background: var(--sbg); border-color: var(--pri); color: var(--pri); }
+.ap-suggest-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
 .ap-model-select {
   padding: 7px 12px; border-radius: 8px;
   border: 1px solid var(--bdr); background: var(--surf2); color: var(--tx);
