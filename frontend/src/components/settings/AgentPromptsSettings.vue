@@ -7,8 +7,8 @@
       <button v-for="agent in agents" :key="agent.agent_key"
         class="ap-agent-row" :class="{ active: selected?.agent_key === agent.agent_key }"
         @click="selectAgent(agent)">
-        <div class="ap-agent-label">{{ agent.label }}</div>
-        <div class="ap-agent-badge" :class="badgeClass(agent)">{{ badgeText(agent) }}</div>
+        <span class="ap-agent-label">{{ agent.label }}</span>
+        <span class="ap-agent-badge" :class="badgeClass(agent)">{{ badgeText(agent) }}</span>
       </button>
     </aside>
 
@@ -22,17 +22,27 @@
           <div class="ap-editor-meta" :class="metaClass">{{ metaText }}</div>
         </div>
         <div class="ap-editor-actions">
-          <button v-if="hasDraft" class="ap-btn ap-btn-ghost" @click="discardDraft" :disabled="saving">
-            Discard draft
+          <!-- Revert: reset editor to current published content, no API call -->
+          <button v-if="dirty && currentPublishedContent"
+            class="ap-btn ap-btn-ghost" @click="revertToPublished" :disabled="saving"
+            title="Discard unsaved edits and restore the current published prompt">
+            ↩ Revert to published
           </button>
-          <button v-if="hasDraft" class="ap-btn ap-btn-primary" @click="publishDraft" :disabled="saving">
-            {{ saving ? 'Publishing…' : `Publish v${draftVersion}` }}
-          </button>
-          <button v-if="!hasDraft" class="ap-btn ap-btn-secondary" @click="saveDraft" :disabled="saving || !dirty">
-            {{ saving ? 'Saving…' : 'Save Draft' }}
-          </button>
-          <button v-if="hasDraft" class="ap-btn ap-btn-secondary" @click="saveDraft" :disabled="saving || !dirty">
-            {{ saving ? 'Saving…' : 'Update Draft' }}
+
+          <template v-if="hasDraft">
+            <button class="ap-btn ap-btn-secondary" @click="saveDraft" :disabled="saving || !dirty">
+              {{ saving ? 'Saving…' : 'Update Draft' }}
+            </button>
+            <button class="ap-btn ap-btn-ghost ap-btn-danger" @click="discardDraft" :disabled="saving">
+              Discard draft
+            </button>
+            <button class="ap-btn ap-btn-primary" @click="publishDraft" :disabled="saving">
+              {{ saving ? 'Publishing…' : `Publish v${draftVersion}` }}
+            </button>
+          </template>
+
+          <button v-else class="ap-btn ap-btn-secondary" @click="saveDraft" :disabled="saving || !dirty">
+            {{ saving ? 'Saving…' : 'Save as Draft' }}
           </button>
         </div>
       </div>
@@ -95,6 +105,10 @@ const draftVersion = computed(() => selected.value?.draft?.version ?? null)
 
 const currentPublishedVersion = computed(() =>
   selected.value?.latest_published?.version ?? null
+)
+
+const currentPublishedContent = computed(() =>
+  selected.value?.latest_published?.content ?? null
 )
 
 const metaText = computed(() => {
@@ -228,6 +242,13 @@ async function discardDraft() {
   }
 }
 
+function revertToPublished() {
+  if (!currentPublishedContent.value) return
+  editorContent.value = currentPublishedContent.value
+  dirty.value         = false
+  saveMsg.value       = { type: 'ok', text: `Reverted to published v${currentPublishedVersion.value}.` }
+}
+
 async function restoreVersion(v) {
   editorContent.value = v.content
   dirty.value         = true
@@ -264,17 +285,20 @@ onMounted(loadAgents)
   padding: 6px 8px 10px;
 }
 .ap-agent-row {
-  display: flex; flex-direction: column; gap: 3px;
+  display: flex; flex-direction: row; align-items: center; gap: 6px;
   padding: 8px 10px; border-radius: 8px;
   background: none; border: none; cursor: pointer; text-align: left; width: 100%;
   transition: background .13s;
 }
 .ap-agent-row:hover  { background: var(--hover); }
 .ap-agent-row.active { background: var(--active-nav); }
-.ap-agent-label { font-size: 13px; font-weight: 500; color: var(--tx); }
+.ap-agent-label {
+  font-size: 13px; font-weight: 500; color: var(--tx);
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .ap-agent-badge {
-  font-size: 11px; font-weight: 600;
-  padding: 1px 6px; border-radius: 10px; width: fit-content;
+  font-size: 10.5px; font-weight: 600; flex-shrink: 0;
+  padding: 1px 6px; border-radius: 10px;
 }
 .badge-published { background: var(--sbg); color: var(--stx); }
 .badge-draft     { background: #fef3c7;    color: #92400e; }
@@ -309,6 +333,9 @@ onMounted(loadAgents)
 .ap-btn-secondary:hover:not(:disabled) { background: var(--hover); }
 .ap-btn-ghost { background: none; color: var(--muted); border-color: transparent; }
 .ap-btn-ghost:hover:not(:disabled) { color: var(--tx); background: var(--hover); }
+.ap-btn-ghost.ap-btn-danger { color: var(--muted); }
+.ap-btn-ghost.ap-btn-danger:hover:not(:disabled) { color: #dc2626; background: #fef2f2; }
+.dark .ap-btn-ghost.ap-btn-danger:hover:not(:disabled) { color: #fca5a5; background: #1f0000; }
 
 .ap-save-msg { font-size: 13px; padding: 8px 12px; border-radius: 8px; }
 .ap-save-msg.ok  { background: var(--pass-bg); color: var(--pass-tx); }
