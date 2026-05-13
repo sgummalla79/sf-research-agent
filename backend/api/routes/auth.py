@@ -124,35 +124,51 @@ async def list_connections():
 
 @router.get("/initiate")
 async def initiate_social(connection: str = ""):
+    # Read at call time so restarts always pick up the current .env value
+    domain       = os.getenv("AUTH0_DOMAIN", "")
+    client_id    = os.getenv("AUTH0_CLIENT_ID", "")
+    callback_url = os.getenv("AUTH0_CALLBACK_URL", "http://localhost:5173/auth/callback")
+
     params: dict = {
-        "client_id":     AUTH0_CLIENT_ID,
+        "client_id":     client_id,
         "response_type": "code",
-        "redirect_uri":  AUTH0_CALLBACK_URL,
+        "redirect_uri":  callback_url,
         "scope":         "openid profile email offline_access",
     }
     if connection:
         params["connection"] = connection
-    return RedirectResponse(f"https://{AUTH0_DOMAIN}/authorize?{urlencode(params)}")
+
+    url = f"https://{domain}/authorize?{urlencode(params)}"
+    logger.info("Auth0 initiate → redirect_uri=%s", callback_url)
+    return RedirectResponse(url)
 
 
 # ── OAuth callback — server-side, sets cookie and redirects to SPA ────────────
 
 @router.get("/callback")
 async def oauth_callback(code: str, request: Request, error: str = ""):
+    frontend_url = os.getenv("FRONTEND_URL", "")
+    callback_url = os.getenv("AUTH0_CALLBACK_URL", "http://localhost:5173/auth/callback")
+    logger.info("Auth0 callback received — code=%s..., error=%s", code[:8] if code else "", error)
+
     if error:
-        return RedirectResponse(f"{FRONTEND_URL}/login?error={error}")
+        return RedirectResponse(f"{frontend_url}/login?error={error}")
+
+    domain       = os.getenv("AUTH0_DOMAIN", "")
+    client_id    = os.getenv("AUTH0_CLIENT_ID", "")
+    client_secret = os.getenv("AUTH0_CLIENT_SECRET", "")
 
     try:
         async with httpx.AsyncClient() as client:
             # Exchange code for tokens
             token_resp = await client.post(
-                f"https://{AUTH0_DOMAIN}/oauth/token",
+                f"https://{domain}/oauth/token",
                 json={
                     "grant_type":    "authorization_code",
-                    "client_id":     AUTH0_CLIENT_ID,
-                    "client_secret": AUTH0_CLIENT_SECRET,
+                    "client_id":     client_id,
+                    "client_secret": client_secret,
                     "code":          code,
-                    "redirect_uri":  AUTH0_CALLBACK_URL,
+                    "redirect_uri":  callback_url,
                 },
                 timeout=15,
             )
@@ -162,7 +178,7 @@ async def oauth_callback(code: str, request: Request, error: str = ""):
 
             # Get user info
             userinfo_resp = await client.get(
-                f"https://{AUTH0_DOMAIN}/userinfo",
+                f"https://{domain}/userinfo",
                 headers={"Authorization": f"Bearer {tokens['access_token']}"},
                 timeout=10,
             )
@@ -170,7 +186,7 @@ async def oauth_callback(code: str, request: Request, error: str = ""):
 
     except Exception as exc:
         logger.error("OAuth callback error: %s", exc)
-        return RedirectResponse(f"{FRONTEND_URL}/login?error=auth_failed")
+        return RedirectResponse(f"{frontend_url}/login?error=auth_failed")
 
     user = AuthUser(
         sub     = userinfo["sub"],
@@ -183,7 +199,8 @@ async def oauth_callback(code: str, request: Request, error: str = ""):
     await db.upsert_user(user.sub, user.email, user.name, user.picture)
 
     token    = sign_session(user)
-    redirect = RedirectResponse(f"{FRONTEND_URL}/")
+    logger.info("Auth0 callback success — user=%s, redirecting to %s", user.email, frontend_url or "/")
+    redirect = RedirectResponse(f"{frontend_url}/")
     redirect.set_cookie(value=token, **cookie_options())
     return redirect
 
