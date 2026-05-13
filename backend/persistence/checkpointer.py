@@ -66,9 +66,24 @@ CREATE TABLE IF NOT EXISTS app_settings (
 );
 """
 
-_CREATE_USAGE_TABLE = """
+_CREATE_USAGE_TABLE_SL = """
 CREATE TABLE IF NOT EXISTS token_usage (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    id            INTEGER PRIMARY KEY,
+    user_id       TEXT NOT NULL,
+    thread_id     TEXT NOT NULL,
+    agent         TEXT NOT NULL,
+    model         TEXT NOT NULL,
+    input_tokens  INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    cost_usd      REAL    DEFAULT 0,
+    created_at    TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_usage_user ON token_usage(user_id);
+"""
+
+_CREATE_USAGE_TABLE_PG = """
+CREATE TABLE IF NOT EXISTS token_usage (
+    id            BIGSERIAL PRIMARY KEY,
     user_id       TEXT NOT NULL,
     thread_id     TEXT NOT NULL,
     agent         TEXT NOT NULL,
@@ -93,7 +108,7 @@ CREATE TABLE IF NOT EXISTS app_config (
 
 _CREATE_PROMPT_VERSIONS_SL = """
 CREATE TABLE IF NOT EXISTS agent_prompt_versions (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id           INTEGER PRIMARY KEY,
     user_id      TEXT    NOT NULL,
     flow_id      TEXT    NOT NULL,
     agent_key    TEXT    NOT NULL,
@@ -107,11 +122,25 @@ CREATE TABLE IF NOT EXISTS agent_prompt_versions (
 CREATE INDEX IF NOT EXISTS idx_apv_user_flow_key ON agent_prompt_versions(user_id, flow_id, agent_key);
 """
 
-_CREATE_PROMPT_VERSIONS_PG = _CREATE_PROMPT_VERSIONS_SL  # same DDL works for both
+_CREATE_PROMPT_VERSIONS_PG = """
+CREATE TABLE IF NOT EXISTS agent_prompt_versions (
+    id           BIGSERIAL PRIMARY KEY,
+    user_id      TEXT    NOT NULL,
+    flow_id      TEXT    NOT NULL,
+    agent_key    TEXT    NOT NULL,
+    version      INTEGER NOT NULL,
+    content      TEXT    NOT NULL,
+    status       TEXT    NOT NULL DEFAULT 'draft',
+    model_config TEXT,
+    created_at   TEXT    NOT NULL,
+    published_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_apv_user_flow_key ON agent_prompt_versions(user_id, flow_id, agent_key);
+"""
 
 _CREATE_SNAPSHOTS_SL = """
 CREATE TABLE IF NOT EXISTS flow_prompt_snapshots (
-    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    id               INTEGER PRIMARY KEY,
     user_id          TEXT    NOT NULL,
     flow_id          TEXT    NOT NULL,
     snapshot_version INTEGER NOT NULL,
@@ -121,7 +150,17 @@ CREATE TABLE IF NOT EXISTS flow_prompt_snapshots (
 );
 """
 
-_CREATE_SNAPSHOTS_PG = _CREATE_SNAPSHOTS_SL
+_CREATE_SNAPSHOTS_PG = """
+CREATE TABLE IF NOT EXISTS flow_prompt_snapshots (
+    id               BIGSERIAL PRIMARY KEY,
+    user_id          TEXT    NOT NULL,
+    flow_id          TEXT    NOT NULL,
+    snapshot_version INTEGER NOT NULL,
+    agent_versions   TEXT    NOT NULL,
+    created_at       TEXT    NOT NULL,
+    triggered_by     TEXT    NOT NULL
+);
+"""
 
 _CREATE_INSTALLED_SKILLS = """
 CREATE TABLE IF NOT EXISTS installed_skills (
@@ -951,7 +990,7 @@ async def _sqlite_backend():
         await conn.execute(_CREATE_USERS)
         await conn.execute(_CREATE_SESSIONS_TABLE)
         await conn.execute(_CREATE_SETTINGS_TABLE)
-        await conn.execute(_CREATE_USAGE_TABLE)
+        await conn.execute(_CREATE_USAGE_TABLE_SL)
         await conn.execute(_CREATE_CONFIG_TABLE)
         await conn.execute(_CREATE_PROMPT_VERSIONS_SL)
         await conn.execute(_CREATE_SNAPSHOTS_SL)
@@ -992,7 +1031,7 @@ async def _postgres_backend(url: str):
             await conn.execute(_CREATE_USERS)
             await conn.execute(_CREATE_SESSIONS_TABLE)
             await conn.execute(_CREATE_SETTINGS_TABLE)
-            await conn.execute(_CREATE_USAGE_TABLE)
+            await conn.execute(_CREATE_USAGE_TABLE_PG)
             await conn.execute(_CREATE_CONFIG_TABLE)
             await conn.execute(_CREATE_PROMPT_VERSIONS_PG)
             await conn.execute(_CREATE_SNAPSHOTS_PG)
