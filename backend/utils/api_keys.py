@@ -61,22 +61,19 @@ def get_keys() -> dict[str, str]:
 
 
 def get_key(provider: str) -> str:
-    """Return a single decrypted API key. Raises RuntimeError with user-friendly message if missing."""
-    value = _cache.get(provider)
-    if not value:
-        label = KEY_LABELS.get(provider, provider)
-        raise RuntimeError(
-            f"API key not configured: {label}. "
-            "Open Settings → Providers and connect this provider before starting a session."
-        )
-    return value
+    """
+    Return a decrypted API key for the current user.
+    Reads from the per-request ContextVar set by get_current_user().
+    """
+    from utils.user_context import get_user_key
+    return get_user_key(provider)
+
+
+def get_anthropic_mode() -> str:
+    from utils.user_context import get_anthropic_mode as _m
+    return _m()
 
 
 def is_configured(provider: str) -> bool:
-    """Return True if the given provider has a key in the cache."""
-    return bool(_cache.get(provider))
-
-
-def all_configured() -> bool:
-    """Return True only if ALL providers have keys (rarely needed — use is_configured per provider)."""
-    return all(_cache.get(k) for k in KEY_NAMES)
+    from utils.user_context import has_key
+    return has_key(provider)

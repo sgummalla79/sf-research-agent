@@ -50,6 +50,7 @@
 </template>
 
 <script setup>
+import { apiFetch } from '../../composables/useFetch.js'
 import { ref, onMounted } from 'vue'
 
 const loading = ref(true)
@@ -68,7 +69,7 @@ function fmtCost(c) {
 
 onMounted(async () => {
   try {
-    const res = await fetch('/api/usage/summary')
+    const res = await apiFetch('/api/usage/summary')
     if (res.ok) data.value = await res.json()
   } finally {
     loading.value = false

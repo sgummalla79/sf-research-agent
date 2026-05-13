@@ -19,7 +19,7 @@ import json
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException
+from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from langgraph.types import Command
 
@@ -33,6 +33,7 @@ from framework.defaults import SMART_SLOT_DEFAULTS
 from framework.registry import SkillNotFoundError
 from utils.file_parser import extract_text, SUPPORTED_EXTENSIONS
 from utils.file_storage import save_upload
+from utils.auth import AuthUser, get_current_user
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 ALL_ACCEPTED     = SUPPORTED_EXTENSIONS | IMAGE_EXTENSIONS
@@ -80,7 +81,7 @@ async def _generate_title(text: str) -> str:
     return title[:100] if title else text[:80]
 
 
-async def _save_title(db, session_id: str, text: str) -> None:
+async def _save_title(db, session_id: str, text: str, user_id: str) -> None:
     """Generate a title and persist it — runs as a fire-and-forget background task."""
     try:
         title = await _generate_title(text)
@@ -115,17 +116,17 @@ def _sse(event_type: str, payload: dict) -> str:
     return f"data: {json.dumps({'type': event_type, **payload})}\n\n"
 
 
-def _flush_usage(db, config: dict, output: dict) -> None:
+def _flush_usage(db, config: dict, output: dict, user_id: str = "") -> None:
     """Fire-and-forget: persist usage records accumulated so far so the
     frontend status bar can show live cost after each major stage."""
     import asyncio
     records = output.get("usage_records") if isinstance(output, dict) else None
     if records:
         thread_id = config["configurable"]["thread_id"]
-        asyncio.create_task(db.save_usage_records(thread_id, records))
+        asyncio.create_task(db.save_usage_records(user_id, thread_id, records))
 
 
-async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, None]:
+async def _stream_graph(graph, input_, config, db=None, user_id: str = "") -> AsyncGenerator[str, None]:
     """
     Run the graph with astream_events and translate LangGraph events into SSE messages.
     After the stream ends, inspect state to detect interrupt vs completion.
@@ -175,7 +176,7 @@ async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, N
                         "session_id": config["configurable"]["thread_id"],
                     })
                     if db:
-                        _flush_usage(db, config, output)
+                        _flush_usage(db, config, output, user_id)
 
                 elif name == "review":
                     rr = _get(output, "review_result")
@@ -185,7 +186,7 @@ async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, N
                         "critical_issues": _get(rr, "critical_issues",  []),
                     })
                     if db:
-                        _flush_usage(db, config, output)
+                        _flush_usage(db, config, output, user_id)
 
                 elif name == "approval":
                     ar = _get(output, "approval_result")
@@ -195,7 +196,7 @@ async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, N
                         "required_changes": _get(ar, "required_changes",  []),
                     })
                     if db:
-                        _flush_usage(db, config, output)
+                        _flush_usage(db, config, output, user_id)
 
                 else:
                     yield _sse("stage_end", {"stage": name})
@@ -208,7 +209,7 @@ async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, N
             if records:
                 thread_id = config["configurable"]["thread_id"]
                 try:
-                    await db.save_usage_records(thread_id, records)
+                    await db.save_usage_records(user_id, thread_id, records)
                 except Exception:
                     pass  # never let usage errors break the SSE stream
 
@@ -254,7 +255,7 @@ async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, N
 
 
 @router.post("/start")
-async def start_chat(body: StartRequest, request: Request):
+async def start_chat(body: StartRequest, request: Request, current_user: AuthUser = Depends(get_current_user)):
     db              = request.app.state.db
     skill_registry  = request.app.state.skill_registry
     graphs          = request.app.state.graphs
@@ -262,8 +263,8 @@ async def start_chat(body: StartRequest, request: Request):
     config     = {"configurable": {"thread_id": session_id}}
 
     # Save raw snippet immediately; replace with smart title in background
-    await db.record_session(session_id, body.brief[:80].replace('\n', ' '))
-    asyncio.create_task(_save_title(db, session_id, body.brief))
+    await db.record_session(session_id, current_user.sub, body.brief[:80].replace('\n', ' '))
+    asyncio.create_task(_save_title(db, session_id, body.brief, current_user.sub))
 
     agent_cfg = get_agent_config()
 
@@ -275,14 +276,14 @@ async def start_chat(body: StartRequest, request: Request):
     if body.session_type == "agent_flow":
         try:
             skill    = skill_registry.get(body.flow_id)
-            snapshot = await db.get_latest_snapshot(body.flow_id)
+            snapshot = await db.get_latest_snapshot(current_user.sub, body.flow_id)
             if snapshot:
-                db_prompts            = await db.get_prompt_content_for_snapshot(body.flow_id, snapshot)
+                db_prompts            = await db.get_prompt_content_for_snapshot(current_user.sub, body.flow_id, snapshot)
                 flow_config           = {**skill.all_agent_prompts, **db_prompts}
                 flow_snapshot_id      = snapshot["id"]
                 flow_snapshot_version = snapshot["snapshot_version"]
                 # Merge per-agent model overrides into agent_cfg (trump global defaults)
-                model_overrides = await db.get_model_config_for_snapshot(body.flow_id, snapshot)
+                model_overrides = await db.get_model_config_for_snapshot(current_user.sub, body.flow_id, snapshot)
                 slot_map        = skill.manifest.agent_slot_map
                 for agent_key, model_cfg in model_overrides.items():
                     slot = slot_map.get(agent_key)
@@ -304,7 +305,7 @@ async def start_chat(body: StartRequest, request: Request):
             pass
 
     # Save merged agent_cfg (global defaults + per-agent overrides + smart defaults)
-    await db.save_config(f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
+    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
 
     # Pick the compiled graph: skill-specific for agent flows, fallback for chat
     graph = (
@@ -327,7 +328,7 @@ async def start_chat(body: StartRequest, request: Request):
     )
 
     return StreamingResponse(
-        _stream_graph(graph, initial_state, config, db),
+        _stream_graph(graph, initial_state, config, db, user_id=current_user.sub),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -338,7 +339,7 @@ async def start_chat(body: StartRequest, request: Request):
 
 
 @router.post("/upload")
-async def upload_document(request: Request, file: UploadFile = File(...)):
+async def upload_document(request: Request, file: UploadFile = File(...), current_user: AuthUser = Depends(get_current_user)):
     """
     Accept a PDF, DOCX, TXT, or MD file.
     1. Enforce file type and size limits.
@@ -391,11 +392,11 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
 
     # For documents: title from extracted text. For images: title from filename.
     title_source = raw_text[:500] if (not is_image and raw_text) else f"Architecture diagram: {file.filename}"
-    await db.record_session(session_id, f"{'🖼' if is_image else '📄'} {file.filename}"[:80])
-    asyncio.create_task(_save_title(db, session_id, title_source))
+    await db.record_session(session_id, current_user.sub, f"{'🖼' if is_image else '📄'} {file.filename}"[:80])
+    asyncio.create_task(_save_title(db, session_id, title_source, current_user.sub))
 
     agent_cfg = get_agent_config()
-    await db.save_config(f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
+    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
 
     initial_state = AgentState(
         session_id=session_id,
@@ -407,7 +408,7 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
     )
 
     return StreamingResponse(
-        _stream_graph(graph, initial_state, config, db),
+        _stream_graph(graph, initial_state, config, db, user_id=current_user.sub),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -418,11 +419,11 @@ async def upload_document(request: Request, file: UploadFile = File(...)):
 
 
 @router.get("/session-config/{session_id}")
-async def get_session_config(session_id: str, request: Request) -> dict:
+async def get_session_config(session_id: str, request: Request, current_user: AuthUser = Depends(get_current_user)) -> dict:
     """Return the LLM config that was locked when this session started (read-only)."""
     import json
     db  = request.app.state.db
-    raw = await db.get_config(f"session_agent_config_{session_id}")
+    raw = await db.get_config(current_user.sub, f"session_agent_config_{session_id}")
     if not raw:
         return {"config": {}}
     try:
@@ -432,7 +433,7 @@ async def get_session_config(session_id: str, request: Request) -> dict:
 
 
 @router.get("/document/{session_id}")
-async def get_document(session_id: str, request: Request):
+async def get_document(session_id: str, request: Request, current_user: AuthUser = Depends(get_current_user)):
     """Fetch the current document draft for a session (used by the document panel)."""
     graph  = request.app.state.graph
     config = {"configurable": {"thread_id": session_id}}
@@ -443,7 +444,7 @@ async def get_document(session_id: str, request: Request):
     }
 
 
-async def _retitle_session(db, graph, session_id: str) -> None:
+async def _retitle_session(db, graph, session_id: str, user_id: str) -> None:
     """
     For sessions without a title (NULL brief_snippet), read the LangGraph state
     to get project_brief and generate a smart title in the background.
@@ -463,7 +464,7 @@ async def _retitle_session(db, graph, session_id: str) -> None:
                     break
 
         if brief:
-            await _save_title(db, session_id, brief)
+            await _save_title(db, session_id, brief, user_id)
         else:
             await db.update_session_title(session_id, "Architecture Session")
     except Exception:
@@ -471,25 +472,25 @@ async def _retitle_session(db, graph, session_id: str) -> None:
 
 
 @router.get("/sessions")
-async def list_sessions(request: Request):
+async def list_sessions(request: Request, current_user: AuthUser = Depends(get_current_user)):
     """
     Returns {pinned:[...], recent:[...]} sorted correctly.
     Fires background retitling for untitled sessions.
     """
     db    = request.app.state.db
     graph = request.app.state.graph
-    data  = await db.list_sessions()
+    data  = await db.list_sessions(current_user.sub)
 
     all_sessions = data["pinned"] + data["recent"]
     untitled     = [s for s in all_sessions if not s.get("brief_snippet")]
     for s in untitled[:10]:
-        asyncio.create_task(_retitle_session(db, graph, s["thread_id"]))
+        asyncio.create_task(_retitle_session(db, graph, s["thread_id"], current_user.sub))
 
     return data
 
 
 @router.get("/session/{session_id}/restore")
-async def restore_session(session_id: str, request: Request):
+async def restore_session(session_id: str, request: Request, current_user: AuthUser = Depends(get_current_user)):
     """Load a previous session so the frontend can reconstruct the chat."""
     from langchain_core.messages import HumanMessage as HM
 
@@ -561,7 +562,7 @@ async def restore_session(session_id: str, request: Request):
 
 
 @router.post("/retry/{session_id}")
-async def retry_chat(session_id: str, request: Request):
+async def retry_chat(session_id: str, request: Request, current_user: AuthUser = Depends(get_current_user)):
     """
     Re-stream the graph from its last LangGraph checkpoint.
     Use this after a connection error or exhausted LLM retries.
@@ -600,7 +601,7 @@ async def retry_chat(session_id: str, request: Request):
 
 
 @router.post("/reply/{session_id}")
-async def reply_chat(session_id: str, body: ReplyRequest, request: Request):
+async def reply_chat(session_id: str, body: ReplyRequest, request: Request, current_user: AuthUser = Depends(get_current_user)):
     graph = request.app.state.graph
     db    = request.app.state.db
     config = {"configurable": {"thread_id": session_id}}
@@ -626,7 +627,7 @@ class MessageRequest(BaseModel):
 
 
 @router.post("/message/{session_id}")
-async def post_completion_message(session_id: str, body: MessageRequest, request: Request):
+async def post_completion_message(session_id: str, body: MessageRequest, request: Request, current_user: AuthUser = Depends(get_current_user)):
     """
     Follow-up chat on a completed session.
     Streams a direct LLM response with the approved document as system context.
@@ -687,7 +688,7 @@ class ForkRequest(BaseModel):
 
 
 @router.post("/fork/{session_id}")
-async def fork_session(session_id: str, body: ForkRequest, request: Request):
+async def fork_session(session_id: str, body: ForkRequest, request: Request, current_user: AuthUser = Depends(get_current_user)):
     """
     Start a new session pre-seeded with a completed session's document.
     The new skill's full pipeline runs with the existing document as context.
@@ -709,8 +710,8 @@ async def fork_session(session_id: str, body: ForkRequest, request: Request):
     new_session_id = str(uuid.uuid4())
     new_config     = {"configurable": {"thread_id": new_session_id}}
 
-    await db.record_session(new_session_id, f"↳ {orig_brief[:70]}")
-    asyncio.create_task(_save_title(db, new_session_id, f"Follow-up: {orig_brief[:200]}"))
+    await db.record_session(new_session_id, current_user.sub, f"↳ {orig_brief[:70]}")
+    asyncio.create_task(_save_title(db, new_session_id, f"Follow-up: {orig_brief[:200]}", current_user.sub))
 
     agent_cfg = get_agent_config()
 
@@ -720,13 +721,13 @@ async def fork_session(session_id: str, body: ForkRequest, request: Request):
 
     try:
         skill    = skill_registry.get(body.flow_id)
-        snapshot = await db.get_latest_snapshot(body.flow_id)
+        snapshot = await db.get_latest_snapshot(current_user.sub, body.flow_id)
         if snapshot:
-            db_prompts            = await db.get_prompt_content_for_snapshot(body.flow_id, snapshot)
+            db_prompts            = await db.get_prompt_content_for_snapshot(current_user.sub, body.flow_id, snapshot)
             flow_config           = {**skill.all_agent_prompts, **db_prompts}
             flow_snapshot_id      = snapshot["id"]
             flow_snapshot_version = snapshot["snapshot_version"]
-            model_overrides       = await db.get_model_config_for_snapshot(body.flow_id, snapshot)
+            model_overrides       = await db.get_model_config_for_snapshot(current_user.sub, body.flow_id, snapshot)
             slot_map              = skill.manifest.agent_slot_map
             for agent_key, model_cfg in model_overrides.items():
                 slot = slot_map.get(agent_key)
@@ -746,6 +747,7 @@ async def fork_session(session_id: str, body: ForkRequest, request: Request):
         pass
 
     await db.save_config(
+        current_user.sub,
         f"session_agent_config_{new_session_id}",
         __import__("json").dumps(agent_cfg),
     )
@@ -776,7 +778,7 @@ async def fork_session(session_id: str, body: ForkRequest, request: Request):
     )
 
     return StreamingResponse(
-        _stream_graph(graph_to_use, initial_state, new_config, db),
+        _stream_graph(graph_to_use, initial_state, new_config, db, user_id=current_user.sub),
         media_type="text/event-stream",
         headers={
             "Cache-Control":  "no-cache",
@@ -793,7 +795,7 @@ class RenameRequest(BaseModel):
 
 
 @router.post("/session/{session_id}/pin")
-async def pin_session(session_id: str, request: Request):
+async def pin_session(session_id: str, request: Request, current_user: AuthUser = Depends(get_current_user)):
     try:
         await request.app.state.db.pin_session(session_id)
         return {"ok": True}
@@ -802,19 +804,18 @@ async def pin_session(session_id: str, request: Request):
 
 
 @router.delete("/session/{session_id}/pin")
-async def unpin_session(session_id: str, request: Request):
+async def unpin_session(session_id: str, request: Request, current_user: AuthUser = Depends(get_current_user)):
     await request.app.state.db.unpin_session(session_id)
     return {"ok": True}
 
 
 @router.delete("/session/{session_id}")
-async def delete_session(session_id: str, request: Request):
+async def delete_session(session_id: str, request: Request, current_user: AuthUser = Depends(get_current_user)):
     await request.app.state.db.delete_session(session_id)
     return {"ok": True}
 
 
 @router.patch("/session/{session_id}")
-async def rename_session(session_id: str, body: RenameRequest, request: Request):
+async def rename_session(session_id: str, body: RenameRequest, request: Request, current_user: AuthUser = Depends(get_current_user)):
     await request.app.state.db.rename_session(session_id, body.title)
     return {"ok": True}
-

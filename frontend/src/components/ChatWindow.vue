@@ -454,6 +454,14 @@
       </button>
       <transition name="um-pop">
         <div v-if="userMenuOpen" class="user-menu">
+          <div v-if="user" class="um-user-row">
+            <img v-if="user.picture" :src="user.picture" class="um-avatar" />
+            <div class="um-user-info">
+              <span class="um-user-name">{{ user.name || user.email }}</span>
+              <span class="um-user-email">{{ user.email }}</span>
+            </div>
+          </div>
+          <div class="um-divider"></div>
           <button class="um-item" @click="openSettings(); userMenuOpen = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Settings
@@ -472,6 +480,11 @@
             <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             {{ isDark ? 'Light mode' : 'Dark mode' }}
+          </button>
+          <div class="um-divider"></div>
+          <button class="um-item um-signout" @click="handleLogout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign out
           </button>
         </div>
       </transition>
@@ -633,8 +646,11 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { marked } from 'marked'
 import { useAgentChat } from '../composables/useAgentChat.js'
+import { useAuth } from '../composables/useAuth.js'
+import { apiFetch } from '../composables/useFetch.js'
 import SettingsPage from './SettingsPage.vue'
 import ConfigurationPage from './ConfigurationPage.vue'
 import ChatInput from './ChatInput.vue'
@@ -649,6 +665,14 @@ const {
   sendMessage, forkSession,
   openDocumentPanel, closeDocumentPanel, downloadMD,
 } = useAgentChat()
+
+const router = useRouter()
+const { user, logout: authLogout } = useAuth()
+
+function handleLogout() {
+  authLogout()
+  router.push('/login')
+}
 
 // App-level view
 const appView      = ref('chat')   // 'chat' | 'settings' | 'configuration'
@@ -753,7 +777,7 @@ const filteredChats = computed(() => {
 
 async function fetchKeyStatus() {
   try {
-    const res = await fetch('/api/settings/keys')
+    const res = await apiFetch('/api/settings/keys')
     if (res.ok) {
       const data = await res.json()
       keysConfigured.anthropic  = !!data.anthropic
@@ -767,7 +791,7 @@ async function openUsage() {
   usageOpen.value   = true
   globalUsage.loading = true
   try {
-    const res  = await fetch('/api/usage/summary')
+    const res  = await apiFetch('/api/usage/summary')
     if (res.ok) {
       const data = await res.json()
       globalUsage.totals        = data.totals        ?? { input_tokens: 0, output_tokens: 0, cost_usd: 0 }
@@ -826,7 +850,7 @@ async function saveSettings() {
 
 async function fetchFlows() {
   try {
-    const res = await fetch('/api/flows')
+    const res = await apiFetch('/api/flows')
     if (res.ok) {
       const data = await res.json()
       flows.value = data.flows || []
@@ -878,7 +902,7 @@ watch(() => sessionId.value, async (id) => {
   sessionModelsOpen.value  = false
   if (!id) { sessionFlow.value = null; return }
   try {
-    const res = await fetch(`/api/chat/session-config/${id}`)
+    const res = await apiFetch(`/api/chat/session-config/${id}`)
     if (res.ok) {
       const data = await res.json()
       sessionModelConfig.value = data.config || null
@@ -1434,6 +1458,17 @@ function doPDF() {
   transition: background .12s;
 }
 .um-item:hover { background: var(--sb-hover); }
+.um-signout { color: #f87171; }
+.um-signout:hover { background: rgba(239,68,68,.15); }
+
+.um-user-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px 6px;
+}
+.um-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+.um-user-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.um-user-name { font-size: 13px; font-weight: 600; color: var(--sb-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.um-user-email { font-size: 11px; color: var(--sb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Menu pop transition */
 .um-pop-enter-active { transition: opacity .15s ease, transform .15s ease; }

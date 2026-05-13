@@ -47,6 +47,7 @@
 </template>
 
 <script setup>
+import { apiFetch } from '../composables/useFetch.js'
 import { ref, computed, reactive, onMounted } from 'vue'
 
 const emit = defineEmits(['close', 'installed'])
@@ -66,7 +67,7 @@ const available = computed(() => skills.value)
 
 async function load() {
   try {
-    const res  = await fetch('/api/skills')
+    const res  = await apiFetch('/api/skills')
     const data = await res.json()
     skills.value = data.skills || []
   } catch (_) {}
@@ -76,10 +77,10 @@ async function toggle(skill) {
   busy[skill.id] = true
   try {
     if (skill.installed) {
-      await fetch(`/api/skills/${skill.id}`, { method: 'DELETE' })
+      await apiFetch(`/api/skills/${skill.id}`, { method: 'DELETE' })
       skill.installed = false
     } else {
-      await fetch(`/api/skills/${skill.id}`, { method: 'POST' })
+      await apiFetch(`/api/skills/${skill.id}`, { method: 'POST' })
       skill.installed = true
       emit('installed', skill.id)
     }

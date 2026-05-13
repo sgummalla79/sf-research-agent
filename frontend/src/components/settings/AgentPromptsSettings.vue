@@ -77,6 +77,7 @@
 </template>
 
 <script setup>
+import { apiFetch } from '../../composables/useFetch.js'
 import { ref, computed, watch, onMounted } from 'vue'
 
 const props = defineProps({
@@ -196,7 +197,7 @@ function badgeClass(agent) {
 
 async function loadAgents() {
   try {
-    const res  = await fetch(`/api/prompts/${props.flowId}`)
+    const res  = await apiFetch(`/api/prompts/${props.flowId}`)
     const data = await res.json()
     agents.value = data.agents || []
     // Re-sync selected agent data if one is active
@@ -230,7 +231,7 @@ async function saveDraft() {
   saving.value = true
   saveMsg.value = null
   try {
-    const res = await fetch(`/api/prompts/${props.flowId}/${selected.value.agent_key}/draft`, {
+    const res = await apiFetch(`/api/prompts/${props.flowId}/${selected.value.agent_key}/draft`, {
       method:  'PUT',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
@@ -257,7 +258,7 @@ async function discardDraft() {
   if (!confirm('Discard this draft? The unpublished changes will be lost.')) return
   saving.value = true
   try {
-    await fetch(`/api/prompts/${props.flowId}/${selected.value.agent_key}/draft`, { method: 'DELETE' })
+    await apiFetch(`/api/prompts/${props.flowId}/${selected.value.agent_key}/draft`, { method: 'DELETE' })
     await loadAgents()
   } finally {
     saving.value = false

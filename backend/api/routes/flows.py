@@ -1,23 +1,27 @@
 """
 Flows routes.
 
-GET /api/flows  →  list available agent flows + chat models
+GET /api/flows  →  list the current user's installed agent flows + chat models
 """
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from chat_models import CHAT_MODELS, CHAT_DEFAULT_MODEL
+from utils.auth import AuthUser, get_current_user
 
 router = APIRouter(prefix="/api/flows", tags=["flows"])
 
 
 @router.get("")
-async def list_flows(request: Request) -> dict:
-    """Return only installed agent flows and the chat model list."""
+async def list_flows(
+    request: Request,
+    current_user: AuthUser = Depends(get_current_user),
+) -> dict:
+    """Return only this user's installed agent flows and the chat model list."""
     db             = request.app.state.db
     skill_registry = request.app.state.skill_registry
 
-    installed = await db.get_installed_skill_ids()
+    installed = await db.get_installed_skill_ids(current_user.sub)
     flows = [
         {
             "id":          skill.manifest.id,

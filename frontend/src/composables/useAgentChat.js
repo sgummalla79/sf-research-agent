@@ -1,4 +1,5 @@
 import { ref, reactive } from 'vue'
+import { apiFetch } from './useFetch.js'
 
 const API_BASE = '/api/chat'
 
@@ -184,7 +185,7 @@ export function useAgentChat() {
   async function fetchSessionUsage(sid) {
     if (!sid) return
     try {
-      const res  = await fetch(`/api/usage/session/${sid}`)
+      const res  = await apiFetch(`/api/usage/session/${sid}`)
       if (!res.ok) return
       const data = await res.json()
       sessionUsage.input_tokens  = data.totals?.input_tokens  ?? 0
@@ -222,7 +223,7 @@ export function useAgentChat() {
   async function loadSessions() {
     sidebar.loading = true
     try {
-      const res  = await fetch(`${API_BASE}/sessions`)
+      const res  = await apiFetch(`${API_BASE}/sessions`)
       const data = await res.json()
       sidebar.pinned = data.pinned  || []
       sidebar.recent = data.recent  || []
@@ -236,7 +237,7 @@ export function useAgentChat() {
   }
 
   async function pinSession(threadId) {
-    const res = await fetch(`${API_BASE}/session/${threadId}/pin`, { method: 'POST' })
+    const res = await apiFetch(`${API_BASE}/session/${threadId}/pin`, { method: 'POST' })
     if (!res.ok) {
       const err = await res.json()
       alert(err.detail || 'Could not pin')
@@ -246,19 +247,19 @@ export function useAgentChat() {
   }
 
   async function unpinSession(threadId) {
-    await fetch(`${API_BASE}/session/${threadId}/pin`, { method: 'DELETE' })
+    await apiFetch(`${API_BASE}/session/${threadId}/pin`, { method: 'DELETE' })
     await loadSessions()
   }
 
   async function deleteSession(threadId) {
-    await fetch(`${API_BASE}/session/${threadId}`, { method: 'DELETE' })
+    await apiFetch(`${API_BASE}/session/${threadId}`, { method: 'DELETE' })
     if (sessionId.value === threadId) _resetChat()
     await loadSessions()
   }
 
   async function renameSession(threadId, title) {
     if (!title.trim()) return
-    await fetch(`${API_BASE}/session/${threadId}`, {
+    await apiFetch(`${API_BASE}/session/${threadId}`, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ title: title.trim() }),
@@ -270,7 +271,7 @@ export function useAgentChat() {
     _resetChat()
     sessionId.value = sid
 
-    const res  = await fetch(`${API_BASE}/session/${sid}/restore`)
+    const res  = await apiFetch(`${API_BASE}/session/${sid}/restore`)
     const data = await res.json()
     if (data.error) { error.value = data.error; return }
 
@@ -301,7 +302,7 @@ export function useAgentChat() {
   async function startSession(brief, opts = {}) {
     _resetChat()
     _addMessage('user', brief)
-    const response = await fetch(`${API_BASE}/start`, {
+    const response = await apiFetch(`${API_BASE}/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         brief,
@@ -322,7 +323,7 @@ export function useAgentChat() {
     _addMessage('user', `Uploaded: ${file.name}`)
     const formData = new FormData()
     formData.append('file', file)
-    const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData })
+    const response = await apiFetch(`${API_BASE}/upload`, { method: 'POST', body: formData })
     if (!response.ok) {
       const err = await response.json().catch(() => ({ detail: 'Upload failed' }))
       error.value = err.detail || 'Upload failed'; return
@@ -337,7 +338,7 @@ export function useAgentChat() {
     if (!sessionId.value) return
     pendingConfirmation.value = null
     _addMessage('user', correction.trim() ? `Correction: ${correction.trim()}` : 'Confirmed — looks right.')
-    const response = await fetch(`${API_BASE}/reply/${sessionId.value}`, {
+    const response = await apiFetch(`${API_BASE}/reply/${sessionId.value}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ answers: [correction.trim()] }),
     })
@@ -348,7 +349,7 @@ export function useAgentChat() {
     if (!sessionId.value) return
     error.value       = null
     isResumable.value = false
-    const response = await fetch(`${API_BASE}/retry/${sessionId.value}`, { method: 'POST' })
+    const response = await apiFetch(`${API_BASE}/retry/${sessionId.value}`, { method: 'POST' })
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       error.value = data.detail || 'Retry failed.'
@@ -362,7 +363,7 @@ export function useAgentChat() {
   async function sendMessage(text, model = 'claude-sonnet-4-6') {
     if (!sessionId.value) return
     _addMessage('user', text)
-    const response = await fetch(`${API_BASE}/message/${sessionId.value}`, {
+    const response = await apiFetch(`${API_BASE}/message/${sessionId.value}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, chat_model: model }),
     })
@@ -379,7 +380,7 @@ export function useAgentChat() {
   async function forkSession(fromSessionId, flow, opts = {}) {
     _resetChat()
     _addMessage('user', `Starting new session with **${flow.name}**, using your existing document as reference.`)
-    const response = await fetch(`${API_BASE}/fork/${fromSessionId}`, {
+    const response = await apiFetch(`${API_BASE}/fork/${fromSessionId}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         flow_id:           flow.id,
@@ -406,7 +407,7 @@ export function useAgentChat() {
       ? answers[0]
       : qs.map((q, i) => `**Q${i+1}:** ${q}\n**A:** ${answers[i] || '—'}`).join('\n\n')
     _addMessage('user', userText)
-    const response = await fetch(`${API_BASE}/reply/${sessionId.value}`, {
+    const response = await apiFetch(`${API_BASE}/reply/${sessionId.value}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ answers }),
     })
@@ -419,7 +420,7 @@ export function useAgentChat() {
     documentPanel.loading = true
     documentPanel.open    = true
     try {
-      const res  = await fetch(`${API_BASE}/document/${sid || sessionId.value}`)
+      const res  = await apiFetch(`${API_BASE}/document/${sid || sessionId.value}`)
       const data = await res.json()
       documentPanel.content = data.content
       documentPanel.version = data.version ?? version

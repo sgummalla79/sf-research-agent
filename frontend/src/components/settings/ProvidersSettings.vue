@@ -116,6 +116,7 @@
 </template>
 
 <script setup>
+import { apiFetch } from '../../composables/useFetch.js'
 import { ref, reactive, onMounted } from 'vue'
 
 const providers     = ref([])
@@ -130,7 +131,7 @@ const disconnecting = reactive({})
 async function load() {
   loading.value = true
   try {
-    const res = await fetch('/api/providers')
+    const res = await apiFetch('/api/providers')
     if (res.ok) {
       const data = await res.json()
       providers.value = data.providers || []
@@ -188,7 +189,7 @@ async function connect(pid) {
       body = { api_key: (keyInputs[pid] || '').trim() }
     }
 
-    const res  = await fetch(`/api/providers/${pid}/connect`, {
+    const res  = await apiFetch(`/api/providers/${pid}/connect`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(body),
@@ -217,7 +218,7 @@ async function connect(pid) {
 async function refresh(pid) {
   refreshing[pid] = true
   try {
-    const res  = await fetch(`/api/providers/${pid}/refresh`, { method: 'POST' })
+    const res  = await apiFetch(`/api/providers/${pid}/refresh`, { method: 'POST' })
     const data = await res.json()
     if (res.ok) {
       const p = providers.value.find(x => x.id === pid)
@@ -231,7 +232,7 @@ async function refresh(pid) {
 async function disconnect(pid) {
   disconnecting[pid] = true
   try {
-    const res = await fetch(`/api/providers/${pid}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/providers/${pid}`, { method: 'DELETE' })
     if (res.ok) await load()
   } finally {
     disconnecting[pid] = false

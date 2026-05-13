@@ -184,6 +184,7 @@
 </template>
 
 <script setup>
+import { apiFetch } from '../composables/useFetch.js'
 import { ref, computed, reactive, onMounted } from 'vue'
 import AgentPromptsSettings from './settings/AgentPromptsSettings.vue'
 import SkillDirectory from './SkillDirectory.vue'
@@ -227,7 +228,7 @@ const activeSkill = computed(() =>
 
 async function fetchSkills() {
   try {
-    const res  = await fetch('/api/flows')
+    const res  = await apiFetch('/api/flows')
     const data = await res.json()
     skills.value = data.flows || []
     if (skills.value.length) {
@@ -242,7 +243,7 @@ async function fetchSkills() {
 
 async function loadAgents(skillId) {
   try {
-    const res  = await fetch(`/api/prompts/${skillId}`)
+    const res  = await apiFetch(`/api/prompts/${skillId}`)
     const data = await res.json()
     skillAgents[skillId]   = data.agents   || []
     skillHasDraft[skillId] = !!data.has_draft
@@ -254,7 +255,7 @@ async function loadAgents(skillId) {
 
 async function loadSnapshots(skillId) {
   try {
-    const res  = await fetch(`/api/prompts/${skillId}/snapshots`)
+    const res  = await apiFetch(`/api/prompts/${skillId}/snapshots`)
     const data = await res.json()
     const snaps = data.snapshots || []
     skillSnapshots[skillId] = snaps
@@ -266,7 +267,7 @@ async function publishSkill(skillId) {
   publishing.value = true
   publishMsg.value = null
   try {
-    const res  = await fetch(`/api/prompts/${skillId}/publish`, { method: 'POST' })
+    const res  = await apiFetch(`/api/prompts/${skillId}/publish`, { method: 'POST' })
     const data = await res.json()
     if (res.ok) {
       publishMsg.value = { type: 'ok', text: `Published — skill is now v${data.snapshot_version}.` }
@@ -323,7 +324,7 @@ function confirmUninstall(skill) {
 async function executeUninstall() {
   const skill = uninstallConfirm.skill
   uninstallConfirm.show = false
-  await fetch(`/api/skills/${skill.id}`, { method: 'DELETE' })
+  await apiFetch(`/api/skills/${skill.id}`, { method: 'DELETE' })
   // Clear selection if we just uninstalled the active skill
   if (sel.value?.skillId === skill.id) sel.value = null
   await fetchSkills()
