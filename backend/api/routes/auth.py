@@ -117,10 +117,35 @@ async def list_connections():
         _connections_expires_at = time.time() + 3600   # cache 1 hour
 
     except Exception as exc:
-        logger.warning("Could not fetch Auth0 connections: %s", exc)
+        logger.error("Auth0 connections fetch failed: %s", exc, exc_info=True)
         _connections_cache = []
 
     return {"connections": _connections_cache}
+
+
+# ── Social login initiate ─────────────────────────────────────────────────────
+
+@router.get("/initiate")
+async def initiate_social(connection: str = ""):
+    """
+    Redirect the browser to Auth0's /authorize endpoint for a specific
+    social connection.  Called by the frontend for social login buttons.
+    All Auth0 config lives server-side — no VITE_ vars needed in the browser.
+    """
+    from fastapi.responses import RedirectResponse
+    from urllib.parse import urlencode
+
+    params = {
+        "client_id":     AUTH0_CLIENT_ID,
+        "response_type": "code",
+        "redirect_uri":  AUTH0_CALLBACK_URL,
+        "scope":         "openid profile email offline_access",
+    }
+    if connection:
+        params["connection"] = connection
+
+    url = f"https://{AUTH0_DOMAIN}/authorize?{urlencode(params)}"
+    return RedirectResponse(url)
 
 
 # ── Username / password login ─────────────────────────────────────────────────

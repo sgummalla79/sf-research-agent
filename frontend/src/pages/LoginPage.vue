@@ -56,7 +56,7 @@
         </template>
 
         <!-- Fallback when connections couldn't be fetched -->
-        <button v-else class="login-btn social" @click="loginWithAuth0()">
+        <button v-else class="login-btn social" @click="loginWithSocial('')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
             <circle cx="12" cy="12" r="10" stroke="#6366f1" stroke-width="2"/>
             <path d="M8 12h8M12 8l4 4-4 4" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -163,18 +163,6 @@ async function fetchConnections() {
 async function submitPassword() {
   const ok = await loginWithPassword(email.value, password.value)
   if (ok) router.push('/')
-}
-
-function loginWithAuth0() {
-  const domain   = import.meta.env.VITE_AUTH0_DOMAIN || ''
-  const clientId = import.meta.env.VITE_AUTH0_CLIENT_ID || ''
-  const params   = new URLSearchParams({
-    client_id:     clientId,
-    response_type: 'code',
-    redirect_uri:  window.location.origin + '/callback',
-    scope:         'openid profile email offline_access',
-  })
-  window.location.href = `https://${domain}/authorize?${params}`
 }
 
 onMounted(() => {

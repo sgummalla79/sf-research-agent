@@ -138,15 +138,11 @@ async function loginWithPassword(email, password, connection = 'Username-Passwor
 }
 
 function loginWithSocial(connectionName) {
-  const params = new URLSearchParams({
-    client_id:     import.meta.env.VITE_AUTH0_CLIENT_ID || '',
-    response_type: 'code',
-    redirect_uri:  window.location.origin + '/callback',
-    connection:    connectionName,
-    scope:         'openid profile email offline_access',
-  })
-  const domain = import.meta.env.VITE_AUTH0_DOMAIN || ''
-  window.location.href = `https://${domain}/authorize?${params}`
+  // Route through backend — all Auth0 config lives server-side, no VITE_ vars needed.
+  const url = connectionName
+    ? `/auth/initiate?connection=${encodeURIComponent(connectionName)}`
+    : '/auth/initiate'
+  window.location.href = url
 }
 
 async function handleCallback(code) {
