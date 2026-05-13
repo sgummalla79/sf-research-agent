@@ -15,6 +15,15 @@ class DiscoveryQuestion(BaseModel):
     satisfied: bool = False   # True once the agent deems the answer sufficient
 
 
+# ── Discovery structured output ───────────────────────────────────────────────
+
+class DiscoveryOutput(BaseModel):
+    next_questions:     list[str]
+    updated_questions:  list[DiscoveryQuestion]
+    discovery_complete: bool
+    reasoning:          str
+
+
 # ── Reviewer structured output ─────────────────────────────────────────────────
 
 class ReviewResult(BaseModel):
