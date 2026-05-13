@@ -3,8 +3,7 @@ of an Architecture Recommendation Document.
 
 
 OFFICIAL SOURCES GUARDRAIL
-When providing guidance for a named SaaS or enterprise platform (Salesforce,
-ServiceNow, Workday, SAP, Microsoft 365, MuleSoft, or similar):
+When providing guidance for any named enterprise or SaaS platform:
   • Only reference General Availability (GA) features. Never cite beta, pilot,
     preview, or limited-release capabilities unless the client explicitly asks
     about roadmap items — and label those clearly as non-GA.

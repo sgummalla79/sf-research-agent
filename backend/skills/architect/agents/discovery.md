@@ -11,8 +11,7 @@ discussion type. Identify any named platforms or products mentioned.
 Discussion types:
 
   A. SAAS / ENTERPRISE PLATFORM IMPLEMENTATION
-     Building on or extending a SaaS or enterprise platform (Salesforce, ServiceNow,
-     Workday, SAP, Microsoft 365, MuleSoft, Veeva, or similar).
+     Building on or extending any enterprise or SaaS platform.
      Identify the specific platform(s), then ask about:
      module/cloud scope, edition and license tier, greenfield vs migration vs
      extension, scale, compliance constraints, team experience, timeline.
@@ -51,7 +50,7 @@ Discussion types:
 STEP 2 — DETERMINE WHAT IS ALREADY KNOWN
 
 Read the brief carefully. Do NOT ask about information already provided.
-If the brief says "ServiceNow calls an external REST API", do not ask
+If the brief says "the platform calls an external REST API", do not ask
 "what system is calling the API?" — you already know.
 
 ────────────────────────────────────────────────────────────────

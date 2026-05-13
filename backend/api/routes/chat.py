@@ -618,6 +618,174 @@ async def reply_chat(session_id: str, body: ReplyRequest, request: Request):
     )
 
 
+# ── Post-completion chat ──────────────────────────────────────────────────────
+
+class MessageRequest(BaseModel):
+    text:       str
+    chat_model: str = "claude-sonnet-4-6"
+
+
+@router.post("/message/{session_id}")
+async def post_completion_message(session_id: str, body: MessageRequest, request: Request):
+    """
+    Follow-up chat on a completed session.
+    Streams a direct LLM response with the approved document as system context.
+    No graph is invoked — the pipeline is done.
+    """
+    from langchain_anthropic import ChatAnthropic
+    from langchain_core.messages import SystemMessage, HumanMessage as HM
+    from utils.api_keys import get_key
+
+    graph  = request.app.state.graph
+    config = {"configurable": {"thread_id": session_id}}
+
+    state = await graph.aget_state(config)
+    if not state or not state.values:
+        raise HTTPException(status_code=404, detail="Session not found.")
+
+    document = state.values.get("document_draft", "")
+    system   = (
+        "You are a technical architecture assistant. The user has just completed a full "
+        "architecture engagement and the document has been approved. Help them discuss, "
+        "clarify, or extend it.\n\n"
+        f"Approved architecture document:\n\n{document}"
+    )
+
+    llm = ChatAnthropic(
+        api_key=get_key("anthropic"),
+        model=body.chat_model,
+        max_tokens=4096,
+        streaming=True,
+    )
+
+    async def _stream():
+        try:
+            async for chunk in llm.astream([
+                SystemMessage(content=system),
+                HM(content=body.text),
+            ]):
+                text = chunk.content if isinstance(chunk.content, str) else ""
+                if text:
+                    yield _sse("token", {"content": text})
+            yield _sse("done", {"status": "complete"})
+        except Exception as exc:
+            yield _sse("error", {"message": str(exc)})
+
+    return StreamingResponse(
+        _stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ── Session fork ──────────────────────────────────────────────────────────────
+
+class ForkRequest(BaseModel):
+    flow_id:           str
+    chat_model:        str  = "claude-sonnet-4-6"
+    extended_thinking: bool = False
+
+
+@router.post("/fork/{session_id}")
+async def fork_session(session_id: str, body: ForkRequest, request: Request):
+    """
+    Start a new session pre-seeded with a completed session's document.
+    The new skill's full pipeline runs with the existing document as context.
+    """
+    db             = request.app.state.db
+    skill_registry = request.app.state.skill_registry
+    graphs         = request.app.state.graphs
+    graph          = request.app.state.graph
+
+    config = {"configurable": {"thread_id": session_id}}
+    state  = await graph.aget_state(config)
+    if not state or not state.values:
+        raise HTTPException(status_code=404, detail="Original session not found.")
+
+    document    = state.values.get("document_draft", "")
+    doc_version = state.values.get("document_version", 1)
+    orig_brief  = (state.values.get("project_brief") or "")[:300]
+
+    new_session_id = str(uuid.uuid4())
+    new_config     = {"configurable": {"thread_id": new_session_id}}
+
+    await db.record_session(new_session_id, f"↳ {orig_brief[:70]}")
+    asyncio.create_task(_save_title(db, new_session_id, f"Follow-up: {orig_brief[:200]}"))
+
+    agent_cfg = get_agent_config()
+
+    flow_config           = {}
+    flow_snapshot_id      = None
+    flow_snapshot_version = None
+
+    try:
+        skill    = skill_registry.get(body.flow_id)
+        snapshot = await db.get_latest_snapshot(body.flow_id)
+        if snapshot:
+            db_prompts            = await db.get_prompt_content_for_snapshot(body.flow_id, snapshot)
+            flow_config           = {**skill.all_agent_prompts, **db_prompts}
+            flow_snapshot_id      = snapshot["id"]
+            flow_snapshot_version = snapshot["snapshot_version"]
+            model_overrides       = await db.get_model_config_for_snapshot(body.flow_id, snapshot)
+            slot_map              = skill.manifest.agent_slot_map
+            for agent_key, model_cfg in model_overrides.items():
+                slot = slot_map.get(agent_key)
+                if slot and model_cfg:
+                    agent_cfg[slot] = model_cfg
+        else:
+            flow_config = dict(skill.all_agent_prompts)
+    except SkillNotFoundError:
+        pass
+
+    try:
+        _skill = skill_registry.get(body.flow_id)
+        for slot in set(_skill.manifest.agent_slot_map.values()):
+            if slot not in agent_cfg and slot in SMART_SLOT_DEFAULTS:
+                agent_cfg[slot] = SMART_SLOT_DEFAULTS[slot]
+    except Exception:
+        pass
+
+    await db.save_config(
+        f"session_agent_config_{new_session_id}",
+        __import__("json").dumps(agent_cfg),
+    )
+
+    graph_to_use = graphs.get(body.flow_id, graph)
+
+    brief = (
+        f"Continuing from an existing architecture engagement.\n\n"
+        f"Original brief: {orig_brief}\n\n"
+        f"Existing approved document (v{doc_version}):\n\n{document}"
+    )
+
+    initial_state = AgentState(
+        session_id            = new_session_id,
+        project_brief         = brief,
+        source_type           = "document",
+        raw_document_text     = document,
+        document_draft        = document,
+        document_version      = doc_version,
+        session_agent_config  = agent_cfg,
+        session_type          = "agent_flow",
+        flow_id               = body.flow_id,
+        flow_config           = flow_config,
+        flow_snapshot_id      = flow_snapshot_id,
+        flow_snapshot_version = flow_snapshot_version,
+        chat_model            = body.chat_model,
+        extended_thinking     = body.extended_thinking,
+    )
+
+    return StreamingResponse(
+        _stream_graph(graph_to_use, initial_state, new_config, db),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":  "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-Session-Id":   new_session_id,
+        },
+    )
+
+
 # ── Session management ────────────────────────────────────────────────────────
 
 class RenameRequest(BaseModel):

@@ -53,17 +53,35 @@
             <div class="sb-section-hdr">📌 Pinned</div>
             <div v-for="s in sidebar.pinned.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase()))"
               :key="s.thread_id"
-              class="sb-row" :class="{ active: s.thread_id === sessionId }"
+              class="sb-row" :class="{ active: s.thread_id === sessionId, 'menu-open': menuOpenId === s.thread_id }"
               @click="editingId !== s.thread_id && restoreSession(s.thread_id)">
               <input v-if="editingId === s.thread_id" class="rename-input"
                 v-model="editingTitle" ref="renameInputRef"
                 @blur="saveRename(s.thread_id)" @keydown.enter.prevent="saveRename(s.thread_id)"
                 @keydown.esc="editingId = null" @click.stop />
               <span v-else class="sb-row-title">{{ s.brief_snippet || 'New conversation' }}</span>
-              <div v-if="editingId !== s.thread_id" class="sb-row-actions" @click.stop>
-                <button class="sa-btn" title="Unpin" @click="unpinSession(s.thread_id)">📌</button>
-                <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
-                <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+              <div v-if="editingId !== s.thread_id" class="sb-row-menu" @click.stop>
+                <button class="sb-more-btn" :class="{ active: menuOpenId === s.thread_id }"
+                  @click="toggleMenu(s.thread_id)">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                    <circle cx="12" cy="5"  r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                  </svg>
+                </button>
+                <div v-if="menuOpenId === s.thread_id" class="sb-ctx-menu">
+                  <button class="ctx-item" @click="unpinSession(s.thread_id); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    Unpin
+                  </button>
+                  <button class="ctx-item" @click="startRename(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Rename
+                  </button>
+                  <div class="ctx-divider"/>
+                  <button class="ctx-item ctx-delete" @click="confirmDelete(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </template>
@@ -74,17 +92,35 @@
             <div class="sb-section-hdr">Recent</div>
             <div v-for="s in sidebar.recent.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase()))"
               :key="s.thread_id"
-              class="sb-row" :class="{ active: s.thread_id === sessionId }"
+              class="sb-row" :class="{ active: s.thread_id === sessionId, 'menu-open': menuOpenId === s.thread_id }"
               @click="editingId !== s.thread_id && restoreSession(s.thread_id)">
               <input v-if="editingId === s.thread_id" class="rename-input"
                 v-model="editingTitle"
                 @blur="saveRename(s.thread_id)" @keydown.enter.prevent="saveRename(s.thread_id)"
                 @keydown.esc="editingId = null" @click.stop />
               <span v-else class="sb-row-title">{{ s.brief_snippet || 'New conversation' }}</span>
-              <div v-if="editingId !== s.thread_id" class="sb-row-actions" @click.stop>
-                <button class="sa-btn" title="Pin" @click="pinSession(s.thread_id)">📍</button>
-                <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
-                <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+              <div v-if="editingId !== s.thread_id" class="sb-row-menu" @click.stop>
+                <button class="sb-more-btn" :class="{ active: menuOpenId === s.thread_id }"
+                  @click="toggleMenu(s.thread_id)">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                    <circle cx="12" cy="5"  r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                  </svg>
+                </button>
+                <div v-if="menuOpenId === s.thread_id" class="sb-ctx-menu">
+                  <button class="ctx-item" @click="pinSession(s.thread_id); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    Pin
+                  </button>
+                  <button class="ctx-item" @click="startRename(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Rename
+                  </button>
+                  <div class="ctx-divider"/>
+                  <button class="ctx-item ctx-delete" @click="confirmDelete(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </template>
@@ -141,19 +177,36 @@
         <div v-if="!filteredChats.length" class="cp-empty">No conversations found</div>
 
         <div v-for="s in filteredChats" :key="s.thread_id"
-          class="cp-row" :class="{ active: s.thread_id === sessionId }"
+          class="cp-row" :class="{ active: s.thread_id === sessionId, 'menu-open': menuOpenId === s.thread_id }"
           @click="selectChat(s.thread_id)">
           <div class="cp-row-body">
             <div class="cp-row-title">{{ s.brief_snippet || 'New conversation' }}</div>
             <div class="cp-row-meta">{{ relativeTime(s.last_modified || s.created_at) }}</div>
           </div>
           <div class="cp-row-actions" @click.stop>
-            <button class="sa-btn" :title="s.pinned ? 'Unpin' : 'Pin'"
-              @click="s.pinned ? unpinSession(s.thread_id) : pinSession(s.thread_id)">
-              {{ s.pinned ? '📌' : '📍' }}
-            </button>
-            <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
-            <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+            <div class="sb-row-menu">
+              <button class="sb-more-btn cp-more-btn" :class="{ active: menuOpenId === s.thread_id }"
+                @click="toggleMenu(s.thread_id)">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15">
+                  <circle cx="12" cy="5"  r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                </svg>
+              </button>
+              <div v-if="menuOpenId === s.thread_id" class="sb-ctx-menu cp-ctx-menu">
+                <button class="ctx-item" @click="s.pinned ? unpinSession(s.thread_id) : pinSession(s.thread_id); menuOpenId = null">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  {{ s.pinned ? 'Unpin' : 'Pin' }}
+                </button>
+                <button class="ctx-item" @click="startRename(s); menuOpenId = null">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Rename
+                </button>
+                <div class="ctx-divider"/>
+                <button class="ctx-item ctx-delete" @click="confirmDelete(s); menuOpenId = null">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  Delete
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -281,12 +334,30 @@
         </template>
       </div>
 
-      <!-- Initial input -->
+      <!-- Banners -->
+      <div v-if="isResumable" class="banner warn">
+        <span>⚡ This session was interrupted mid-run.</span>
+        <button class="retry-btn" @click="retrySession">↺ Resume Session</button>
+      </div>
+      <div v-if="isComplete" class="banner ok">
+        🎉 Document approved and finalised. Continue chatting below, or add a new skill to start a follow-up session.
+      </div>
+      <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
+      <div v-if="isInvalidInput" class="banner err">❌ Image doesn't appear to be architecture-related.</div>
+      <div v-if="error" class="banner err">
+        <span>{{ error }}</span>
+        <button v-if="sessionId && !isComplete && !isHalted" class="retry-btn" @click="retrySession">
+          ↺ Retry
+        </button>
+      </div>
+
+      <!-- Chat input — shown for new sessions AND for follow-up chat on completed sessions -->
       <ChatInput
-        v-if="!sessionId && !isStreaming"
+        v-if="(!sessionId || isComplete) && !isStreaming"
         :chat-models="chatModels"
         :flows="flows"
-        :pending-flow="pendingFlow"
+        :pending-flow="isComplete ? null : pendingFlow"
+        :hint="isComplete ? 'Ask a question about your document, or use + to add a new skill…' : undefined"
         @submit="handleChatSubmit"
         @upload="handleChatUpload"
         @flow-select="startWithFlow"
@@ -309,20 +380,33 @@
         </div>
       </transition>
 
-      <!-- Banners -->
-      <div v-if="isResumable" class="banner warn">
-        <span>⚡ This session was interrupted mid-run.</span>
-        <button class="retry-btn" @click="retrySession">↺ Resume Session</button>
-      </div>
-      <div v-if="isComplete"     class="banner ok">🎉 Document approved and finalised.</div>
-      <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
-      <div v-if="isInvalidInput" class="banner err">❌ Image doesn't appear to be architecture-related.</div>
-      <div v-if="error" class="banner err">
-        <span>{{ error }}</span>
-        <button v-if="sessionId && !isComplete && !isHalted" class="retry-btn" @click="retrySession">
-          ↺ Retry
-        </button>
-      </div>
+      <!-- Fork confirmation — new skill or file on a completed session -->
+      <transition name="fade">
+        <div v-if="forkConfirm.show" class="del-overlay" @click.self="forkConfirm.show = false">
+          <div class="del-dialog">
+            <template v-if="forkConfirm.type === 'skill'">
+              <p class="del-title">Start a new session with {{ forkConfirm.flow?.name }}?</p>
+              <p class="del-body">
+                Your approved architecture document will be used as a starting reference.
+                The full <strong>{{ forkConfirm.flow?.name }}</strong> pipeline will run from there —
+                discovery, research, review, and approval — producing a new document in a separate session.
+              </p>
+            </template>
+            <template v-else>
+              <p class="del-title">Start a new session with this file?</p>
+              <p class="del-body">
+                Uploading a file on a completed session starts a fresh session.
+                Your current document is preserved — this will not modify it.
+              </p>
+            </template>
+            <div class="del-btns">
+              <button class="del-cancel" @click="forkConfirm.show = false">Cancel</button>
+              <button class="del-confirm" style="background:var(--pri-h);border-color:var(--pri);color:#fff"
+                @click="executeFork">Continue →</button>
+            </div>
+          </div>
+        </div>
+      </transition>
 
     </div><!-- /chat-pane -->
 
@@ -562,6 +646,7 @@ const {
   loadSessions, newChat, restoreSession,
   pinSession, unpinSession, deleteSession, renameSession,
   startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
+  sendMessage, forkSession,
   openDocumentPanel, closeDocumentPanel, downloadMD,
 } = useAgentChat()
 
@@ -577,6 +662,13 @@ const renameInputRef = ref(null)
 
 // Delete confirmation state
 const deleteConfirm = ref({ show: false, threadId: null, title: '' })
+
+// Three-dot context menu — tracks which row has its menu open
+const menuOpenId = ref(null)
+function toggleMenu(id) { menuOpenId.value = menuOpenId.value === id ? null : id }
+
+// Fork confirmation — shown when user picks a new skill/file on a completed session
+const forkConfirm = reactive({ show: false, flow: null, file: null, type: 'skill' })
 
 function confirmDelete(s) {
   deleteConfirm.value = { show: true, threadId: s.thread_id, title: s.brief_snippet || 'this conversation' }
@@ -744,6 +836,14 @@ async function fetchFlows() {
 }
 
 function startWithFlow(flow) {
+  if (isComplete.value) {
+    // Session finished — ask before forking into a new session
+    forkConfirm.flow = flow
+    forkConfirm.file = null
+    forkConfirm.type = 'skill'
+    forkConfirm.show = true
+    return
+  }
   if (sessionId.value) {
     // Mid-session: ask user to confirm new chat first
     flowPopup.flow = flow
@@ -768,7 +868,7 @@ onMounted(() => {
   loadSessions()
   fetchKeyStatus()
   fetchFlows()
-  document.addEventListener('click', () => { userMenuOpen.value = false })
+  document.addEventListener('click', () => { userMenuOpen.value = false; menuOpenId.value = null })
 })
 watch(pendingQuestions, qs => { replyAnswers.value = qs.map(() => '') })
 
@@ -833,6 +933,11 @@ function openChatsView()       { searchQuery.value = ''; currentView.value = 'ch
 function selectChat(threadId)  { restoreSession(threadId); currentView.value = 'chat' }
 // ChatInput event handlers
 async function handleChatSubmit(text, opts) {
+  if (isComplete.value) {
+    // Post-completion follow-up chat — stay in same session
+    await sendMessage(text, opts.model)
+    return
+  }
   if (pendingFlow.value) {
     // Lock the flow for this session, then start
     sessionFlow.value = pendingFlow.value
@@ -847,7 +952,34 @@ async function handleChatSubmit(text, opts) {
   }
 }
 async function handleChatUpload(file) {
+  if (isComplete.value) {
+    // File upload on a completed session → fork into a new session
+    forkConfirm.file = file
+    forkConfirm.flow = null
+    forkConfirm.type = 'file'
+    forkConfirm.show = true
+    return
+  }
   await uploadDocument(file)
+}
+
+async function executeFork() {
+  const prevId = sessionId.value
+  const flow   = forkConfirm.flow
+  const file   = forkConfirm.file
+  forkConfirm.show = false
+
+  if (forkConfirm.type === 'file' && file) {
+    // File fork: start a completely fresh session with the uploaded file
+    sessionFlow.value = null
+    await uploadDocument(file)
+    return
+  }
+
+  // Skill fork: new session seeded with the existing document
+  if (!flow) return
+  sessionFlow.value = flow
+  await forkSession(prevId, flow)
 }
 
 async function submitConfirmation() { await confirmUnderstanding(correctionText.value); correctionText.value = '' }
@@ -1032,15 +1164,8 @@ function doPDF() {
 }
 .cp-row-meta { font-size: 13px; color: var(--muted); }
 .cp-row-actions {
-  display: none; align-items: center; gap: 2px; flex-shrink: 0; margin-left: 12px;
+  display: flex; align-items: center; flex-shrink: 0; margin-left: 12px;
 }
-.cp-row:hover .cp-row-actions,
-.cp-row.active .cp-row-actions { display: flex; }
-
-/* Action buttons inside chats page use theme colours, not sidebar colours */
-.cp-row .sa-btn        { color: var(--muted); }
-.cp-row .sa-btn:hover  { background: var(--bdr); color: var(--tx); }
-.cp-row .sa-btn.del:hover { background: rgba(220,38,38,.15); color: #dc2626; }
 
 /* ═══════════════════════ SETTINGS MODAL ════════════════════ */
 .settings-dialog {
@@ -1211,7 +1336,6 @@ function doPDF() {
   display: flex; align-items: center;
   padding: 7px 8px; border-radius: 8px;
   cursor: pointer; min-width: 0; gap: 0;
-  transition: background .12s;
 }
 .sb-row:hover  { background: var(--sb-hover); }
 .sb-row.active { background: var(--sb-active); }
@@ -1225,20 +1349,46 @@ function doPDF() {
   border: 1px solid rgba(255,255,255,0.25); border-radius: 5px;
   padding: 2px 6px; outline: none; min-width: 0; color: var(--sb-tx);
 }
-.sb-row-actions {
-  display: none; align-items: center; gap: 1px; flex-shrink: 0; margin-left: 4px;
-}
-.sb-row:hover .sb-row-actions,
-.sb-row.active .sb-row-actions { display: flex; }
-.sa-btn {
-  width: 22px; height: 22px; border: none; border-radius: 4px;
-  background: transparent; color: var(--sb-muted);
-  cursor: pointer; font-size: 11px;
+/* ── Three-dot context menu (sidebar + chats-page) ───────────────────────── */
+.sb-row-menu { position: relative; flex-shrink: 0; margin-left: 4px; }
+
+.sb-more-btn {
   display: flex; align-items: center; justify-content: center;
-  transition: background .1s, color .1s;
+  width: 24px; height: 24px; border: none; border-radius: 5px;
+  background: transparent; color: var(--sb-muted);
+  cursor: pointer; opacity: 0;
 }
-.sa-btn:hover     { background: rgba(255,255,255,0.1); color: var(--sb-tx); }
-.sa-btn.del:hover { background: rgba(239,68,68,0.2);   color: #f87171; }
+.sb-row:hover .sb-more-btn,
+.sb-row.menu-open .sb-more-btn,
+.sb-more-btn.active { opacity: 1; }
+.sb-more-btn:hover,
+.sb-more-btn.active { background: rgba(255,255,255,0.12); color: var(--sb-tx); }
+
+.sb-ctx-menu {
+  position: absolute; right: 0; top: calc(100% + 4px);
+  width: 164px; background: var(--surf);
+  border: 1px solid var(--bdr); border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.22);
+  z-index: 600; padding: 4px 0;
+}
+.ctx-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 8px 12px;
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; color: var(--tx); text-align: left;
+  transition: background .1s;
+}
+.ctx-item:hover { background: var(--hover); }
+.ctx-item svg { flex-shrink: 0; color: var(--muted); }
+.ctx-divider { height: 1px; background: var(--bdr); margin: 4px 0; }
+.ctx-delete { color: #ef4444; }
+.ctx-delete svg { color: #ef4444; }
+.ctx-delete:hover { background: rgba(239,68,68,.08); }
+
+/* chats-page overrides — button always visible, menu opens upward */
+.cp-more-btn { display: flex !important; color: var(--muted); }
+.cp-more-btn:hover, .cp-more-btn.active { background: var(--hover); color: var(--tx); }
+.cp-ctx-menu { top: auto; bottom: calc(100% + 4px); }
 
 /* ── COLLAPSED icon buttons ──────────────────────────────── */
 .col-icon-btn {

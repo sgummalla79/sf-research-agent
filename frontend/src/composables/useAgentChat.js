@@ -357,6 +357,47 @@ export function useAgentChat() {
     await _readStream(response)
   }
 
+  // ── Post-completion chat ───────────────────────────────────────────────────
+
+  async function sendMessage(text, model = 'claude-sonnet-4-6') {
+    if (!sessionId.value) return
+    _addMessage('user', text)
+    const response = await fetch(`${API_BASE}/message/${sessionId.value}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, chat_model: model }),
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      error.value = err.detail || 'Message failed.'
+      return
+    }
+    await _readStream(response)
+    // Restore complete flag — _readStream's done handler will re-set it since
+    // the backend echoes status:"complete" for every post-completion turn.
+  }
+
+  async function forkSession(fromSessionId, flow, opts = {}) {
+    _resetChat()
+    _addMessage('user', `Starting new session with **${flow.name}**, using your existing document as reference.`)
+    const response = await fetch(`${API_BASE}/fork/${fromSessionId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        flow_id:           flow.id,
+        chat_model:        opts.chatModel        ?? 'claude-sonnet-4-6',
+        extended_thinking: opts.extendedThinking ?? false,
+      }),
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      error.value = err.detail || 'Fork failed.'
+      return
+    }
+    const sid = response.headers.get('X-Session-Id')
+    if (sid) sessionId.value = sid
+    await _readStream(response)
+    loadSessions()
+  }
+
   async function sendReply(answers) {
     if (!sessionId.value) return
     const qs = pendingQuestions.value
@@ -414,6 +455,7 @@ export function useAgentChat() {
     pinSession, unpinSession, deleteSession, renameSession,
     // chat ops
     startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
+    sendMessage, forkSession,
     // doc panel
     openDocumentPanel, closeDocumentPanel, downloadMD, downloadPDF,
   }

@@ -34,7 +34,7 @@
 
       <!-- Textarea -->
       <textarea v-model="text" class="cb-ta"
-        :placeholder="pendingFlow ? `Describe your project for ${pendingFlow.name}…` : 'How can I help you today?'"
+        :placeholder="pendingFlow ? `Describe your project for ${pendingFlow.name}…` : (hint || 'How can I help you today?')"
         rows="2"
         @input="handleInput"
         @keydown.meta.enter.prevent="handleSend"
@@ -165,6 +165,7 @@ const props = defineProps({
   chatModels:  { type: Array,  default: () => [] },
   flows:       { type: Array,  default: () => [] },
   pendingFlow: { type: Object, default: null },
+  hint:        { type: String, default: null },   // overrides default placeholder
 })
 
 const emit = defineEmits(['submit', 'upload', 'flow-select', 'cancel-flow', 'manage-skills'])

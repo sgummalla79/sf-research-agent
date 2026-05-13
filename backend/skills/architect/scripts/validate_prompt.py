@@ -1,5 +1,5 @@
 """
-Prompt validator for the Architecture Engagement skill.
+Prompt validator for the Technical Architect skill.
 
 Called by the framework's SkillValidator before a draft is published.
 Exit code 0 = valid.  Non-zero = validation failed; stderr contains reasons.

@@ -1,10 +1,9 @@
 ---
-name: Architecture Engagement
+name: Technical Architect
 id: architect
 description: >
   Formal Architecture Recommendation Document via a 5-stage pipeline.
-  Platform-adaptive: covers Salesforce, ServiceNow, Microsoft 365,
-  Workday, MuleSoft, SAP, and any other enterprise or SaaS platform.
+  Platform-agnostic: works with any enterprise or SaaS technology stack.
 icon: "⚡"
 version: 1
 agent_labels:

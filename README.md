@@ -1,6 +1,6 @@
 # Technical Architecture Agent
 
-A multi-agent AI system that produces formal Architecture Recommendation Documents through a structured 5-stage pipeline: intake → discovery → research → review → approval. Works with any technical platform — Salesforce, ServiceNow, Microsoft 365, Workday, MuleSoft, SAP, and others.
+A multi-agent AI system that produces formal Architecture Recommendation Documents through a structured 5-stage pipeline: intake → discovery → research → review → approval. Platform-agnostic — works with any enterprise or SaaS technology stack.
 
 ---
 
@@ -254,7 +254,7 @@ technical-architecture-agent/
 │   │   └── chat.py                 # Free-form chat node
 │   ├── flows/
 │   │   ├── registry.py             # FlowConfig, FLOWS dict, CHAT_MODELS
-│   │   └── architect.py            # Default prompts for Architecture Engagement flow
+│   │   └── architect.py            # Default prompts for Technical Architect flow
 │   ├── api/
 │   │   ├── routes/
 │   │   │   ├── chat.py             # SSE streaming endpoints
