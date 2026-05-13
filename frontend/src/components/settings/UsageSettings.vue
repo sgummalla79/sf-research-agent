@@ -91,7 +91,7 @@ onMounted(async () => {
 }
 .us-stat { flex: 1; display: flex; flex-direction: column; gap: 4px; padding: 20px 24px; }
 .us-val  { font-size: 22px; font-weight: 700; color: var(--tx); }
-.us-cost { color: #a78bfa; }
+.us-cost { color: var(--pri); }
 .us-lbl  { font-size: 11px; color: var(--muted); }
 .us-divider { width: 1px; background: var(--bdr); }
 
@@ -107,7 +107,7 @@ onMounted(async () => {
 .us-tr { font-size: 13px; border-bottom: 1px solid var(--bdr); }
 .us-tr:last-child { border-bottom: none; }
 .us-model { font-family: monospace; font-size: 12px; color: var(--tx); }
-.us-cost-cell { color: #a78bfa; font-weight: 600; }
+.us-cost-cell { color: var(--pri); font-weight: 600; }
 .us-empty { font-size: 13px; color: var(--muted); margin: 0; }
 .us-disclaimer { font-size: 11px; color: var(--muted); margin: 0; }
 </style>

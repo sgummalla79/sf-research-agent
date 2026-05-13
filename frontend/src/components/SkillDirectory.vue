@@ -144,7 +144,7 @@ onMounted(load)
   background: var(--surf2); border: 1.5px solid var(--bdr); border-radius: 12px;
   padding: 16px; display: flex; flex-direction: column; gap: 6px;
 }
-.sd-card.installed { border-color: #22c55e55; }
+.sd-card.installed { border-color: var(--success-bdr); }
 
 .sd-card-top {
   display: flex; align-items: center; justify-content: space-between;
@@ -165,14 +165,14 @@ onMounted(load)
   background: transparent; color: var(--muted); font-size: 12px; font-weight: 600;
   cursor: pointer;
 }
-.sd-uninstall-btn:hover:not(:disabled) { border-color: #ef4444; color: #ef4444; }
+.sd-uninstall-btn:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
 .sd-uninstall-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 .sd-card-name { font-size: 14px; font-weight: 700; color: var(--tx); }
 .sd-card-desc { font-size: 12px; color: var(--muted); line-height: 1.5; flex: 1; }
 
 .sd-installed-badge {
-  font-size: 11px; font-weight: 600; color: #22c55e;
+  font-size: 11px; font-weight: 600; color: var(--success-tx);
   margin-top: 4px;
 }
 </style>

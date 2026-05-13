@@ -399,7 +399,7 @@ onMounted(fetchSkills)
   background: transparent; color: var(--muted); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
-.cp-skill-uninstall:hover { background: rgba(239,68,68,.12); color: #ef4444; }
+.cp-skill-uninstall:hover { background: var(--danger-h); color: var(--danger); }
 .cp-chevron { font-size: 11px; color: var(--muted); width: 10px; flex-shrink: 0; }
 .cp-chevron.sm { font-size: 9px; }
 .cp-skill-icon { font-size: 15px; flex-shrink: 0; }
@@ -428,7 +428,7 @@ onMounted(fetchSkills)
 
 .cp-draft-dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: #f59e0b; flex-shrink: 0; margin-left: auto;
+  background: var(--draft-tx); flex-shrink: 0; margin-left: auto;
 }
 
 .cp-divider { height: 1px; background: var(--bdr); margin: 8px 4px; }
@@ -492,7 +492,7 @@ onMounted(fetchSkills)
 }
 .cp-draft-badge {
   font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px;
-  background: #fef3c7; color: #92400e; flex-shrink: 0;
+  background: var(--draft-bg); color: var(--draft-tx); flex-shrink: 0;
 }
 .cp-publish-btn {
   flex-shrink: 0; padding: 8px 18px; border-radius: 8px;
@@ -505,8 +505,8 @@ onMounted(fetchSkills)
 .cp-publish-msg {
   font-size: 12.5px; padding: 8px 12px; border-radius: 7px; margin-top: -4px;
 }
-.cp-publish-msg.ok  { background: #f0fdf4; color: #15803d; }
-.cp-publish-msg.err { background: #fef2f2; color: #b91c1c; }
+.cp-publish-msg.ok  { background: var(--pass-bg); color: var(--pass-tx); }
+.cp-publish-msg.err { background: var(--fail-bg); color: var(--fail-tx); }
 
 /* Version history in manifest */
 .cp-vh-empty { font-size: 13px; color: var(--muted); }
@@ -543,8 +543,8 @@ onMounted(fetchSkills)
   background: transparent; color: var(--tx); font-size: 13px; font-weight: 500; cursor: pointer;
 }
 .del-confirm {
-  padding: 8px 16px; border-radius: 8px; border: 1.5px solid #ef4444;
-  background: #ef4444; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
+  padding: 8px 16px; border-radius: 8px; border: 1.5px solid var(--danger);
+  background: var(--danger); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .fade-enter-active, .fade-leave-active { transition: opacity .15s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }

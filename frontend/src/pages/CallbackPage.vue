@@ -41,20 +41,24 @@ onMounted(() => {
 </script>
 
 <style scoped>
+:root { --cb-bg: #f5f5f4; --cb-tx: #1a1a1a; --cb-muted: #737373; --cb-pri: #b85c2a; --cb-err: #b91c1c; }
+@media (prefers-color-scheme: dark) {
+  :root { --cb-bg: #1a1a1a; --cb-tx: #ececea; --cb-muted: #888888; --cb-pri: #f5a55a; --cb-err: #fca5a5; }
+}
 .cb-shell {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: #0f172a;
+  background: var(--cb-bg);
 }
 .cb-card {
   display: flex; flex-direction: column; align-items: center; gap: 16px;
 }
 .cb-logo {
-  width: 40px; height: 40px; color: #3b82f6;
+  width: 40px; height: 40px; color: var(--cb-pri);
   animation: spin 1.2s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.cb-msg  { font-size: 15px; color: #94a3b8; }
+.cb-msg  { font-size: 15px; color: var(--cb-muted); }
 .cb-err  { text-align: center; display: flex; flex-direction: column; gap: 12px; }
-.cb-err p { font-size: 14px; color: #fca5a5; }
-.cb-link { font-size: 13px; color: #3b82f6; text-decoration: underline; }
+.cb-err p { font-size: 14px; color: var(--cb-err); }
+.cb-link { font-size: 13px; color: var(--cb-pri); text-decoration: underline; }
 </style>

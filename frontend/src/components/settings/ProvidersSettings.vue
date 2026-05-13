@@ -257,14 +257,14 @@ onMounted(load)
   display: flex; flex-direction: column; gap: 12px;
   transition: border-color .2s;
 }
-.ps-card.connected { border-color: #22c55e44; }
+.ps-card.connected { border-color: var(--success-bdr); }
 
 .ps-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .ps-card-info { display: flex; flex-direction: column; gap: 3px; }
 .ps-name { font-size: 15px; font-weight: 700; color: var(--tx); }
 .ps-desc { font-size: 12px; color: var(--muted); }
 .ps-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; flex-shrink: 0; white-space: nowrap; }
-.ps-badge.ok  { background: #22c55e22; color: #4ade80; }
+.ps-badge.ok  { background: rgba(34,197,94,0.1); color: var(--success-tx); }
 .ps-badge.off { background: #6b728022; color: var(--muted); }
 
 .ps-mode-toggle { display: flex; gap: 6px; }
@@ -286,9 +286,9 @@ onMounted(load)
   color: var(--tx); outline: none; transition: border-color .15s;
 }
 .ps-input:focus   { border-color: var(--ifocus); }
-.ps-input-err     { border-color: #ef4444 !important; }
+.ps-input-err     { border-color: var(--danger) !important; }
 .ps-input::placeholder { color: var(--muted); }
-.ps-err { font-size: 12px; color: #ef4444; margin: -6px 0 0; }
+.ps-err { font-size: 12px; color: var(--danger); margin: -6px 0 0; }
 
 .ps-btn-connect {
   padding: 9px 16px; background: var(--pri); color: var(--pri-fg);
@@ -305,7 +305,7 @@ onMounted(load)
   transition: color .15s, background .15s; flex-shrink: 0;
 }
 .ps-btn-refresh:hover:not(:disabled)    { color: var(--tx); background: var(--inp); }
-.ps-btn-disconnect:hover:not(:disabled) { color: #ef4444; background: #ef444418; }
+.ps-btn-disconnect:hover:not(:disabled) { color: var(--danger); background: var(--danger-h); }
 .ps-btn-refresh:disabled, .ps-btn-disconnect:disabled { opacity: .4; cursor: not-allowed; }
 
 </style>

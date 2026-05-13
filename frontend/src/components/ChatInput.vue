@@ -423,7 +423,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(4px); }
 
 /* Upload error */
-.cb-upload-err { flex: 1; font-size: 12.5px; color: #ef4444; }
+.cb-upload-err { flex: 1; font-size: 12.5px; color: var(--danger); }
 
 /* Right controls */
 .cb-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; }

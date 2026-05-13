@@ -1092,55 +1092,67 @@ function doPDF() {
 /* ── Light mode (default) ─────────────────────────────────────────────────── */
 .shell {
   /* Surfaces */
-  --bg:    #f5f5f4; --surf:  #ffffff; --surf2: #fafafa; --bdr: #e5e5e3;
+  --bg:    #f5f5f4; --surf: #ffffff; --surf2: #fafafa; --bdr: #e5e5e3;
   /* Text */
   --tx:    #1a1a1a; --muted: #737373;
-  /* Brand primary — saffron on light bg */
+  /* Brand primary — deeper saffron for light bg readability */
   --pri:   #b85c2a; --pri-h: #a04e22; --pri-fg: #fff;
   --ub:    #b85c2a; --uf: #fff;
   --ab:    #fff;    --abdr: #e5e5e3;
-  /* Selection / highlight — saffron tint */
-  --sbg:   rgba(184,92,42,0.08); --stx: #9a4a1e; --sbdr: rgba(184,92,42,0.25);
+  /* Selection / highlight */
+  --sbg: rgba(184,92,42,0.08); --stx: #9a4a1e; --sbdr: rgba(184,92,42,0.25);
   /* Inputs / focus */
-  --inp:   #ffffff; --ibdr: #d4d4d2; --ifocus: #b85c2a;
+  --inp: #ffffff; --ibdr: #d4d4d2; --ifocus: #b85c2a;
   /* Hover / nav */
-  --hover: #f0efee; --active-nav: rgba(184,92,42,0.08);
-  /* Overlay backgrounds */
-  --hbg:   #1a1a1a; --hfg: #f5f5f4; --cbg: #f5f5f4;
-  /* Status */
+  --hover: #f0efee; --active-nav: rgba(184,92,42,0.1);
+  /* Overlay */
+  --hbg: #1a1a1a; --hfg: #f5f5f4; --cbg: #f5f5f4;
+  /* Semantic: pass / fail */
   --pass-bg: #f0fdf4; --pass-bdr: #bbf7d0; --pass-tx: #15803d;
   --fail-bg: #fef2f2; --fail-bdr: #fecaca; --fail-tx: #b91c1c;
-  /* Sidebar — kept dark (industry standard: Linear, Notion, Slack) */
-  --sb-bg:    #1c1c1c; --sb-hover: #2a2a2a; --sb-active: #323232;
-  --sb-tx:    #d9d9d7; --sb-muted: #737373;
+  /* Semantic: danger */
+  --danger: #ef4444; --danger-h: rgba(239,68,68,0.1); --danger-tx: #dc2626;
+  /* Semantic: draft badge */
+  --draft-bg: #fef3c7; --draft-tx: #92400e;
+  /* Semantic: success */
+  --success-tx: #15803d; --success-bdr: rgba(34,197,94,0.35);
+  /* Sidebar — light in light mode */
+  --sb-bg:    #f0efee; --sb-hover: #e8e7e5; --sb-active: rgba(184,92,42,0.1);
+  --sb-tx:    #1a1a1a; --sb-muted: #737373;
   --sidebar:  #ffffff;
 }
 
 /* ── Dark mode ────────────────────────────────────────────────────────────── */
 .shell.dark {
   /* Surfaces */
-  --bg:#1a1a1a; --surf:#212121; --surf2:#181818; --bdr:rgba(255,255,255,0.09);
+  --bg: #1a1a1a; --surf: #212121; --surf2: #181818; --bdr: rgba(255,255,255,0.09);
   /* Text */
-  --tx:#ececea; --muted:#888888;
+  --tx: #ececea; --muted: #888888;
   /* Brand primary */
-  --pri:#c97040; --pri-h:#b5602e; --pri-fg:#fff;
-  --ub:#c97040; --ab:#212121; --abdr:rgba(255,255,255,0.09);
+  --pri: #c97040; --pri-h: #b5602e; --pri-fg: #fff;
+  --ub: #c97040; --ab: #212121; --abdr: rgba(255,255,255,0.09);
   /* Selection */
-  --sbg:rgba(201,112,64,0.12); --stx:#d4945a; --sbdr:rgba(201,112,64,0.28);
+  --sbg: rgba(201,112,64,0.12); --stx: #d4945a; --sbdr: rgba(201,112,64,0.28);
   /* Inputs / focus */
-  --inp:#111111; --ibdr:rgba(255,255,255,0.14); --ifocus:#c97040;
+  --inp: #111111; --ibdr: rgba(255,255,255,0.14); --ifocus: #c97040;
   /* Hover / nav */
-  --hover:#282828; --active-nav:rgba(255,255,255,0.06);
+  --hover: #282828; --active-nav: rgba(255,255,255,0.06);
   /* Overlay */
-  --hbg:#0e0e0e; --hfg:#ececea; --cbg:#1a1a1a;
-  --ab:#212121; --abdr:rgba(255,255,255,0.09);
-  /* Status */
-  --pass-bg:#0d1f10; --pass-bdr:#1a4620; --pass-tx:#86efac;
-  --fail-bg:#1f0d0d; --fail-bdr:#4a1a1a; --fail-tx:#fca5a5;
-  /* Sidebar */
-  --sb-bg:#111111; --sb-hover:#1e1e1e; --sb-active:#252525;
-  --sb-tx:#d9d9d7; --sb-muted:#5e5e5e;
-  --sidebar:#141414;
+  --hbg: #0e0e0e; --hfg: #ececea; --cbg: #1a1a1a;
+  --ab: #212121; --abdr: rgba(255,255,255,0.09);
+  /* Semantic: pass / fail */
+  --pass-bg: #0d1f10; --pass-bdr: #1a4620; --pass-tx: #86efac;
+  --fail-bg: #1f0d0d; --fail-bdr: #4a1a1a; --fail-tx: #fca5a5;
+  /* Semantic: danger */
+  --danger: #ef4444; --danger-h: rgba(239,68,68,0.15); --danger-tx: #fca5a5;
+  /* Semantic: draft badge */
+  --draft-bg: #1c1400; --draft-tx: #fcd34d;
+  /* Semantic: success */
+  --success-tx: #86efac; --success-bdr: rgba(34,197,94,0.2);
+  /* Sidebar — dark */
+  --sb-bg: #111111; --sb-hover: #1e1e1e; --sb-active: #252525;
+  --sb-tx: #d9d9d7; --sb-muted: #5e5e5e;
+  --sidebar: #141414;
 }
 
 /* ── Privacy banner ──────────────────────────────────────────────────────────── */

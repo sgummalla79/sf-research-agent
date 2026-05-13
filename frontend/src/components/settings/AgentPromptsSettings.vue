@@ -319,9 +319,9 @@ onMounted(async () => {
   padding: 1px 6px; border-radius: 10px;
 }
 .badge-published { background: var(--sbg); color: var(--stx); }
-.badge-draft     { background: #fef3c7;    color: #92400e; }
+.badge-draft     { background: var(--draft-bg); color: var(--draft-tx); }
 .badge-none      { color: var(--muted); }
-.dark .badge-draft { background: #1c1400; color: #fcd34d; }
+.dark .badge-draft { background: var(--draft-bg); color: var(--draft-tx); }
 
 /* ── Editor + History two-column wrap ── */
 .ap-editor-wrap {
@@ -343,7 +343,7 @@ onMounted(async () => {
 .ap-top-left { display: flex; flex-direction: column; gap: 3px; }
 .ap-editor-title { font-size: 18px; font-weight: 700; color: var(--tx); }
 .ap-editor-meta  { font-size: 13px; }
-.meta-draft      { color: #d97706; }
+.meta-draft      { color: var(--draft-tx); }
 .meta-published  { color: var(--stx); }
 
 /* Model picker inline at top-right */
@@ -365,8 +365,8 @@ onMounted(async () => {
 .ap-btn-ghost { background: none; color: var(--muted); border-color: transparent; }
 .ap-btn-ghost:hover:not(:disabled) { color: var(--tx); background: var(--hover); }
 .ap-btn-ghost.ap-btn-danger { color: var(--muted); }
-.ap-btn-ghost.ap-btn-danger:hover:not(:disabled) { color: #dc2626; background: #fef2f2; }
-.dark .ap-btn-ghost.ap-btn-danger:hover:not(:disabled) { color: #fca5a5; background: #1f0000; }
+.ap-btn-ghost.ap-btn-danger:hover:not(:disabled) { color: var(--danger-tx); background: var(--danger-h); }
+.dark .ap-btn-ghost.ap-btn-danger:hover:not(:disabled) { color: var(--danger-tx); background: var(--danger-h); }
 
 .ap-save-msg { font-size: 13px; padding: 8px 12px; border-radius: 8px; }
 .ap-save-msg.ok  { background: var(--pass-bg); color: var(--pass-tx); }
@@ -425,8 +425,8 @@ onMounted(async () => {
 .ap-hv-model  { font-size: 11px; color: var(--muted); font-family: monospace; }
 .ap-hv-badge  { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 6px; }
 .ap-hv-badge.published { background: var(--sbg); color: var(--stx); }
-.ap-hv-badge.draft     { background: #fef3c7; color: #92400e; }
-.dark .ap-hv-badge.draft { background: #1c1400; color: #fcd34d; }
+.ap-hv-badge.draft     { background: var(--draft-bg); color: var(--draft-tx); }
+.dark .ap-hv-badge.draft { background: var(--draft-bg); color: var(--draft-tx); }
 .ap-hv-current { font-size: 10px; color: var(--pri); font-weight: 600; }
 .ap-hv-restore {
   background: none; border: 1px solid var(--bdr); border-radius: 5px;
