@@ -53,9 +53,11 @@ def _load_flows() -> dict[str, FlowConfig]:
     return {
         "architect": FlowConfig(
             id="architect",
-            name="Architect Engagement",
-            description="Formal Salesforce Architecture Recommendation Document via a "
-                        "5-stage pipeline: intake → discovery → research → review → approval.",
+            name="Architecture Engagement",
+            description="Formal Architecture Recommendation Document via a 5-stage pipeline: "
+                        "intake → discovery → research → review → approval. "
+                        "Covers any platform — Salesforce, ServiceNow, Microsoft 365, "
+                        "Workday, MuleSoft, and others.",
             icon="⚡",
             prompts=ARCHITECT_PROMPTS,
             agent_keys=_ARCHITECT_KEYS,
