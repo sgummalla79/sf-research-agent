@@ -12,26 +12,41 @@
       </button>
     </aside>
 
-    <!-- ── Right: editor ─────────────────────────────────────────────── -->
-    <div class="ap-editor" v-if="selected">
+    <!-- ── Editor + History ──────────────────────────────────────────── -->
+    <div class="ap-editor-wrap" v-if="selected">
 
-      <!-- Header -->
-      <div class="ap-editor-header">
-        <div>
-          <div class="ap-title-row">
-            <span class="ap-editor-title">{{ selected.label }}</span>
-            <span v-if="activeModelLabel" class="ap-model-badge">{{ activeModelLabel }}</span>
+      <!-- ── Main: title + model at top, then textarea ── -->
+      <div class="ap-main">
+
+        <!-- Agent name + status -->
+        <div class="ap-top">
+          <div class="ap-top-left">
+            <div class="ap-editor-title">{{ selected.label }}</div>
+            <div class="ap-editor-meta" :class="metaClass">{{ metaText }}</div>
           </div>
-          <div class="ap-editor-meta" :class="metaClass">{{ metaText }}</div>
+
+          <!-- Model picker — top right -->
+          <div class="ap-model-top">
+            <select class="ap-model-select" v-model="selectedModelKey" @change="onModelChange">
+              <option value="__global__">Global default{{ globalDefaultLabel ? ` — ${globalDefaultLabel}` : '' }}</option>
+              <optgroup v-for="prov in providerModels" :key="prov.id" :label="prov.name">
+                <option v-for="m in prov.models" :key="m" :value="`${prov.id}/${m}`">
+                  {{ m }}
+                </option>
+              </optgroup>
+            </select>
+            <button class="ap-suggest-btn" @click="suggestModel" title="Auto-suggest best model for this agent role">
+              ✦ Suggest
+            </button>
+          </div>
         </div>
-        <div class="ap-editor-actions">
-          <!-- Revert: reset editor to current published content, no API call -->
+
+        <!-- Action buttons -->
+        <div class="ap-actions">
           <button v-if="dirty && currentPublishedContent"
-            class="ap-btn ap-btn-ghost" @click="revertToPublished" :disabled="saving"
-            title="Discard unsaved edits and restore the current published prompt">
+            class="ap-btn ap-btn-ghost" @click="revertToPublished" :disabled="saving">
             ↩ Revert to published
           </button>
-
           <template v-if="hasDraft">
             <button class="ap-btn ap-btn-secondary" @click="saveDraft" :disabled="saving || !dirty">
               {{ saving ? 'Saving…' : 'Update Draft' }}
@@ -43,64 +58,39 @@
               {{ saving ? 'Publishing…' : `Publish v${draftVersion}` }}
             </button>
           </template>
-
           <button v-else class="ap-btn ap-btn-secondary" @click="saveDraft" :disabled="saving || !dirty">
             {{ saving ? 'Saving…' : 'Save as Draft' }}
           </button>
         </div>
-      </div>
 
-      <div v-if="saveMsg" class="ap-save-msg" :class="saveMsg.type">{{ saveMsg.text }}</div>
-
-      <!-- Textarea -->
-      <textarea class="ap-textarea" v-model="editorContent" spellcheck="false"
-        placeholder="Enter the system prompt for this agent…"
-        @input="dirty = true" />
-
-      <div class="ap-separator" />
-
-      <!-- Model picker -->
-      <div class="ap-model-section">
-        <div class="ap-model-label">
-          Model
-          <span class="ap-model-hint">Overrides the global default for this agent only</span>
-        </div>
-        <div class="ap-model-row">
-          <select class="ap-model-select" v-model="selectedModelKey" @change="onModelChange">
-            <option value="__global__">Global default{{ globalDefaultLabel ? ` — ${globalDefaultLabel}` : '' }}</option>
-            <optgroup v-for="prov in providerModels" :key="prov.id" :label="prov.name">
-              <option v-for="m in prov.models" :key="m" :value="`${prov.id}/${m}`">
-                {{ m }}
-              </option>
-            </optgroup>
-          </select>
-          <button class="ap-suggest-btn" @click="suggestModel" title="Auto-suggest best model for this agent role">
-            ✦ Suggest
-          </button>
-        </div>
+        <div v-if="saveMsg" class="ap-save-msg" :class="saveMsg.type">{{ saveMsg.text }}</div>
         <div v-if="suggestNote" class="ap-suggest-note">{{ suggestNote }}</div>
+
+        <!-- Prompt textarea -->
+        <textarea class="ap-textarea" v-model="editorContent" spellcheck="false"
+          placeholder="Enter the system prompt for this agent…"
+          @input="dirty = true" />
       </div>
 
-      <!-- Version history -->
-      <div class="ap-history">
-        <button class="ap-history-toggle" @click="historyOpen = !historyOpen">
-          {{ historyOpen ? '▾' : '▸' }} Version History
-        </button>
-        <div v-if="historyOpen" class="ap-history-list">
-          <div v-if="!history.length" class="ap-history-empty">No published versions yet.</div>
-          <div v-for="v in history" :key="v.id" class="ap-history-row"
-            :class="{ current: v.version === currentPublishedVersion }">
+      <!-- ── Right: version history panel ── -->
+      <aside class="ap-history-panel">
+        <div class="ap-history-heading">Version History</div>
+        <div class="ap-history-empty" v-if="!history.length">No versions yet.</div>
+        <div v-for="v in history" :key="v.id"
+          class="ap-hv-row" :class="{ current: v.version === currentPublishedVersion }">
+          <div class="ap-hv-top">
             <span class="ap-hv-num">v{{ v.version }}</span>
-            <span class="ap-hv-date">{{ fmtDate(v.published_at || v.created_at) }}</span>
-            <span v-if="v.model_config" class="ap-hv-model">{{ v.model_config.model }}</span>
             <span class="ap-hv-badge" :class="v.status">{{ v.status }}</span>
-            <button v-if="v.status === 'published' && v.version !== currentPublishedVersion"
-              class="ap-hv-restore" @click="restoreVersion(v)">Restore</button>
             <span v-if="v.version === currentPublishedVersion && v.status === 'published'"
               class="ap-hv-current">● current</span>
           </div>
+          <div class="ap-hv-date">{{ fmtDate(v.published_at || v.created_at) }}</div>
+          <div v-if="v.model_config" class="ap-hv-model">{{ v.model_config.model }}</div>
+          <button v-if="v.status === 'published' && v.version !== currentPublishedVersion"
+            class="ap-hv-restore" @click="restoreVersion(v)">Restore</button>
         </div>
-      </div>
+      </aside>
+
     </div>
 
     <div v-else class="ap-empty">
@@ -126,7 +116,6 @@ const dirty            = ref(false)
 const saving           = ref(false)
 const saveMsg          = ref(null)
 const history          = ref([])
-const historyOpen      = ref(false)
 
 // Model picker
 const selectedModelKey  = ref('__global__')  // '__global__' | 'provider/model'
@@ -264,8 +253,7 @@ function syncSelected(agent) {
 
 function selectAgent(agent) {
   syncSelected(agent)
-  historyOpen.value = false
-  history.value     = []
+  history.value = []
   loadHistory()
 }
 
@@ -392,7 +380,7 @@ onMounted(async () => {
   font-family: inherit; color: var(--tx);
 }
 /* When the file tree (parent) handles agent navigation, hide the internal list */
-.ap-root.no-sidebar .ap-editor { padding: 28px 48px; }
+
 
 /* ── Agent list ── */
 .ap-list {
@@ -428,29 +416,34 @@ onMounted(async () => {
 .badge-none      { color: var(--muted); }
 .dark .badge-draft { background: #1c1400; color: #fcd34d; }
 
-/* ── Editor ── */
-.ap-editor {
-  flex: 1; min-width: 0; display: flex; flex-direction: column;
-  padding: 28px 36px; gap: 16px; overflow-y: auto;
+/* ── Editor + History two-column wrap ── */
+.ap-editor-wrap {
+  flex: 1; min-width: 0; display: flex; flex-direction: row; overflow: hidden;
 }
-.ap-editor-header {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
-  flex-wrap: wrap;
+
+
+/* ── Main content (left) ── */
+.ap-main {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px;
+  padding: 24px 28px; overflow-y: auto;
 }
-.ap-title-row    { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+
+/* Top bar: agent name (left) + model picker (right) */
+.ap-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.ap-top-left { display: flex; flex-direction: column; gap: 3px; }
 .ap-editor-title { font-size: 18px; font-weight: 700; color: var(--tx); }
-.ap-model-badge  {
-  font-size: 11.5px; font-weight: 500; color: var(--muted);
-  padding: 2px 8px; border-radius: 6px;
-  background: var(--surf2); border: 1px solid var(--bdr);
-  font-family: monospace; white-space: nowrap;
-}
 .ap-editor-meta  { font-size: 13px; }
-.ap-separator    { height: 1px; background: var(--bdr); margin: 4px 0; }
 .meta-draft      { color: #d97706; }
 .meta-published  { color: var(--stx); }
 
-.ap-editor-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* Model picker inline at top-right */
+.ap-model-top { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+/* Action buttons row */
+.ap-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .ap-btn {
   padding: 7px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
@@ -482,57 +475,58 @@ onMounted(async () => {
 }
 .ap-textarea:focus { border-color: var(--ifocus); }
 
-/* ── Model picker ── */
-.ap-model-section { display: flex; flex-direction: column; gap: 8px; }
-.ap-model-label {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 13px; font-weight: 600; color: var(--tx);
+/* ── Shared model select + suggest ── */
+.ap-model-select {
+  padding: 6px 10px; border-radius: 8px;
+  border: 1px solid var(--bdr); background: var(--surf2); color: var(--tx);
+  font-size: 13px; font-family: inherit; cursor: pointer; outline: none;
+  transition: border-color .15s;
 }
-.ap-model-hint { font-size: 12px; font-weight: 400; color: var(--muted); }
-.ap-model-row  { display: flex; align-items: center; gap: 10px; }
+.ap-model-select:focus { border-color: var(--ifocus); }
 .ap-suggest-btn {
-  padding: 7px 14px; border-radius: 8px; white-space: nowrap;
+  padding: 6px 12px; border-radius: 8px; white-space: nowrap;
   border: 1.5px solid var(--bdr); background: var(--surf); color: var(--tx);
   font-size: 13px; font-weight: 500; cursor: pointer;
   transition: background .13s, border-color .13s;
 }
 .ap-suggest-btn:hover { background: var(--sbg); border-color: var(--pri); color: var(--pri); }
-.ap-suggest-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.ap-suggest-note { font-size: 12px; color: var(--muted); }
 
-.ap-model-select {
-  padding: 7px 12px; border-radius: 8px;
-  border: 1px solid var(--bdr); background: var(--surf2); color: var(--tx);
-  font-size: 13px; font-family: inherit; cursor: pointer; outline: none;
-  transition: border-color .15s; min-width: 280px;
+/* ── Version history panel (right column) ── */
+.ap-history-panel {
+  width: 220px; flex-shrink: 0;
+  border-left: 1px solid var(--bdr);
+  background: var(--sidebar);
+  display: flex; flex-direction: column;
+  padding: 20px 14px; gap: 8px; overflow-y: auto;
 }
-.ap-model-select:focus { border-color: var(--ifocus); }
-
-/* ── Version history ── */
-.ap-history { border-top: 1px solid var(--bdr); padding-top: 14px; }
-.ap-history-toggle {
-  background: none; border: none; cursor: pointer;
-  font-size: 13px; font-weight: 600; color: var(--muted);
-  padding: 0; transition: color .13s;
+.ap-history-heading {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: var(--muted); margin-bottom: 4px;
 }
-.ap-history-toggle:hover { color: var(--tx); }
-.ap-history-list  { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
-.ap-history-empty { font-size: 13px; color: var(--muted); padding: 6px 0; }
-.ap-history-row   {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 10px; border-radius: 8px; font-size: 13px;
-  background: var(--surf2);
+.ap-history-empty { font-size: 12px; color: var(--muted); padding: 4px 0; }
+.ap-hv-row {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 8px 10px; border-radius: 8px; font-size: 12px;
+  background: var(--surf2); border: 1px solid transparent;
+  transition: border-color .13s;
 }
-.ap-history-row.current { border-left: 3px solid var(--pri); padding-left: 7px; }
-.ap-hv-num    { font-weight: 700; color: var(--tx); min-width: 28px; }
-.ap-hv-date   { color: var(--muted); flex: 1; }
-.ap-hv-badge  { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 8px; }
+.ap-hv-row.current { border-color: var(--pri); }
+.ap-hv-top    { display: flex; align-items: center; gap: 6px; }
+.ap-hv-num    { font-weight: 700; color: var(--tx); font-size: 13px; }
+.ap-hv-date   { font-size: 11px; color: var(--muted); }
+.ap-hv-model  { font-size: 11px; color: var(--muted); font-family: monospace; }
+.ap-hv-badge  { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 6px; }
 .ap-hv-badge.published { background: var(--sbg); color: var(--stx); }
 .ap-hv-badge.draft     { background: #fef3c7; color: #92400e; }
 .dark .ap-hv-badge.draft { background: #1c1400; color: #fcd34d; }
-.ap-hv-model   { font-size: 11px; color: var(--muted); font-family: monospace; }
-.ap-hv-restore { background: none; border: 1px solid var(--bdr); border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer; color: var(--muted); }
+.ap-hv-current { font-size: 10px; color: var(--pri); font-weight: 600; }
+.ap-hv-restore {
+  background: none; border: 1px solid var(--bdr); border-radius: 5px;
+  padding: 2px 7px; font-size: 11px; cursor: pointer; color: var(--muted);
+  margin-top: 2px; align-self: flex-start;
+}
 .ap-hv-restore:hover { color: var(--tx); border-color: var(--tx); }
-.ap-hv-current { font-size: 11px; color: var(--pri); font-weight: 600; }
 
 /* ── Empty state ── */
 .ap-empty {
