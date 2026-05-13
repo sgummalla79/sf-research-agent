@@ -3,8 +3,8 @@ Stage 3 — Deep Research & Drafting Agent
 Three-step approach with parallel research:
 
   Step 1a — researcher_search slot (default: Perplexity Sonar Pro, runs in parallel)
-    Real-time web search: current governor limits, Spring/Summer release notes,
-    known issues, and citations from Salesforce Help + Trailhead.
+    Real-time web search: current platform limits, release notes, known issues,
+    and citations from official vendor documentation.
 
   Step 1b — researcher_reasoning slot (default: Gemini 2.5 Pro, runs in parallel)
     Deep architectural reasoning with 1M token context.
@@ -13,7 +13,7 @@ Three-step approach with parallel research:
 
   Step 2 — researcher_writer slot (default: Claude Sonnet)
     Receives both research outputs as combined context.
-    Writes (or revises) the full 8-section Architecture Recommendation Document.
+    Writes (or revises) the full Architecture Recommendation Document.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -25,36 +25,89 @@ from utils.llm_factory import get_llm_for_slot, slot_model
 from utils.pricing import usage_record
 from state import AgentState
 
+_YEAR = "2026"
+
 # ── Shared scope detection ─────────────────────────────────────────────────────
 
 def _detect_scope(state: AgentState) -> dict:
     """
-    Detect both Salesforce cloud scope AND the overall discussion type.
-    Prevents the researcher from pulling Salesforce-specific docs for
-    integration/pattern discussions where Salesforce is a component, not the subject.
+    Detect which platforms are in scope and what type of architecture discussion
+    this is, so each research step can ask the right platform-specific questions.
     """
     combined = (
         (state.project_brief or "") + " " +
         " ".join(q.answer or "" for q in state.discovery_questions)
     ).lower()
 
-    # Only flag Salesforce clouds if the session is actually about implementing them
-    sf_impl_signals = ["service cloud", "experience cloud", "data cloud", "sales cloud",
-                       "omni-channel", "lightning", "apex", "lwc", "visualforce",
-                       "salesforce org", "salesforce implementation"]
-    is_sf_implementation = any(w in combined for w in sf_impl_signals)
-
-    return {
-        # Salesforce cloud flags — gated on is_sf_implementation
-        "service_cloud":    is_sf_implementation and any(w in combined for w in ["service cloud", "case", "omni-channel", "knowledge", "field service", "entitlement"]),
-        "experience_cloud": is_sf_implementation and any(w in combined for w in ["experience cloud", "community", "portal", "lwr", "aura", "self-service"]),
-        "data_cloud":       is_sf_implementation and any(w in combined for w in ["data cloud", "cdp", "identity resolution", "segment", "activation", "data stream"]),
-        # Discussion type flags
-        "is_sf_implementation": is_sf_implementation,
-        "is_auth_pattern":      any(w in combined for w in ["token", "oauth", "credential", "named credential", "jwt", "api key", "authentication"]),
-        "is_integration":       any(w in combined for w in ["proxy", "api", "integration", "middleware", "webhook", "rest", "soap", "esb", "mulesoft"]),
-        "is_pattern_review":    any(w in combined for w in ["pattern", "is this good", "best practice", "review", "evaluate", "architectural pattern"]),
+    # ── Platform detection ────────────────────────────────────────────────────
+    platforms = {
+        "salesforce":  any(w in combined for w in [
+            "salesforce", "service cloud", "experience cloud", "data cloud",
+            "sales cloud", "marketing cloud", "apex", "lwc", "soql", "visualforce",
+            "salesforce org", "trailhead", "sfdx",
+        ]),
+        "servicenow":  any(w in combined for w in [
+            "servicenow", "service now", "snow", "itsm", "itom", "hrsd", "csmm",
+            "glide", "scoped app", "mid server", "integrationhub",
+        ]),
+        "microsoft":   any(w in combined for w in [
+            "microsoft", "azure", "sharepoint", "teams", "dynamics 365",
+            "power platform", "power apps", "power automate", "dataverse", "m365",
+        ]),
+        "workday":     any(w in combined for w in [
+            "workday", "workday studio", "eib", "workday extend", "hcm workday",
+            "workday financials", "adaptive planning",
+        ]),
+        "mulesoft":    any(w in combined for w in [
+            "mulesoft", "anypoint", "cloudhub", "raml", "runtime fabric",
+            "mule", "mulesoft api",
+        ]),
+        "sap":         any(w in combined for w in [
+            "sap", "s/4hana", "s4hana", "btp", "abap", "fiori", "ariba",
+        ]),
     }
+
+    # ── Salesforce module detection (only when Salesforce is in scope) ────────
+    sf_modules: dict = {}
+    if platforms["salesforce"]:
+        sf_modules = {
+            "service_cloud":    any(w in combined for w in [
+                "service cloud", "case", "omni-channel", "knowledge", "field service", "entitlement",
+            ]),
+            "experience_cloud": any(w in combined for w in [
+                "experience cloud", "community", "portal", "lwr", "aura site", "self-service",
+            ]),
+            "data_cloud":       any(w in combined for w in [
+                "data cloud", "cdp", "identity resolution", "segment", "activation", "data stream",
+            ]),
+        }
+
+    # ── Discussion type detection (cross-platform) ────────────────────────────
+    discussion = {
+        "is_auth":        any(w in combined for w in [
+            "token", "oauth", "credential", "jwt", "api key", "authentication",
+            "named credential", "sso", "saml", "mfa",
+        ]),
+        "is_integration": any(w in combined for w in [
+            "integration", "api", "proxy", "middleware", "webhook", "rest", "soap",
+            "esb", "message bus", "event driven", "platform event",
+        ]),
+        "is_data":        any(w in combined for w in [
+            "data model", "migration", "etl", "elt", "data lake", "warehouse",
+            "sync", "replication", "cdc", "bulk",
+        ]),
+        "is_security":    any(w in combined for w in [
+            "security", "permission", "access control", "compliance", "hipaa",
+            "gdpr", "pci", "fedramp", "sharing", "profile", "role",
+        ]),
+        "is_performance": any(w in combined for w in [
+            "performance", "scale", "governor", "throttle", "throughput",
+            "latency", "cache", "async", "queue", "batch",
+        ]),
+    }
+
+    return {**platforms, **discussion, "sf_modules": sf_modules}
+
 
 def _discovery_summary(state: AgentState) -> str:
     return "\n".join(
@@ -62,75 +115,106 @@ def _discovery_summary(state: AgentState) -> str:
         for q in state.discovery_questions if q.answer
     )
 
+
 # ── Step 1a: Perplexity — current facts, limits, citations ────────────────────
 
 def _gather_perplexity(state: AgentState, scope: dict) -> tuple:
-    # Base topics always included when Salesforce is involved
     topics = []
+    sf = scope.get("sf_modules", {})
 
-    if scope["is_sf_implementation"]:
+    # ── Salesforce ────────────────────────────────────────────────────────────
+    if scope["salesforce"]:
         topics += [
-            "Salesforce governor limits 2026 — exact values: SOQL rows, DML statements, heap size, CPU time, API daily limits for Enterprise and Unlimited",
-            "Salesforce Spring/Summer 2026 release highlights relevant to the clouds in scope",
-            "Salesforce Permission Set Groups vs Profiles — current best practice and any deprecation timeline",
+            f"Salesforce governor limits {_YEAR} — exact values: SOQL rows, DML statements, heap size, CPU time, API daily limits for Enterprise and Unlimited",
+            f"Salesforce latest release GA features — what is now generally available vs beta",
+        ]
+        if sf.get("service_cloud"):
+            topics += [
+                f"Salesforce Service Cloud Omni-Channel routing limits {_YEAR} — queue-based vs skills-based current limits",
+                f"Salesforce Knowledge limits and best practice {_YEAR} — Classic vs Lightning Knowledge status",
+                f"Einstein for Service GA features {_YEAR} — Classification, Article Recommendations, Copilot for Service",
+            ]
+        if sf.get("experience_cloud"):
+            topics += [
+                f"Salesforce Experience Cloud LWR vs Aura {_YEAR} — official recommendation and Aura timeline",
+                f"Experience Cloud guest user security {_YEAR} — current CVEs, OWASP risks, Salesforce advisories",
+                f"Experience Cloud licence types and per-user limits {_YEAR}",
+            ]
+        if sf.get("data_cloud"):
+            topics += [
+                f"Salesforce Data Cloud identity resolution limits {_YEAR} — matching rules, accuracy, known limitations",
+                f"Salesforce Data Cloud credits model {_YEAR} — exact consumption rates by operation type",
+                f"Salesforce Data Cloud consent management {_YEAR} — GDPR/CCPA compliance features",
+            ]
+
+    # ── ServiceNow ────────────────────────────────────────────────────────────
+    if scope["servicenow"]:
+        topics += [
+            f"ServiceNow platform limits and quotas {_YEAR} — API rate limits, script execution quotas, memory limits",
+            f"ServiceNow latest release GA features — what is now generally available",
+            f"ServiceNow integration options {_YEAR} — IntegrationHub vs REST Message vs MID Server — official guidance",
+            f"ServiceNow scoped vs global application design — current best practice {_YEAR}",
         ]
 
-    # Auth / token pattern topics
-    if scope["is_auth_pattern"]:
+    # ── Microsoft 365 / Power Platform ───────────────────────────────────────
+    if scope["microsoft"]:
         topics += [
-            "Salesforce Named Credentials and External Credentials 2026 — current recommended pattern for outbound API auth, token storage, and refresh",
-            "Salesforce Platform Cache vs Custom Metadata vs Custom Settings for credential/token storage — current best practice 2026",
-            "OAuth 2.0 client credentials flow in Salesforce 2026 — when to use, how to configure, token refresh strategies",
+            f"Microsoft Power Platform limits {_YEAR} — API request limits, connector throttling, Dataverse storage quotas",
+            f"Microsoft Azure integration service limits {_YEAR} — Logic Apps, Service Bus, Event Grid quotas",
+            f"Microsoft 365 compliance and governance features {_YEAR} — DLP, sensitivity labels, Purview",
         ]
 
-    # Integration / proxy pattern topics
-    if scope["is_integration"]:
+    # ── Workday ───────────────────────────────────────────────────────────────
+    if scope["workday"]:
         topics += [
-            "Salesforce outbound REST callout best practices 2026 — error handling, retry, timeout limits (120s callout timeout), Continuation for async patterns",
-            "Salesforce callout governor limits 2026 — total callouts per transaction, cumulative timeout, concurrent limit",
-            "API proxy patterns with Salesforce 2026 — when to use MuleSoft vs Apigee vs custom middleware, trade-offs",
+            f"Workday integration API limits and quotas {_YEAR} — EIB row limits, RaaS throttling, Studio constraints",
+            f"Workday Extend platform capabilities and limitations {_YEAR}",
+            f"Workday latest release GA features — what is now generally available",
         ]
 
-    # If no specific topics detected, fall back to general architecture research
+    # ── MuleSoft ──────────────────────────────────────────────────────────────
+    if scope["mulesoft"]:
+        topics += [
+            f"MuleSoft CloudHub 2.0 limits and sizing {_YEAR} — vCore allocation, message limits, replay windows",
+            f"MuleSoft Anypoint Platform API limits {_YEAR} — client ID enforcement, rate limiting, SLA tiers",
+        ]
+
+    # ── SAP ───────────────────────────────────────────────────────────────────
+    if scope["sap"]:
+        topics += [
+            f"SAP BTP limits and service quotas {_YEAR} — API Management, Integration Suite, HANA Cloud sizing",
+            f"SAP S/4HANA integration best practices {_YEAR} — BTP Integration Suite vs direct RFC vs OData",
+        ]
+
+    # ── Cross-platform discussion types ───────────────────────────────────────
+    if scope["is_auth"]:
+        topics += [
+            f"OAuth 2.0 patterns {_YEAR} — client credentials, PKCE, token refresh, storage best practices",
+            "Zero-trust credential management — secrets manager, vault rotation, least-privilege patterns",
+        ]
+
+    if scope["is_security"]:
+        topics += [
+            f"OWASP API Security Top 10 {_YEAR} — current list and mitigation patterns",
+            "Zero-trust architecture for SaaS and enterprise platform integrations",
+        ]
+
+    # ── Fallback: no specific platform detected ───────────────────────────────
     if not topics:
         topics = [
-            "Enterprise integration architecture best practices 2026 — API gateway patterns, proxy design, token management",
-            "API security patterns 2026 — token passing, credential isolation, zero-trust principles",
-            "Microservices and API proxy design patterns — industry standards and Salesforce-specific considerations",
-        ]
-
-    if scope["service_cloud"]:
-        topics += [
-            "Salesforce Omni-Channel routing limits and configuration 2026 — queue-based vs skills-based current limits",
-            "Einstein for Service GA features 2026 — Einstein Classification, Article Recommendations, Bots, Copilot for Service",
-            "Salesforce Service Cloud Voice 2026 — supported telephony partners, Amazon Connect limits",
-            "Salesforce Knowledge limits and migration status 2026 — Classic vs Lightning Knowledge",
-        ]
-
-    if scope["experience_cloud"]:
-        topics += [
-            "Salesforce Experience Cloud LWR vs Aura 2026 — official recommendation and Aura end-of-life timeline if any",
-            "Experience Cloud guest user security 2026 — current known CVEs, OWASP risks, Salesforce security advisories",
-            "Experience Cloud licence types and limits 2026 — Customer Community, Partner Community, Digital Experiences per-user limits",
-        ]
-
-    if scope["data_cloud"]:
-        topics += [
-            "Salesforce Data Cloud identity resolution limits 2026 — matching rule types, accuracy considerations, known limitations",
-            "Salesforce Data Cloud credits model 2026 — exact credit consumption rates by operation type",
-            "Salesforce Data Cloud consent management 2026 — GDPR/CCPA compliance features, data retention configuration",
+            f"Enterprise architecture best practices {_YEAR} — integration, security, scalability patterns",
+            "Cloud architecture patterns — API gateway, event-driven, microservices trade-offs",
+            "API security patterns — OAuth 2.0, mTLS, zero-trust principles",
         ]
 
     topic_list = "\n".join(f"{i+1}. {t}" for i, t in enumerate(topics))
 
-    prompt = f"""Research these topics and return a citation-rich fact sheet.
-For each topic: current value/status, relevant limits, any recent changes, source URL.
-
-## Project scope (for context only)
-{_discovery_summary(state)}
-
-## Topics to research
-{topic_list}"""
+    prompt = (
+        f"Research these topics and return a citation-rich fact sheet.\n"
+        f"For each topic: current value/status, relevant limits, any recent changes, source URL.\n\n"
+        f"## Project scope (for context only)\n{_discovery_summary(state)}\n\n"
+        f"## Topics to research\n{topic_list}"
+    )
 
     llm = get_llm_for_slot("researcher_search", state.session_agent_config)
     response = invoke_with_retry(llm, [
@@ -142,48 +226,112 @@ For each topic: current value/status, relevant limits, any recent changes, sourc
         usage_record("researcher", slot_model("researcher_search", state.session_agent_config), getattr(response, "usage_metadata", None)),
     )
 
+
 # ── Step 1b: Gemini — deep patterns, architectural reasoning ──────────────────
 
 def _gather_gemini(state: AgentState, scope: dict) -> tuple:
-    topics = [
-        "Salesforce Well-Architected Framework 2026 — how to apply Trust, Adaptability, Customer Success, and Efficiency pillars to a multi-cloud implementation",
-        "Salesforce integration architecture patterns — when to use REST API vs Bulk API 2.0 vs Platform Events vs CDC vs Composite API",
-        "Salesforce security architecture patterns — permission-set-first model, OWD design, sharing rule hierarchy best practices",
-        "Salesforce CI/CD and DevOps patterns — Gearset vs Copado vs raw SFDX, scratch org strategy, sandbox org shape design",
-    ]
+    topics = []
+    sf = scope.get("sf_modules", {})
 
-    if scope["service_cloud"]:
+    # ── Salesforce ────────────────────────────────────────────────────────────
+    if scope["salesforce"]:
         topics += [
-            "Service Cloud architecture patterns — case model design, Omni-Channel routing strategy selection, channel architecture for multi-channel service",
-            "Einstein for Service implementation patterns — training data requirements, phased rollout approach, bot design patterns",
-            "Knowledge management architecture — data category hierarchy design, article lifecycle, unified Knowledge strategy across channels",
+            "Salesforce Well-Architected Framework — Trust, Adaptability, Customer Success, Efficiency pillars applied to this context",
+            "Salesforce integration patterns — REST API vs Bulk API vs Platform Events vs CDC vs Composite API — when to use each",
+            "Salesforce security architecture — permission-set-first model, OWD design, sharing rule hierarchy",
+            "Salesforce CI/CD and DevOps — SFDX, scratch org strategy, deployment pipeline design",
+        ]
+        if sf.get("service_cloud"):
+            topics += [
+                "Service Cloud architecture — case model design, Omni-Channel routing strategy, multi-channel service design",
+                "Einstein for Service implementation — training data requirements, phased rollout, bot design patterns",
+                "Knowledge management architecture — data category hierarchy, article lifecycle, unified Knowledge strategy",
+            ]
+        if sf.get("experience_cloud"):
+            topics += [
+                "Experience Cloud architecture — LWR site design, sharing model patterns, SSO integration",
+                "Experience Cloud authentication — self-registration flows, identity provider integration patterns",
+            ]
+        if sf.get("data_cloud"):
+            topics += [
+                "Data Cloud architecture — data ingestion design, DMO mapping, identity resolution ruleset design",
+                "Data Cloud integration with Service Cloud and Experience Cloud — unified profile, activation, real-time personalisation",
+            ]
+
+    # ── ServiceNow ────────────────────────────────────────────────────────────
+    if scope["servicenow"]:
+        topics += [
+            "ServiceNow architecture patterns — scoped application design, table hierarchy, customisation vs configuration boundary",
+            "ServiceNow integration architecture — IntegrationHub spoke design vs REST Message vs MID Server — decision framework",
+            "ServiceNow ITSM process design — incident, change, problem management best practices",
+            "ServiceNow upgrade strategy — avoiding customisation conflicts, upgrade ring and test approach",
         ]
 
-    if scope["experience_cloud"]:
+    # ── Microsoft 365 / Power Platform ───────────────────────────────────────
+    if scope["microsoft"]:
         topics += [
-            "Experience Cloud architecture patterns — LWR site design, component architecture, performance optimisation patterns",
-            "Experience Cloud sharing model design — when to use sharing sets vs share groups vs Apex sharing, guest user security model",
-            "Experience Cloud authentication architecture — SSO patterns, self-registration flows, identity provider integration",
+            "Power Platform architecture — Canvas vs Model-driven app design, Dataverse schema design, ALM strategy",
+            "Microsoft 365 integration architecture — Graph API patterns, Teams extensibility, SharePoint integration design",
+            "Azure integration services — Logic Apps vs Functions vs Service Bus vs Event Grid — decision framework",
         ]
 
-    if scope["data_cloud"]:
+    # ── Workday ───────────────────────────────────────────────────────────────
+    if scope["workday"]:
         topics += [
-            "Data Cloud architecture patterns — data ingestion design, DMO mapping strategy, identity resolution ruleset design",
-            "Data Cloud to Service Cloud + Experience Cloud integration — unified profile strategy, activation patterns, real-time personalisation",
-            "Data Cloud consent and privacy architecture — consent object design, GDPR/CCPA implementation patterns",
+            "Workday integration architecture — EIB vs Studio vs Cloud Connect vs Extend — decision framework",
+            "Workday data model patterns — business object design, calculated fields, custom report types",
+            "Workday security architecture — domain security policies, functional areas, intersection security",
+        ]
+
+    # ── MuleSoft ──────────────────────────────────────────────────────────────
+    if scope["mulesoft"]:
+        topics += [
+            "MuleSoft API-led connectivity — Experience / Process / System layer design and anti-patterns",
+            "MuleSoft error handling architecture — dead letter queue, retry policies, circuit breaker patterns",
+            "MuleSoft deployment architecture — CloudHub 2.0 vs Runtime Fabric — when to use each",
+        ]
+
+    # ── SAP ───────────────────────────────────────────────────────────────────
+    if scope["sap"]:
+        topics += [
+            "SAP BTP architecture patterns — Integration Suite design, API Management, event mesh",
+            "SAP S/4HANA extension patterns — side-by-side vs in-app extension, Clean Core principles",
+        ]
+
+    # ── Cross-platform discussion types ───────────────────────────────────────
+    if scope["is_integration"]:
+        topics += [
+            "Enterprise integration patterns — synchronous vs asynchronous, at-least-once vs exactly-once, idempotency design",
+            "API design best practices — versioning, pagination, error codes, backward compatibility",
+        ]
+
+    if scope["is_auth"]:
+        topics += [
+            "Authentication architecture patterns — OAuth 2.0 flows, token refresh, credential rotation, storage design",
+        ]
+
+    if scope["is_performance"]:
+        topics += [
+            "Performance and scalability patterns — async processing, caching strategies, queue-based load levelling",
+        ]
+
+    # ── Fallback: no specific platform or discussion type detected ────────────
+    if not topics:
+        topics = [
+            "Cloud architecture patterns — API gateway, event-driven, microservices, serverless — when each is appropriate",
+            "Security architecture principles — zero trust, defence in depth, least privilege",
+            "Data architecture patterns — event sourcing, CQRS, saga, outbox pattern",
         ]
 
     topic_list = "\n".join(f"{i+1}. {t}" for i, t in enumerate(topics))
 
-    prompt = f"""Provide deep architectural guidance on these topics for a Salesforce implementation.
-For each topic: recommended pattern, design rationale, key trade-offs, and when to deviate.
-
-## Project scope (from discovery)
-Brief: {state.project_brief}
-{_discovery_summary(state)}
-
-## Architectural topics
-{topic_list}"""
+    prompt = (
+        f"Provide deep architectural guidance on these topics.\n"
+        f"For each: recommended pattern, design rationale, key trade-offs, and when to deviate.\n\n"
+        f"## Project scope (from discovery)\n"
+        f"Brief: {state.project_brief}\n{_discovery_summary(state)}\n\n"
+        f"## Architectural topics\n{topic_list}"
+    )
 
     llm = get_llm_for_slot("researcher_reasoning", state.session_agent_config)
     response = invoke_with_retry(llm, [
@@ -195,102 +343,74 @@ Brief: {state.project_brief}
         usage_record("researcher", slot_model("researcher_reasoning", state.session_agent_config), getattr(response, "usage_metadata", None)),
     )
 
-# ── Step 2: Claude — write the structured document ────────────────────────────
 
-def _write_document(
-    state: AgentState,
-    perplexity_research: str,
-    gemini_research: str,
-) -> str:
+# ── Step 2: Write / revise the Architecture Recommendation Document ────────────
+
+def _write_document(state: AgentState, perplexity_research: str, gemini_research: str) -> tuple:
     llm = get_llm_for_slot("researcher_writer", state.session_agent_config)
-
     discovery = _discovery_summary(state)
 
     if state.document_version == 0:
-        user_prompt = f"""## Project Brief
-{state.project_brief}
-
-## Discovery Answers
-{discovery}
-
-## Research Context
-{perplexity_research}
-
----
-
-{gemini_research}
-
----
-
-Using all of the above, produce the complete 8-section Architecture Recommendation Document.
-Use exact limit values from the Perplexity research. Apply architectural patterns from the Gemini research."""
-
+        user_prompt = (
+            f"## Project Brief\n{state.project_brief}\n\n"
+            f"## Discovery Answers\n{discovery}\n\n"
+            f"## Research Context\n{perplexity_research}\n\n---\n\n{gemini_research}\n\n---\n\n"
+            "Using all of the above, produce the complete Architecture Recommendation Document.\n"
+            "Use exact limit values from the Search Research. Apply architectural patterns from the Architecture Research."
+        )
     else:
         approver_section = ""
         if state.approval_result:
             changes = "\n".join(f"  - {c}" for c in state.approval_result.required_changes)
-            approver_section = f"""
-## Approver Rejection Comments (ALL must be resolved)
-{state.approval_result.comments}
-
-Required changes:
-{changes}"""
+            approver_section = (
+                f"\n## Approver Rejection Comments (ALL must be resolved)\n"
+                f"{state.approval_result.comments}\n\nRequired changes:\n{changes}"
+            )
 
         reviewer_section = ""
         if state.review_result:
             issues = "\n".join(f"  - {i}" for i in state.review_result.critical_issues)
-            reviewer_section = f"""
-## Reviewer Feedback (ALL critical issues must be resolved)
-{state.review_result.feedback}
+            reviewer_section = (
+                f"\n## Reviewer Feedback (ALL critical issues must be resolved)\n"
+                f"{state.review_result.feedback}\n\nCritical issues:\n{issues}"
+            )
 
-Critical issues:
-{issues}"""
+        user_prompt = (
+            f"## Prior Document (version {state.document_version})\n{state.document_draft}"
+            f"{approver_section}{reviewer_section}\n\n"
+            f"## Refreshed Research Context (re-run for this revision)\n"
+            f"{perplexity_research}\n\n---\n\n{gemini_research}\n\n---\n\n"
+            "Instructions:\n"
+            "1. Add ## Revision Summary at the top listing every change made.\n"
+            "2. Resolve every flagged item. Mark each: [RESOLVED: <comment>]\n"
+            "3. Do NOT rewrite sections that were not flagged — preserve verbatim.\n"
+            "4. Output the complete updated document."
+        )
 
-        user_prompt = f"""## Prior Document (version {state.document_version})
-{state.document_draft}
-{approver_section}
-{reviewer_section}
-
-## Refreshed Research Context (re-run for this revision)
-{perplexity_research}
-
----
-
-{gemini_research}
-
----
-
-Instructions:
-1. Add ## Revision Summary at the top listing every change made.
-2. Resolve every flagged item. Mark each: [RESOLVED: <comment>]
-3. Do NOT rewrite sections that were not flagged — preserve verbatim.
-4. Output the complete updated document."""
-
-    # Researcher does NOT need conversation history — all context is already
-    # structured in user_prompt: brief, discovery Q&A, research output, and
-    # (on revision) the full prior document + feedback. Passing *state.messages
-    # would only add noise from the discovery chat and revision logs.
     response = invoke_with_retry(llm, [
         SystemMessage(content=state.flow_config.get("WRITER_SYSTEM_PROMPT")),
         HumanMessage(content=user_prompt),
     ])
+    return (
+        response.content,
+        usage_record("researcher", slot_model("researcher_writer", state.session_agent_config), getattr(response, "usage_metadata", None)),
+    )
 
-    return response.content, usage_record("researcher", slot_model("researcher_writer", state.session_agent_config), getattr(response, "usage_metadata", None))
 
 # ── Node function ─────────────────────────────────────────────────────────────
 
 def run_researcher(state: AgentState) -> dict:
     scope = _detect_scope(state)
 
-    # Step 1: run Perplexity + Gemini in parallel — no extra latency cost
+    # Step 1: run search + reasoning in parallel — no extra latency cost
     with ThreadPoolExecutor(max_workers=2) as pool:
         perplexity_future = pool.submit(_gather_perplexity, state, scope)
         gemini_future     = pool.submit(_gather_gemini,     state, scope)
 
-        perplexity_research, urec_pplx  = perplexity_future.result()
+        perplexity_research, urec_pplx   = perplexity_future.result()
         gemini_research,     urec_gemini = gemini_future.result()
 
-    # Step 2: Claude writes the document with both research outputs
+    # Step 2: write the document with both research outputs
     document, urec_writer = _write_document(state, perplexity_research, gemini_research)
     new_version = state.document_version + 1
 
@@ -306,7 +426,7 @@ def run_researcher(state: AgentState) -> dict:
                 name="researcher",
                 content=(
                     f"[Researcher] Document v{new_version} produced. "
-                    f"Research: Perplexity (current facts) + Gemini (patterns) in parallel → Claude (writing)."
+                    f"Research: Search (current facts) + Reasoning (patterns) in parallel → Writer."
                 )
             )
         ],

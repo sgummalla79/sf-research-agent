@@ -3,7 +3,7 @@ Development helper — quick CLI to start or resume a session without the Vue UI
 For production use, run the FastAPI server instead: uvicorn api.app:app --reload
 
 Usage:
-  python main.py --brief "We need to migrate our CRM to Salesforce..."
+  python main.py --brief "We need to design our cloud architecture..."
   python main.py --session-id <id> --reply "500 users, Sales Cloud only."
 """
 
@@ -65,7 +65,7 @@ async def run(brief: str = "", session_id: str = "", reply: str = ""):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Salesforce Architecture Agent CLI")
+    parser = argparse.ArgumentParser(description="Technical Architecture Agent CLI")
     parser.add_argument("--brief",      default="", help="Initial project brief (new session)")
     parser.add_argument("--session-id", default="", help="Resume an existing session")
     parser.add_argument("--reply",      default="", help="Your answer to the agent's question")

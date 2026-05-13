@@ -118,12 +118,12 @@ async def lifespan(app: FastAPI):
                 logger.info("Seeding agent prompts for flow '%s'", flow_id)
                 await db.seed_flow_prompts(flow_id, flow_cfg.prompts)
 
-        logger.info("Salesforce Architecture Agent started — graph ready.")
+        logger.info("Technical Architecture Agent started — graph ready.")
         yield
-    logger.info("Salesforce Architecture Agent shutting down.")
+    logger.info("Technical Architecture Agent shutting down.")
 
 
-app = FastAPI(title="Salesforce Architecture Agent", lifespan=lifespan)
+app = FastAPI(title="Technical Architecture Agent", lifespan=lifespan)
 
 _ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(

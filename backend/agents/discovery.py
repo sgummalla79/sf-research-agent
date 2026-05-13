@@ -3,7 +3,7 @@ Stage 2 — Dynamic Discovery Agent
 
 Intelligently determines what type of architectural discussion is happening,
 then asks ONLY the questions relevant to that type. Does not blindly run
-through a Salesforce-specific checklist for every session.
+through a platform-specific checklist for every session.
 
 Overrides _build_messages (windowed conversation history instead of a single
 human turn) and _post_process (LangGraph interrupt loop for Q&A rounds).
