@@ -230,8 +230,8 @@
       <div class="messages" ref="messagesEl">
         <div v-if="!messages.length && !isStreaming" class="empty-state">
           <div class="greeting-row">
-            <SudarshanChakra :size="56" color="#c97040" />
-            <h1 class="greeting-text">{{ greeting }}, {{ firstName }}</h1>
+            <SudarshanChakra :size="30" color="#c97040" />
+            <h1 class="greeting-text">{{ greeting }}{{ firstName ? ', ' + firstName : '' }}</h1>
           </div>
         </div>
 
@@ -666,16 +666,63 @@ const {
 const router = useRouter()
 const { user, logout } = useAuth()
 
+const _GREETINGS = {
+  morning: [
+    'Good morning',       // English
+    'Suprabhat',          // Sanskrit / Hindi
+    'Bonjour',            // French
+    'Buenos días',        // Spanish
+    'Guten Morgen',       // German
+    'Buongiorno',         // Italian
+    'Bom dia',            // Portuguese
+    'Günaydın',           // Turkish
+    'Kalimera',           // Greek
+    'Ohayou gozaimasu',   // Japanese
+    'Subah bakhair',      // Urdu
+    'Sabah alkhayr',      // Arabic
+    'Dobroe utro',        // Russian
+    'Selamat pagi',       // Malay/Indonesian
+  ],
+  afternoon: [
+    'Good afternoon',
+    'Shubh dopahar',      // Hindi
+    'Bon après-midi',     // French
+    'Buenas tardes',      // Spanish
+    'Guten Nachmittag',   // German
+    'Buon pomeriggio',    // Italian
+    'Boa tarde',          // Portuguese
+    'İyi öğleden sonralar', // Turkish
+    'Konnichiwa',         // Japanese
+    'Masa alkhayr',       // Arabic
+    'Selamat siang',      // Malay
+  ],
+  evening: [
+    'Good evening',
+    'Shubh sandhya',      // Sanskrit
+    'Bonsoir',            // French
+    'Buenas noches',      // Spanish
+    'Guten Abend',        // German
+    'Buona sera',         // Italian
+    'Boa noite',          // Portuguese
+    'İyi akşamlar',       // Turkish
+    'Konbanwa',           // Japanese
+    'Masa alkhayr',       // Arabic
+    'Selamat malam',      // Malay
+  ],
+}
+
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
+  const bucket = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  const list = _GREETINGS[bucket]
+  return list[Math.floor(Math.random() * list.length)]
 })
 
 const firstName = computed(() => {
-  const name = user.value?.name || user.value?.email || ''
-  return name.split(/[\s@]/)[0]
+  const name = user.value?.name || ''
+  // Never use email — if name looks like an email or is empty, return nothing
+  if (!name || name.includes('@')) return ''
+  return name.split(/\s+/)[0]
 })
 
 async function handleLogout() {
@@ -1598,12 +1645,12 @@ function doPDF() {
 }
 .greeting-text {
   font-family: 'Martel', serif;
-  font-size: clamp(32px, 4vw, 52px);
+  font-size: clamp(18px, 2vw, 26px);
   font-weight: 700;
   color: var(--tx);
-  letter-spacing: -0.5px;
+  letter-spacing: -0.3px;
   margin: 0;
-  line-height: 1.1;
+  line-height: 1.2;
 }
 .message{display:flex;flex-direction:column;max-width:82%}
 .message.user{align-self:flex-end;align-items:flex-end}.message.agent{align-self:flex-start;align-items:flex-start}
