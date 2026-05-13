@@ -27,66 +27,14 @@ from utils.llm_retry import invoke_with_retry
 from utils.pricing import usage_record
 from state import AgentState
 
-
 # ── Document extraction prompt ────────────────────────────────────────────────
 
-INTAKE_DOCUMENT_PROMPT = """You are a Principal Salesforce Architect reading a client-provided document.
-
-Extract a structured Project Brief covering:
-1. Business objective — what problem is the client trying to solve?
-2. Salesforce clouds / products mentioned or strongly implied.
-3. Key functional requirements (case management, portal, data unification, integrations, etc.).
-4. Known constraints (timeline, budget signals, team size, existing systems, compliance).
-5. Stakeholders or business units mentioned.
-6. Gaps — things you could not determine from the document.
-
-Write in the first person: "Based on this document, the client is looking to..."
-End with a short "Gaps & Open Items" paragraph.
-Do NOT invent requirements — only extract what is genuinely present or strongly implied."""
-
-
 # ── Image validation + extraction prompt ──────────────────────────────────────
-
-INTAKE_IMAGE_SYSTEM_PROMPT = """You are a Principal Salesforce Architect analyzing an uploaded image.
-
-STEP 1 — VALIDATE
-Determine if the image is related to software/system architecture, IT infrastructure,
-process flows, data models, integration design, or any technical architectural topic.
-
-Architecture-related images include:
-- System / solution architecture diagrams
-- Data flow or data pipeline diagrams
-- Network or infrastructure diagrams
-- UML diagrams (class, sequence, component, deployment)
-- Entity Relationship Diagrams (ERDs)
-- Cloud architecture diagrams (Salesforce, AWS, Azure, GCP)
-- Whiteboard or napkin sketches of system design
-- Process flow / BPMN diagrams
-- Integration architecture diagrams
-- Salesforce org structure, flow, or configuration sketches
-- Handwritten architecture notes or diagrams
-
-NOT architecture-related: personal photos, unrelated screenshots, memes, nature photos,
-presentation slides with no architecture content, or logos.
-
-STEP 2 — EXTRACT (only if architecture-related)
-Extract a structured Project Brief covering:
-- What systems / components are shown
-- The likely business problem being addressed
-- Salesforce clouds or products visible or implied
-- Integration points, data flows, or processes depicted
-- Any constraints or requirements visible
-- Gaps — things unclear or cut off in the image
-
-Write the brief in the first person: "This diagram shows..."
-End with a "Gaps & Open Items" paragraph."""
-
 
 class ImageAnalysisResult(BaseModel):
     is_architecture_related: bool
     extracted_brief: str
     rejection_reason: str
-
 
 _MEDIA_TYPES = {
     ".jpg":  "image/jpeg",
@@ -95,7 +43,6 @@ _MEDIA_TYPES = {
     ".gif":  "image/gif",
     ".webp": "image/webp",
 }
-
 
 def _analyze_image(image_path: str, session_cfg: dict, flow_config: dict) -> ImageAnalysisResult:
     suffix     = Path(image_path).suffix.lower()
@@ -107,14 +54,13 @@ def _analyze_image(image_path: str, session_cfg: dict, flow_config: dict) -> Ima
     llm = get_llm_for_slot("intake", session_cfg).with_structured_output(ImageAnalysisResult, include_raw=True)
 
     raw = invoke_with_retry(llm, [
-        SystemMessage(content=flow_config.get("INTAKE_IMAGE_SYSTEM_PROMPT", INTAKE_IMAGE_SYSTEM_PROMPT)),
+        SystemMessage(content=flow_config.get("INTAKE_IMAGE_SYSTEM_PROMPT")),
         HumanMessage(content=[
             {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64}"}},
             {"type": "text",      "text": "Analyse this image and return your structured assessment."},
         ]),
     ])
     return raw["parsed"], usage_record("intake", slot_model("intake", session_cfg), getattr(raw.get("raw"), "usage_metadata", None))
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -127,7 +73,6 @@ def _extract_correction(raw) -> str:
     if isinstance(raw, list):
         raw = raw[0] if raw else ""
     return (raw or "").strip()
-
 
 # ── Node function ─────────────────────────────────────────────────────────────
 
@@ -181,7 +126,7 @@ def run_intake(state: AgentState) -> dict:
     if state.source_type == "document" and state.raw_document_text:
         llm      = get_llm_for_slot("intake", state.session_agent_config)
         response = invoke_with_retry(llm, [
-            SystemMessage(content=state.flow_config.get("INTAKE_DOCUMENT_PROMPT", INTAKE_DOCUMENT_PROMPT)),
+            SystemMessage(content=state.flow_config.get("INTAKE_DOCUMENT_PROMPT")),
             HumanMessage(content=(
                 f"Extract a structured Project Brief from this document.\n\n"
                 f"---\n{state.raw_document_text}\n---"

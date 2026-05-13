@@ -25,7 +25,6 @@ from utils.llm_factory import get_llm_for_slot, slot_model
 from utils.pricing import usage_record
 from state import AgentState
 
-
 # ── Shared scope detection ─────────────────────────────────────────────────────
 
 def _detect_scope(state: AgentState) -> dict:
@@ -57,28 +56,13 @@ def _detect_scope(state: AgentState) -> dict:
         "is_pattern_review":    any(w in combined for w in ["pattern", "is this good", "best practice", "review", "evaluate", "architectural pattern"]),
     }
 
-
 def _discovery_summary(state: AgentState) -> str:
     return "\n".join(
         f"- {q.question}: {q.answer}"
         for q in state.discovery_questions if q.answer
     )
 
-
 # ── Step 1a: Perplexity — current facts, limits, citations ────────────────────
-
-PERPLEXITY_SYSTEM_PROMPT = """You are a Salesforce technical research assistant with real-time
-access to Salesforce documentation, Trailhead, release notes, and community resources.
-
-Focus exclusively on CURRENT, VERIFIABLE facts:
-- Exact governor limit values (as of the latest Salesforce release)
-- Features that are GA vs Beta vs Pilot in the current release
-- Known issues, deprecations, or migration requirements
-- Recent Spring/Summer release changes relevant to the topics
-- Cite every fact with its source (Salesforce Help URL, release note, or Trailhead)
-
-Do not give architectural opinions — only verifiable, cited facts."""
-
 
 def _gather_perplexity(state: AgentState, scope: dict) -> tuple:
     # Base topics always included when Salesforce is involved
@@ -150,7 +134,7 @@ For each topic: current value/status, relevant limits, any recent changes, sourc
 
     llm = get_llm_for_slot("researcher_search", state.session_agent_config)
     response = invoke_with_retry(llm, [
-        SystemMessage(content=state.session_agent_config.get("PERPLEXITY_SYSTEM_PROMPT") or state.flow_config.get("PERPLEXITY_SYSTEM_PROMPT", PERPLEXITY_SYSTEM_PROMPT)),
+        SystemMessage(content=state.flow_config.get("PERPLEXITY_SYSTEM_PROMPT")),
         HumanMessage(content=prompt),
     ])
     return (
@@ -158,23 +142,7 @@ For each topic: current value/status, relevant limits, any recent changes, sourc
         usage_record("researcher", slot_model("researcher_search", state.session_agent_config), getattr(response, "usage_metadata", None)),
     )
 
-
 # ── Step 1b: Gemini — deep patterns, architectural reasoning ──────────────────
-
-GEMINI_SYSTEM_PROMPT = """You are a Principal Salesforce Architect providing deep architectural
-guidance based on platform best practices and proven design patterns.
-
-Focus exclusively on ARCHITECTURAL PATTERNS and DESIGN DECISIONS:
-- Recommended design patterns for the confirmed Salesforce clouds
-- Integration architecture approaches and trade-offs
-- Security model design (sharing model, permission architecture)
-- Scalability and performance design considerations
-- Deployment and release management patterns
-- Salesforce Well-Architected Framework application
-
-Do not focus on specific limit values — those will come from a separate research source.
-Focus on HOW to design the system, not WHAT the current numbers are."""
-
 
 def _gather_gemini(state: AgentState, scope: dict) -> tuple:
     topics = [
@@ -219,7 +187,7 @@ Brief: {state.project_brief}
 
     llm = get_llm_for_slot("researcher_reasoning", state.session_agent_config)
     response = invoke_with_retry(llm, [
-        SystemMessage(content=state.session_agent_config.get("GEMINI_SYSTEM_PROMPT") or state.flow_config.get("GEMINI_SYSTEM_PROMPT", GEMINI_SYSTEM_PROMPT)),
+        SystemMessage(content=state.flow_config.get("GEMINI_SYSTEM_PROMPT")),
         HumanMessage(content=prompt),
     ])
     return (
@@ -227,90 +195,7 @@ Brief: {state.project_brief}
         usage_record("researcher", slot_model("researcher_reasoning", state.session_agent_config), getattr(response, "usage_metadata", None)),
     )
 
-
 # ── Step 2: Claude — write the structured document ────────────────────────────
-
-WRITER_SYSTEM_PROMPT = """You are a Principal Enterprise Architect writing a formal
-Architecture Recommendation Document.
-
-You have been given:
-  1. A project brief and discovery answers (the confirmed requirements and context)
-  2. A PERPLEXITY research brief — verified current facts, citations, platform limits
-  3. A GEMINI research brief — deep architectural patterns and design guidance
-
-────────────────────────────────────────────────────────────────
-STEP 1 — IDENTIFY THE DISCUSSION TYPE
-
-Read the brief and determine what kind of architecture document is needed.
-Do NOT default to a full Salesforce Cloud implementation template for every session.
-
-  • PATTERN REVIEW / DESIGN QUESTION → concise focused document (3–4 sections)
-    Sections: Summary & Verdict | Design Analysis | Recommendations | Risks
-    Length: 400–800 words. No Salesforce cloud sections unless relevant.
-
-  • INTEGRATION / API ARCHITECTURE → integration-focused document
-    Sections: Summary | Integration Design | Security & Auth | Error Handling |
-              Operational Considerations | Risks
-    Length: 600–1200 words.
-
-  • SECURITY / AUTH DESIGN → security-focused document
-    Sections: Summary | Current Design Assessment | Recommended Pattern |
-              Implementation Guidance | Risks
-    Length: 500–1000 words.
-
-  • FULL SALESFORCE CLOUD IMPLEMENTATION → comprehensive 8-section document
-    Use the full structure below ONLY when the session is about building on
-    Salesforce Service Cloud, Experience Cloud, Data Cloud, or similar.
-
-────────────────────────────────────────────────────────────────
-FULL SALESFORCE IMPLEMENTATION STRUCTURE (use only when appropriate):
-
-## 1. Executive Summary
-   Business problem + recommended approach (3–5 sentences).
-   Top 3 measurable outcomes. Headline licensing note. Top 2 risks + mitigations.
-
-## 2. Architectural Goals & Constraints
-   Goals from discovery. Hard constraints. Explicit assumptions.
-
-## 3. Recommended Architecture
-   Sub-section per confirmed cloud:
-   ### 3a. Service Cloud (if confirmed)
-   ### 3b. Experience Cloud (if confirmed)
-   ### 3c. Data Cloud (if confirmed)
-   ### 3d. Cross-Cloud Integration Design (if 2+ clouds)
-
-## 4. Security Architecture
-   Permission-set-first strategy. FLS. OWD. Connected App/OAuth. Guest user lockdown.
-
-## 5. Technical Recommendations & Governor Limit Considerations
-   Use EXACT limit values from the Perplexity research brief — never invent numbers.
-   Async vs sync, bulkification, API strategy, Platform Events capacity, tech stack.
-
-## 6. Deployment & Release Strategy
-   Sandbox org shape. CI/CD tooling. Scratch orgs. Deployment sequencing.
-
-## 7. Risk Register
-   Table: Risk | Likelihood (H/M/L) | Impact (H/M/L) | Mitigation
-
-## 8. Open Questions & Assumptions
-────────────────────────────────────────────────────────────────
-
-WRITING STANDARDS:
-- Match document length and depth to the complexity of the question.
-  A pattern review does not need 8 sections. A cloud implementation does.
-- Use exact limit values from Perplexity research — never invent numbers.
-- Architecture patterns: draw from Gemini research — cite the reasoning.
-- Salesforce Well-Architected Framework: reference where genuinely applicable,
-  not as a mandatory checkbox for every document.
-- Executive sections (1–2): jargon-free. Technical sections (3–7): precise.
-- Flag edition requirements and add-ons without inventing prices.
-- Output as clean Markdown with tables where helpful.
-
-ON REVISION:
-- Add ## Revision Summary at the top listing every change.
-- Mark each resolved comment: [RESOLVED: <original comment>]
-- Do NOT rewrite sections that were not flagged."""
-
 
 def _write_document(
     state: AgentState,
@@ -386,12 +271,11 @@ Instructions:
     # (on revision) the full prior document + feedback. Passing *state.messages
     # would only add noise from the discovery chat and revision logs.
     response = invoke_with_retry(llm, [
-        SystemMessage(content=state.flow_config.get("WRITER_SYSTEM_PROMPT", WRITER_SYSTEM_PROMPT)),
+        SystemMessage(content=state.flow_config.get("WRITER_SYSTEM_PROMPT")),
         HumanMessage(content=user_prompt),
     ])
 
     return response.content, usage_record("researcher", slot_model("researcher_writer", state.session_agent_config), getattr(response, "usage_metadata", None))
-
 
 # ── Node function ─────────────────────────────────────────────────────────────
 
