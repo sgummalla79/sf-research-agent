@@ -16,5 +16,11 @@ onMounted(fetchUser)
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body, #app { height: 100%; }
-body { background: #0f172a; font-family: system-ui, -apple-system, sans-serif; }
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #1a1a1a;   /* neutral dark — matches chat dark theme */
+}
+@media (prefers-color-scheme: light) {
+  body { background: #f5f5f4; }
+}
 </style>

@@ -191,65 +191,51 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* ── Theme tokens (login page lives outside .shell so needs own vars) ── */
-:root {
-  --l-bg:      #f5f5f4; --l-surf:  #ffffff; --l-bdr:  #e5e5e3;
-  --l-tx:      #1a1a1a; --l-muted: #737373;
-  --l-pri:     #b85c2a; --l-pri-h: #a04e22;
-  --l-inp:     #ffffff; --l-focus: #b85c2a;
-  --l-shadow:  rgba(0,0,0,0.1);
-  --l-err-bg:  #fef2f2; --l-err-bdr: #fecaca; --l-err-tx: #b91c1c;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --l-bg:      #1a1a1a; --l-surf:  #212121; --l-bdr:  rgba(255,255,255,0.09);
-    --l-tx:      #ececea; --l-muted: #737373;
-    --l-pri:     #c97040; --l-pri-h: #b5602e;
-    --l-inp:     #111111; --l-focus: #c97040;
-    --l-shadow:  rgba(0,0,0,0.4);
-    --l-err-bg:  #1f0d0d; --l-err-bdr: #4a1a1a; --l-err-tx: #fca5a5;
-  }
-}
+/*
+  Dark mode (default — matches chat page dark theme exactly).
+  Light mode via prefers-color-scheme override on each rule.
+  No :root vars — scoped :root is unreliable in Vue.
+*/
 
 .login-shell {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: var(--l-bg); padding: 20px;
+  background: #1a1a1a; padding: 20px;
 }
 .login-card {
   width: 100%; max-width: 380px;
-  background: var(--l-surf); border: 1px solid var(--l-bdr); border-radius: 16px;
+  background: #212121; border: 1px solid rgba(255,255,255,0.09); border-radius: 16px;
   padding: 36px 32px; display: flex; flex-direction: column; gap: 18px;
-  box-shadow: 0 20px 60px var(--l-shadow);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
 }
-.login-brand { display: flex; align-items: center; gap: 10px; }
-.login-logo-wrap { flex-shrink: 0; display: flex; align-items: center; }
-.login-app-name { font-size: 14px; font-weight: 700; color: var(--l-tx); }
-.login-heading  { font-size: 22px; font-weight: 700; color: var(--l-tx); margin: 0; }
+.login-brand      { display: flex; align-items: center; gap: 10px; }
+.login-logo-wrap  { flex-shrink: 0; display: flex; align-items: center; }
+.login-app-name   { font-size: 14px; font-weight: 700; color: #ececea; font-family: 'Martel', serif; }
+.login-heading    { font-size: 22px; font-weight: 700; color: #ececea; margin: 0; }
 
 .login-error {
   display: flex; align-items: flex-start; gap: 8px;
-  background: var(--l-err-bg); border: 1px solid var(--l-err-bdr); border-radius: 8px;
-  padding: 10px 12px; font-size: 13px; color: var(--l-err-tx);
+  background: #1f0d0d; border: 1px solid #4a1a1a; border-radius: 8px;
+  padding: 10px 12px; font-size: 13px; color: #fca5a5;
 }
 
 .login-form  { display: flex; flex-direction: column; gap: 10px; }
 .lf-input {
-  padding: 10px 13px; background: var(--l-inp); border: 1.5px solid var(--l-bdr);
-  border-radius: 8px; color: var(--l-tx); font-size: 14px; outline: none;
+  padding: 10px 13px; background: #111111; border: 1.5px solid rgba(255,255,255,0.12);
+  border-radius: 8px; color: #ececea; font-size: 14px; outline: none;
   transition: border-color .15s; width: 100%; box-sizing: border-box;
 }
-.lf-input:focus        { border-color: var(--l-focus); }
-.lf-input::placeholder { color: var(--l-muted); }
+.lf-input:focus        { border-color: #c97040; }
+.lf-input::placeholder { color: #737373; }
 
 .login-divider {
   display: flex; align-items: center; gap: 10px;
-  color: var(--l-muted); font-size: 12px;
+  color: #737373; font-size: 12px;
 }
 .login-divider::before,
-.login-divider::after { content: ''; flex: 1; height: 1px; background: var(--l-bdr); }
+.login-divider::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.09); }
 
 .login-social  { display: flex; flex-direction: column; gap: 8px; }
-.login-loading { font-size: 13px; color: var(--l-muted); text-align: center; padding: 8px 0; }
+.login-loading { font-size: 13px; color: #737373; text-align: center; padding: 8px 0; }
 
 .login-btn {
   width: 100%; padding: 10px 16px; border-radius: 8px; border: none;
@@ -257,14 +243,33 @@ onMounted(() => {
 }
 .login-btn:disabled { opacity: .5; cursor: not-allowed; }
 
-.login-btn.primary { background: var(--l-pri); color: #fff; }
-.login-btn.primary:hover:not(:disabled) { background: var(--l-pri-h); }
+.login-btn.primary { background: #c97040; color: #fff; }
+.login-btn.primary:hover:not(:disabled) { background: #b5602e; }
 
 .login-btn.social {
   display: flex; align-items: center; justify-content: center; gap: 10px;
-  background: var(--l-inp); color: var(--l-tx); border: 1.5px solid var(--l-bdr);
+  background: #111111; color: #ececea; border: 1.5px solid rgba(255,255,255,0.12);
 }
-.login-btn.social:hover { border-color: var(--l-muted); }
+.login-btn.social:hover { border-color: rgba(255,255,255,0.3); }
 
 .social-icon { flex-shrink: 0; }
+
+/* ── Light mode overrides ─────────────────────────────────────────────── */
+@media (prefers-color-scheme: light) {
+  .login-shell  { background: #f5f5f4; }
+  .login-card   { background: #ffffff; border-color: #e5e5e3; box-shadow: 0 20px 60px rgba(0,0,0,0.08); }
+  .login-app-name, .login-heading { color: #1a1a1a; }
+  .login-error  { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+  .lf-input     { background: #ffffff; border-color: #e5e5e3; color: #1a1a1a; }
+  .lf-input:focus { border-color: #b85c2a; }
+  .lf-input::placeholder { color: #737373; }
+  .login-divider { color: #737373; }
+  .login-divider::before,
+  .login-divider::after { background: #e5e5e3; }
+  .login-loading { color: #737373; }
+  .login-btn.primary { background: #b85c2a; }
+  .login-btn.primary:hover:not(:disabled) { background: #a04e22; }
+  .login-btn.social { background: #ffffff; color: #1a1a1a; border-color: #e5e5e3; }
+  .login-btn.social:hover { border-color: #737373; }
+}
 </style>
