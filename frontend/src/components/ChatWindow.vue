@@ -1376,14 +1376,13 @@ function doPDF() {
   width: 100%; padding: 8px 12px;
   background: none; border: none; cursor: pointer;
   font-size: 13px; color: var(--tx); text-align: left;
-  transition: background .1s;
 }
-.ctx-item:hover { background: var(--hover); }
+.ctx-item:hover { background: rgba(100,116,139,0.13); }
 .ctx-item svg { flex-shrink: 0; color: var(--muted); }
 .ctx-divider { height: 1px; background: var(--bdr); margin: 4px 0; }
 .ctx-delete { color: #ef4444; }
 .ctx-delete svg { color: #ef4444; }
-.ctx-delete:hover { background: rgba(239,68,68,.08); }
+.ctx-delete:hover { background: rgba(239,68,68,.12); }
 
 /* chats-page overrides — button always visible, menu opens upward */
 .cp-more-btn { display: flex !important; color: var(--muted); }
