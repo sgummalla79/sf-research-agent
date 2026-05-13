@@ -18,7 +18,7 @@
 
         <!-- Brand header -->
         <div class="sb-header">
-          <span class="sb-app-name">Technical Architecture Agent</span>
+          <span class="sb-app-name">Prajna</span>
           <button class="sb-collapse-btn" title="Collapse sidebar" @click="sidebar.open = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
               <rect x="2" y="2" width="20" height="20" rx="5"/>
@@ -131,7 +131,7 @@
 
       <!-- ── COLLAPSED ────────────────────────────────────── -->
       <template v-else>
-        <button class="col-icon-btn brand" title="Technical Architecture Agent" @click="sidebar.open = true">
+        <button class="col-icon-btn brand" title="Prajna" @click="sidebar.open = true">
           <div class="sf-logo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
               <rect x="2" y="2" width="20" height="20" rx="5"/>

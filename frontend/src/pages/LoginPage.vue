@@ -9,7 +9,7 @@
           <rect x="2" y="2" width="20" height="20" rx="5"/>
           <line x1="9" y1="2" x2="9" y2="22"/>
         </svg>
-        <span class="login-app-name">Technical Architecture Agent</span>
+        <span class="login-app-name">Prajna</span>
       </div>
 
       <h1 class="login-heading">Sign in</h1>

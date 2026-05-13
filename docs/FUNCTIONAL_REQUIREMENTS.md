@@ -1,8 +1,8 @@
-# Functional Requirements — Technical Architecture Agent
+# Functional Requirements — Prajna
 
 ## 1. Purpose
 
-Technical Architecture Agent is a multi-agent AI system that guides users through a structured technical architecture engagement and produces a formal Architecture Recommendation Document. The system is platform-agnostic and works with any enterprise or SaaS technology stack. It serves both executive and delivery-team audiences.
+Prajna is a multi-agent AI system that guides users through a structured technical architecture engagement and produces a formal Architecture Recommendation Document. The system is platform-agnostic and works with any enterprise or SaaS technology stack. It serves both executive and delivery-team audiences.
 
 ---
 

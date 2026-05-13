@@ -1,4 +1,4 @@
-# UI Design Document — Technical Architecture Agent
+# UI Design Document — Prajna
 
 ## 1. Layout Architecture
 
@@ -110,7 +110,7 @@ A permanent slim banner at the very top of the shell, above all content:
 ### Expanded state (240px)
 
 ```
-Technical Architecture Agent    [⊟]   ← collapse icon
+Prajna    [⊟]   ← collapse icon
 [+]  New Chat
 [💬] Chats
 

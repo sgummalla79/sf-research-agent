@@ -1,4 +1,4 @@
-# Technical Architecture Agent
+# Prajna
 
 A multi-agent AI system that produces formal Architecture Recommendation Documents through a structured 5-stage pipeline: intake → discovery → research → review → approval. Platform-agnostic — works with any enterprise or SaaS technology stack.
 
@@ -215,7 +215,7 @@ gunicorn api.app:app \
 
 ```nginx
 server {
-    root /path/to/technical-architecture-agent/frontend/dist;
+    root /path/to/prajna/frontend/dist;
 
     location / { try_files $uri $uri/ /index.html; }
 
@@ -242,7 +242,7 @@ server {
 ## Project Structure
 
 ```
-technical-architecture-agent/
+prajna/
 ├── backend/                        # Python API + AI agents
 │   ├── agents/                     # LangGraph nodes
 │   │   ├── base.py                 # BaseAgent — single-LLM-call skeleton
