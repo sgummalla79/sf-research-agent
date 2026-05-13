@@ -27,7 +27,6 @@
           <circle cx="50" cy="50" r="4" fill="#c97040"/>
         </svg>
         <span class="login-app-name">Prajna</span>
-        <span class="login-app-sub">Sign in to continue</span>
       </div>
 
       <!-- Error -->
