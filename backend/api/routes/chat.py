@@ -539,9 +539,18 @@ async def restore_session(session_id: str, request: Request):
                     pending_questions = [val]
                 break
 
+    raw_stage = values.get("current_stage") or ""
+    if not state.next:
+        # Graph has fully terminated — normalise missing/empty stage to "complete"
+        # so the frontend doesn't treat it as a mid-run resumable session.
+        terminal_stages = {"complete", "halted", "invalid_input"}
+        resolved_stage  = raw_stage if raw_stage in terminal_stages else "complete"
+    else:
+        resolved_stage = raw_stage
+
     return {
         "session_id":           session_id,
-        "current_stage":        values.get("current_stage", ""),
+        "current_stage":        resolved_stage,
         "document_version":     values.get("document_version", 0),
         "project_brief":        (values.get("project_brief") or "")[:200],
         "messages":             messages,

@@ -288,9 +288,9 @@ export function useAgentChat() {
       const qs = data.pending_questions
       _addMessage('agent', qs.map((q, i) => `${i+1}. ${q}`).join('\n\n'), 'discovery')
       pendingQuestions.value = qs
-    } else if (data.current_stage === 'complete')     isComplete.value  = true
-    else if (data.current_stage === 'halted')         isHalted.value    = true
-    else if (!terminal.includes(data.current_stage))  isResumable.value = true
+    } else if (data.current_stage === 'complete')                             isComplete.value  = true
+    else if (data.current_stage === 'halted')                                isHalted.value    = true
+    else if (data.current_stage && !terminal.includes(data.current_stage))   isResumable.value = true
 
     fetchSessionUsage(sid)
   }
