@@ -229,8 +229,10 @@
       <!-- Messages -->
       <div class="messages" ref="messagesEl">
         <div v-if="!messages.length && !isStreaming" class="empty-state">
-          <div class="empty-icon">🏗️</div>
-          <p class="empty-sub">Write a project brief or upload a document to begin.</p>
+          <div class="greeting-row">
+            <SudarshanChakra :size="56" color="#c97040" />
+            <h1 class="greeting-text">{{ greeting }}, {{ firstName }}</h1>
+          </div>
         </div>
 
         <div v-for="(msg, i) in messages" :key="i" class="message" :class="msg.role">
@@ -663,6 +665,18 @@ const {
 
 const router = useRouter()
 const { user, logout } = useAuth()
+
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+})
+
+const firstName = computed(() => {
+  const name = user.value?.name || user.value?.email || ''
+  return name.split(/[\s@]/)[0]
+})
 
 async function handleLogout() {
   await logout()
@@ -1575,8 +1589,22 @@ function doPDF() {
 
 /* Messages */
 .messages { flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px;min-height:0; }
-.empty-state{margin:auto;text-align:center;color:var(--muted);padding:40px 20px}
-.empty-icon{font-size:42px;margin-bottom:12px}.empty-title{font-size:16px;font-weight:600;color:var(--tx);margin:0 0 6px}.empty-sub{font-size:14px;margin:0}
+.empty-state {
+  margin: auto; display: flex; align-items: center; justify-content: center;
+  padding: 40px 20px;
+}
+.greeting-row {
+  display: flex; align-items: center; gap: 18px;
+}
+.greeting-text {
+  font-family: 'Martel', serif;
+  font-size: clamp(32px, 4vw, 52px);
+  font-weight: 700;
+  color: var(--tx);
+  letter-spacing: -0.5px;
+  margin: 0;
+  line-height: 1.1;
+}
 .message{display:flex;flex-direction:column;max-width:82%}
 .message.user{align-self:flex-end;align-items:flex-end}.message.agent{align-self:flex-start;align-items:flex-start}
 .stage-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:99px;margin-bottom:5px;background:var(--sbg);color:var(--stx)}
