@@ -47,7 +47,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # ── Chat node (built-in, not part of any skill's pipeline) ────────────────────
-from agents.chat import run_chat
+from framework.chat import run_chat
 
 
 class SkillEngine:

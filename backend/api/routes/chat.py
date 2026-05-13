@@ -28,7 +28,7 @@ from api.schemas import ReplyRequest, StartRequest
 from config import MAX_FILE_SIZE_MB
 from state import AgentState
 from utils.agent_config import get_agent_config
-from flows.registry import CHAT_DEFAULT_MODEL
+from chat_models import CHAT_DEFAULT_MODEL
 from framework.registry import SkillNotFoundError
 from utils.file_parser import extract_text, SUPPORTED_EXTENSIONS
 from utils.file_storage import save_upload

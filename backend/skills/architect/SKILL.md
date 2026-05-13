@@ -7,6 +7,15 @@ description: >
   Workday, MuleSoft, SAP, and any other enterprise or SaaS platform.
 icon: "⚡"
 version: 1
+agent_labels:
+  intake-document:    "Intake: Document"
+  intake-image:       "Intake: Image Analysis"
+  discovery:          "Discovery Agent"
+  research-search:    "Research: Web Search"
+  research-reasoning: "Research: Architecture"
+  research-writer:    "Research: Writer"
+  review:             "Review Agent"
+  approval:           "Approver Gate"
 ---
 
 ## Pipeline

@@ -6,7 +6,7 @@ GET /api/flows  →  list available agent flows + chat models
 
 from fastapi import APIRouter, Request
 
-from flows.registry import CHAT_MODELS, CHAT_DEFAULT_MODEL
+from chat_models import CHAT_MODELS, CHAT_DEFAULT_MODEL
 
 router = APIRouter(prefix="/api/flows", tags=["flows"])
 

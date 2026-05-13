@@ -91,13 +91,36 @@ class SkillManifest(BaseModel):
     versioned independently in the database.
     """
 
-    id:          str
-    name:        str
-    description: str
-    icon:        str        = "⚡"
-    version:     int        = 1
-    pipeline:    list[str]              = Field(..., min_length=1)
-    stages:      dict[str, StageConfig] = Field(default_factory=dict)
+    id:           str
+    name:         str
+    description:  str
+    icon:         str        = "⚡"
+    version:      int        = 1
+    pipeline:     list[str]              = Field(..., min_length=1)
+    stages:       dict[str, StageConfig] = Field(default_factory=dict)
+    agent_labels: dict[str, str]         = Field(default_factory=dict)
+
+    @property
+    def ordered_agent_keys(self) -> list[str]:
+        """All agent keys in pipeline order — used for ordered UI display."""
+        keys: list[str] = []
+        for stage_id in self.pipeline:
+            stage = self.stages[stage_id]
+            if stage.execution == "fanout_merge":
+                for branch in (stage.fanout or []):
+                    if branch.agent not in keys:
+                        keys.append(branch.agent)
+                if stage.merge and stage.merge.agent not in keys:
+                    keys.append(stage.merge.agent)
+            elif stage.execution == "intake":
+                for key in (stage.agents or {}).values():
+                    if key not in keys:
+                        keys.append(key)
+            else:
+                key = stage.agent_key
+                if key not in keys:
+                    keys.append(key)
+        return keys
 
     @model_validator(mode="after")
     def pipeline_stages_consistent(self) -> "SkillManifest":
