@@ -102,17 +102,27 @@ def _infer_stage(content: str) -> str | None:
 
 # Human-readable labels for each graph node
 STAGE_LABELS = {
-    "intake":     "Intake Agent",
-    "discovery":  "Discovery Agent",
-    "researcher": "Research Agent",
-    "reviewer":   "Review Agent",
-    "approver":   "Approver Gate",
+    "intake":    "Intake Agent",
+    "discovery": "Discovery Agent",
+    "research":  "Research Agent",
+    "review":    "Review Agent",
+    "approval":  "Approver Gate",
 }
 
 
 def _sse(event_type: str, payload: dict) -> str:
     """Format a single SSE message."""
     return f"data: {json.dumps({'type': event_type, **payload})}\n\n"
+
+
+def _flush_usage(db, config: dict, output: dict) -> None:
+    """Fire-and-forget: persist usage records accumulated so far so the
+    frontend status bar can show live cost after each major stage."""
+    import asyncio
+    records = output.get("usage_records") if isinstance(output, dict) else None
+    if records:
+        thread_id = config["configurable"]["thread_id"]
+        asyncio.create_task(db.save_usage_records(thread_id, records))
 
 
 async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, None]:
@@ -132,11 +142,11 @@ async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, N
                     "label": STAGE_LABELS[name],
                 })
 
-            # LLM token streaming — suppressed for researcher (document shown via card).
+            # LLM token streaming — suppressed for research (document shown via card).
             # For model stream events, name = LLM model name (e.g. "ChatAnthropic"),
             # NOT the node name. The actual node is in metadata.langgraph_node.
             elif kind == "on_chat_model_stream" and \
-                    event.get("metadata", {}).get("langgraph_node") != "researcher":
+                    event.get("metadata", {}).get("langgraph_node") != "research":
                 chunk = event["data"].get("chunk")
                 raw = getattr(chunk, "content", "") if chunk else ""
 
@@ -159,27 +169,33 @@ async def _stream_graph(graph, input_, config, db=None) -> AsyncGenerator[str, N
             elif kind == "on_chain_end" and name in STAGE_LABELS:
                 output = event.get("data", {}).get("output") or {}
 
-                if name == "researcher":
+                if name == "research":
                     yield _sse("document_ready", {
                         "version":    _get(output, "document_version", 0),
                         "session_id": config["configurable"]["thread_id"],
                     })
+                    if db:
+                        _flush_usage(db, config, output)
 
-                elif name == "reviewer":
+                elif name == "review":
                     rr = _get(output, "review_result")
                     yield _sse("review_complete", {
                         "passed":          _get(rr, "passed",          False),
                         "feedback":        _get(rr, "feedback",         ""),
                         "critical_issues": _get(rr, "critical_issues",  []),
                     })
+                    if db:
+                        _flush_usage(db, config, output)
 
-                elif name == "approver":
+                elif name == "approval":
                     ar = _get(output, "approval_result")
                     yield _sse("approval_complete", {
                         "status":           _get(ar, "status",           "rejected"),
                         "comments":         _get(ar, "comments",          ""),
                         "required_changes": _get(ar, "required_changes",  []),
                     })
+                    if db:
+                        _flush_usage(db, config, output)
 
                 else:
                     yield _sse("stage_end", {"stage": name})

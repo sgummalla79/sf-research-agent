@@ -71,9 +71,9 @@ export function useAgentChat() {
 
       case 'stage_start': {
         currentStage.value = event.stage
-        if (['researcher', 'reviewer', 'approver'].includes(event.stage)) {
-          const typeMap = { researcher: 'preparing', reviewer: 'reviewing', approver: 'approving' }
-          const m = _addMessage('agent', event.stage === 'researcher' ? 'Preparing your architecture document…' : '', event.stage, typeMap[event.stage])
+        if (['research', 'review', 'approval'].includes(event.stage)) {
+          const typeMap = { research: 'preparing', review: 'reviewing', approval: 'approving' }
+          const m = _addMessage('agent', event.stage === 'research' ? 'Preparing your architecture document…' : '', event.stage, typeMap[event.stage])
           m.isStreaming = true
           setCurrentMsg(m)
         } else {
@@ -102,15 +102,16 @@ export function useAgentChat() {
 
       case 'document_ready': {
         if (currentMsg) {
-          currentMsg.isStreaming = false
-          currentMsg.type        = 'document'
-          currentMsg.content     = ''
-          currentMsg.docVersion  = event.version
+          currentMsg.isStreaming  = false
+          currentMsg.type         = 'document'
+          currentMsg.content      = ''
+          currentMsg.docVersion   = event.version
           currentMsg.docSessionId = event.session_id || sessionId.value
           setCurrentMsg(null)
         }
         currentStage.value = null
         if (!sessionId.value && event.session_id) sessionId.value = event.session_id
+        if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
       }
 
@@ -124,6 +125,7 @@ export function useAgentChat() {
           setCurrentMsg(null)
         }
         currentStage.value = null
+        if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
       }
 
@@ -137,6 +139,7 @@ export function useAgentChat() {
           setCurrentMsg(null)
         }
         currentStage.value = null
+        if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
       }
 
@@ -275,7 +278,7 @@ export function useAgentChat() {
       if (m.content?.trim()) _addMessage(m.role, m.content, m.stage || null, 'text')
     }
     if (data.has_document) {
-      const card       = _addMessage('agent', '', 'researcher', 'document')
+      const card       = _addMessage('agent', '', 'research', 'document')
       card.docVersion   = data.document_version
       card.docSessionId = sid
     }

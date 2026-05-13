@@ -268,9 +268,11 @@
           </div>
         </template>
         <template v-else>
-          <div v-for="(q, i) in pendingQuestions" :key="i" class="multi-item">
-            <label class="multi-label">{{ i + 1 }}. {{ q }}</label>
-            <textarea v-model="replyAnswers[i]" class="ta" :placeholder="`Answer ${i + 1}…`" rows="2" />
+          <div class="multi-scroll">
+            <div v-for="(q, i) in pendingQuestions" :key="i" class="multi-item">
+              <label class="multi-label">{{ i + 1 }}. {{ q }}</label>
+              <textarea v-model="replyAnswers[i]" class="ta" :placeholder="`Answer ${i + 1}…`" rows="2" />
+            </div>
           </div>
           <div class="action-row">
             <button class="btn-primary" @click="submitReplies"
@@ -643,11 +645,11 @@ const flowPopup   = reactive({ show: false, flow: null })
 
 
 const stageLabels = {
-  intake:     'Intake Agent',
-  discovery:  'Discovery Agent',
-  researcher: 'Research Agent',
-  reviewer:   'Review Agent',
-  approver:   'Approver Gate',
+  intake:    'Intake Agent',
+  discovery: 'Discovery Agent',
+  research:  'Research Agent',
+  review:    'Review Agent',
+  approval:  'Approver Gate',
 }
 
 // Flat sorted list: pinned first, then recent — filtered by search query
@@ -886,7 +888,7 @@ function doPDF() {
   --sb-active:#2d3f5a;
   --sb-tx:    #c8d4e6;
   --sb-muted: #6b7f99;
-  --c-intake:#3b82f6;--c-discovery:#6366f1;--c-researcher:#8b5cf6;--c-reviewer:#f59e0b;--c-approver:#10b981;
+  --c-intake:#3b82f6;--c-discovery:#6366f1;--c-research:#8b5cf6;--c-review:#f59e0b;--c-approval:#10b981;
   --inp: #f8fafc; --hover: #f1f5f9; --active-nav: #eff6ff; --sidebar: #f8fafc;
 }
 .shell.dark {
@@ -1326,9 +1328,9 @@ function doPDF() {
 /* Track tint — per agent, very subtle */
 .progress-strip.intake     { background: rgba(59,  130, 246, 0.07); }
 .progress-strip.discovery  { background: rgba(99,  102, 241, 0.07); }
-.progress-strip.researcher { background: rgba(239, 68, 68, 0.07); }
-.progress-strip.reviewer   { background: rgba(245, 158,  11, 0.07); }
-.progress-strip.approver   { background: rgba(16,  185, 129, 0.07); }
+.progress-strip.research { background: rgba(239, 68, 68, 0.07); }
+.progress-strip.review   { background: rgba(245, 158,  11, 0.07); }
+.progress-strip.approval   { background: rgba(16,  185, 129, 0.07); }
 
 /* Slow shimmer — per agent, muted opacity */
 .progress-strip::after {
@@ -1339,9 +1341,9 @@ function doPDF() {
 }
 .intake::after     { background: linear-gradient(90deg, transparent, rgba(59,  130, 246, 0.5), transparent); }
 .discovery::after  { background: linear-gradient(90deg, transparent, rgba(99,  102, 241, 0.5), transparent); }
-.researcher::after { background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.5), transparent); }
-.reviewer::after   { background: linear-gradient(90deg, transparent, rgba(245, 158,  11, 0.5), transparent); }
-.approver::after   { background: linear-gradient(90deg, transparent, rgba(16,  185, 129, 0.5), transparent); }
+.research::after { background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.5), transparent); }
+.review::after   { background: linear-gradient(90deg, transparent, rgba(245, 158,  11, 0.5), transparent); }
+.approval::after   { background: linear-gradient(90deg, transparent, rgba(16,  185, 129, 0.5), transparent); }
 
 @keyframes p-sweep {
   0%   { left: -55%; }
@@ -1352,18 +1354,18 @@ function doPDF() {
 .p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite; }
 .intake .p-dot    { background: #3b82f6; }
 .discovery .p-dot { background: #6366f1; }
-.researcher .p-dot{ background: #ef4444; }
-.reviewer .p-dot  { background: #f59e0b; }
-.approver .p-dot  { background: #10b981; }
+.research .p-dot{ background: #ef4444; }
+.review .p-dot  { background: #f59e0b; }
+.approval .p-dot  { background: #10b981; }
 @keyframes p-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
 
 .p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap; }
 .intake .p-text    { color: #2563eb; } .discovery .p-text { color: #4f46e5; }
-.researcher .p-text{ color: #dc2626; } .reviewer .p-text  { color: #b45309; }
-.approver .p-text  { color: #059669; }
+.research .p-text{ color: #dc2626; } .review .p-text  { color: #b45309; }
+.approval .p-text  { color: #059669; }
 .dark .intake .p-text    { color: #93c5fd; } .dark .discovery .p-text { color: #a5b4fc; }
-.dark .researcher .p-text{ color: #fca5a5; } .dark .reviewer .p-text  { color: #fcd34d; }
-.dark .approver .p-text  { color: #6ee7b7; }
+.dark .research .p-text{ color: #fca5a5; } .dark .review .p-text  { color: #fcd34d; }
+.dark .approval .p-text  { color: #6ee7b7; }
 
 /* Messages */
 .messages { flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px;min-height:0; }
@@ -1372,8 +1374,8 @@ function doPDF() {
 .message{display:flex;flex-direction:column;max-width:82%}
 .message.user{align-self:flex-end;align-items:flex-end}.message.agent{align-self:flex-start;align-items:flex-start}
 .stage-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:99px;margin-bottom:5px;background:var(--sbg);color:var(--stx)}
-.stage-tag.discovery{background:#dbeafe;color:#1e40af}.stage-tag.researcher{background:#fee2e2;color:#991b1b}.stage-tag.reviewer{background:#ffedd5;color:#9a3412}.stage-tag.approver{background:#dcfce7;color:#166534}
-.dark .stage-tag.discovery{background:#1e3a5f;color:#93c5fd}.dark .stage-tag.researcher{background:#450a0a;color:#fca5a5}.dark .stage-tag.reviewer{background:#431407;color:#fdba74}.dark .stage-tag.approver{background:#052e16;color:#86efac}
+.stage-tag.discovery{background:#dbeafe;color:#1e40af}.stage-tag.research{background:#fee2e2;color:#991b1b}.stage-tag.review{background:#ffedd5;color:#9a3412}.stage-tag.approval{background:#dcfce7;color:#166534}
+.dark .stage-tag.discovery{background:#1e3a5f;color:#93c5fd}.dark .stage-tag.research{background:#450a0a;color:#fca5a5}.dark .stage-tag.review{background:#431407;color:#fdba74}.dark .stage-tag.approval{background:#052e16;color:#86efac}
 .bubble{padding:11px 15px;border-radius:14px;font-size:14px;line-height:1.65;word-break:break-word}
 .message.user .bubble{background:var(--ub);color:var(--uf);border-radius:14px 14px 3px 14px}
 .message.agent .bubble{background:var(--ab);color:var(--tx);border:1px solid var(--abdr);border-radius:3px 14px 14px 14px}
@@ -1406,6 +1408,8 @@ function doPDF() {
 
 /* Input panel */
 .input-panel{flex-shrink:0;padding:15px 28px;background:var(--surf);border-top:1px solid var(--bdr);display:flex;flex-direction:column;gap:10px}
+.multi-scroll{max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px}
+.multi-scroll::-webkit-scrollbar{width:4px}.multi-scroll::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:99px}
 .multi-item{display:flex;flex-direction:column;gap:5px}.multi-label{font-size:13px;font-weight:500;color:var(--tx);line-height:1.4}
 .input-row{display:flex;gap:10px;align-items:flex-end}
 .ta{width:100%;box-sizing:border-box;padding:10px 13px;border:1px solid var(--ibdr);border-radius:10px;font-size:14px;font-family:inherit;resize:vertical;outline:none;background:var(--surf2);color:var(--tx);transition:border-color .15s;line-height:1.5}
