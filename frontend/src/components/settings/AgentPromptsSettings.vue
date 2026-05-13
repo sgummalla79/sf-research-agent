@@ -1,8 +1,8 @@
 <template>
-  <div class="ap-root">
+  <div class="ap-root" :class="{ 'no-sidebar': !!selectedKey }">
 
-    <!-- ── Left: agent list ──────────────────────────────────────────── -->
-    <aside class="ap-list">
+    <!-- ── Left: agent list (hidden when a key is pre-selected by parent) ── -->
+    <aside v-if="!selectedKey" class="ap-list">
       <div class="ap-list-heading">Agents</div>
       <button v-for="agent in agents" :key="agent.agent_key"
         class="ap-agent-row" :class="{ active: selected?.agent_key === agent.agent_key }"
@@ -85,7 +85,10 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 
-const props = defineProps({ flowId: { type: String, default: 'architect' } })
+const props = defineProps({
+  flowId:      { type: String,           default: 'architect' },
+  selectedKey: { type: String, default: null },   // pre-select agent; hides the left list
+})
 
 const agents   = ref([])
 const selected = ref(null)
@@ -262,7 +265,14 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-onMounted(loadAgents)
+onMounted(async () => {
+  await loadAgents()
+  // If parent pre-selected a key, jump straight to that agent
+  if (props.selectedKey) {
+    const agent = agents.value.find(a => a.agent_key === props.selectedKey)
+    if (agent) selectAgent(agent)
+  }
+})
 </script>
 
 <style scoped>
@@ -270,6 +280,8 @@ onMounted(loadAgents)
   display: flex; height: 100%; gap: 0;
   font-family: inherit; color: var(--tx);
 }
+/* When the file tree (parent) handles agent navigation, hide the internal list */
+.ap-root.no-sidebar .ap-editor { padding: 28px 48px; }
 
 /* ── Agent list ── */
 .ap-list {
