@@ -133,10 +133,7 @@
       <template v-else>
         <button class="col-icon-btn brand" title="Prajna" @click="sidebar.open = true">
           <div class="sf-logo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
-              <rect x="2" y="2" width="20" height="20" rx="5"/>
-              <line x1="9" y1="2" x2="9" y2="22"/>
-            </svg>
+            <SudarshanChakra :size="22" color="currentColor" />
           </div>
         </button>
         <button class="col-icon-btn" title="New Chat" @click="handleNewChat">
@@ -651,6 +648,7 @@ import { apiFetch } from '../composables/useFetch.js'
 import SettingsPage from './SettingsPage.vue'
 import ConfigurationPage from './ConfigurationPage.vue'
 import ChatInput from './ChatInput.vue'
+import SudarshanChakra from './SudarshanChakra.vue'
 
 const {
   sessionId, messages, currentStage, pendingQuestions, pendingConfirmation,

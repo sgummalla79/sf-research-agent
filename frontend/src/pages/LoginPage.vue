@@ -4,11 +4,30 @@
 
       <!-- Brand -->
       <div class="login-brand">
-        <svg class="login-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="2" y="2" width="20" height="20" rx="5"/>
-          <line x1="9" y1="2" x2="9" y2="22"/>
-        </svg>
+        <div class="login-logo-wrap">
+          <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polygon fill="none" stroke="#c97040" stroke-width="4" stroke-linejoin="round"
+              points="50,3 60.4,13.2 73.2,9.7 77.5,23 90.3,27.2 87,40.9 97,50 87,59.1 90.3,72.8 77.5,77 73.2,90.3 60.4,86.8 50,97 39.6,86.8 26.8,90.3 22.5,77 9.7,72.8 13,59.1 3,50 13,40.9 9.7,27.2 22.5,23 26.8,9.7 39.6,13.2"/>
+            <circle cx="50" cy="50" r="33" stroke="#c97040" stroke-width="3.5"/>
+            <g stroke="#c97040" stroke-width="2.8">
+              <line x1="50" y1="17" x2="50" y2="41"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(30,50,50)"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(60,50,50)"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(90,50,50)"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(120,50,50)"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(150,50,50)"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(180,50,50)"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(210,50,50)"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(240,50,50)"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(270,50,50)"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(300,50,50)"/>
+              <line x1="50" y1="17" x2="50" y2="41" transform="rotate(330,50,50)"/>
+            </g>
+            <circle cx="50" cy="50" r="16" stroke="#c97040" stroke-width="3.5"/>
+            <circle cx="50" cy="50" r="8" stroke="#c97040" stroke-width="3" fill="#c97040" fill-opacity="0.25"/>
+            <circle cx="50" cy="50" r="4" fill="#c97040"/>
+          </svg>
+        </div>
         <span class="login-app-name">Prajna</span>
       </div>
 
@@ -183,7 +202,7 @@ onMounted(() => {
   box-shadow: 0 20px 60px rgba(0,0,0,.4);
 }
 .login-brand { display: flex; align-items: center; gap: 10px; }
-.login-logo  { color: #3b82f6; width: 26px; height: 26px; flex-shrink: 0; }
+.login-logo-wrap { flex-shrink: 0; display: flex; align-items: center; }
 .login-app-name { font-size: 14px; font-weight: 700; color: #f1f5f9; }
 .login-heading  { font-size: 22px; font-weight: 700; color: #f1f5f9; margin: 0; }
 
