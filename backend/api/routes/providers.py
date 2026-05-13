@@ -133,8 +133,8 @@ async def connect_provider(
                 raise HTTPException(422, f"Could not connect to Anthropic via Bedrock: {exc}")
 
             await db.delete_api_key(uid, "anthropic")
-            await db.save_api_key(uid, "anthropic_bedrock_url",   encrypt(bedrock_url))
-            await db.save_api_key(uid, "anthropic_bedrock_token", encrypt(bedrock_token))
+            await db.save_api_key(uid, "anthropic_bedrock_url",   encrypt(bedrock_url, uid))
+            await db.save_api_key(uid, "anthropic_bedrock_token", encrypt(bedrock_token, uid))
         else:
             api_key = payload.api_key.strip()
             if not api_key:
@@ -146,7 +146,7 @@ async def connect_provider(
 
             await db.delete_api_key(uid, "anthropic_bedrock_url")
             await db.delete_api_key(uid, "anthropic_bedrock_token")
-            await db.save_api_key(uid, "anthropic", encrypt(api_key))
+            await db.save_api_key(uid, "anthropic", encrypt(api_key, uid))
 
         await db.save_config(uid, "anthropic_mode",         mode)
         await db.save_config(uid, f"models_{provider_id}", json.dumps(models))
@@ -161,7 +161,7 @@ async def connect_provider(
                 422,
                 f"Could not connect to {PROVIDERS[provider_id]['name']}: {exc}",
             )
-        await db.save_api_key(uid, provider_id, encrypt(api_key))
+        await db.save_api_key(uid, provider_id, encrypt(api_key, uid))
         await db.save_config(uid, f"models_{provider_id}", json.dumps(models))
 
     return {"connected": True, "provider": provider_id, "models": models}

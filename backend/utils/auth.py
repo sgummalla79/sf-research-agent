@@ -95,7 +95,7 @@ async def get_current_user(
     decrypted: dict[str, str] = {}
     for k, enc in raw_keys.items():
         try:
-            decrypted[k] = decrypt(enc)
+            decrypted[k] = decrypt(enc, user.sub)
         except Exception:
             pass
 
