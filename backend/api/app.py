@@ -20,6 +20,10 @@ warnings.filterwarnings("ignore", message=".*allowed_objects.*")
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# config must be the first project import — it calls load_dotenv() so all
+# subsequent os.getenv() calls at module level see the .env values.
+import config  # noqa: F401
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
