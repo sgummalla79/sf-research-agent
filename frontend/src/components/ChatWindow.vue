@@ -230,7 +230,7 @@
       <div class="messages" ref="messagesEl">
         <div v-if="!messages.length && !isStreaming" class="empty-state">
           <div class="greeting-row">
-            <SudarshanChakra :size="30" color="#c97040" />
+            <SudarshanChakra :size="48" color="#c97040" />
             <h1 class="greeting-text">{{ greeting }}{{ firstName ? ', ' + firstName : '' }}</h1>
           </div>
         </div>
