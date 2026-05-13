@@ -28,12 +28,11 @@
           <!-- Model picker — top right -->
           <div class="ap-model-top">
             <select class="ap-model-select" v-model="selectedModelKey" @change="onModelChange">
-              <option value="__global__">Global default{{ globalDefaultLabel ? ` — ${globalDefaultLabel}` : '' }}</option>
-              <optgroup v-for="prov in providerModels" :key="prov.id" :label="prov.name">
-                <option v-for="m in prov.models" :key="m" :value="`${prov.id}/${m}`">
-                  {{ m }}
-                </option>
-              </optgroup>
+              <option value="__global__">Smart default</option>
+              <option v-for="m in relevantModels" :key="`${m.provider}/${m.model}`"
+                :value="`${m.provider}/${m.model}`">
+                {{ m.label }}
+              </option>
             </select>
             <button class="ap-suggest-btn" @click="suggestModel" title="Auto-suggest best model for this agent role">
               ✦ Suggest
@@ -118,30 +117,49 @@ const saveMsg          = ref(null)
 const history          = ref([])
 
 // Model picker
-const selectedModelKey  = ref('__global__')  // '__global__' | 'provider/model'
-const providerModels    = ref([])             // [{id, name, models:[]}]
-const globalDefaultLabel = ref('')           // e.g. "Sonnet 4.6"
+const selectedModelKey = ref('__global__')   // '__global__' | 'provider/model'
+const suggestNote      = ref('')
 
-// Best-model suggestions per llm_slot — mirrors SMART_SLOT_DEFAULTS in the backend
+// Curated model lists per llm_slot — only show what's relevant for the role.
+// Mirrors SMART_SLOT_DEFAULTS in backend/framework/defaults.py.
+const CLAUDE_MODELS = [
+  { provider: 'anthropic', model: 'claude-sonnet-4-6',         label: 'Claude Sonnet 4.6' },
+  { provider: 'anthropic', model: 'claude-opus-4-7',           label: 'Claude Opus 4.7' },
+  { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
+]
+
+const SLOT_MODELS = {
+  researcher_search: [
+    { provider: 'perplexity', model: 'sonar-pro',        label: 'Sonar Pro' },
+    { provider: 'perplexity', model: 'sonar',             label: 'Sonar' },
+  ],
+  researcher_reasoning: [
+    { provider: 'google', model: 'gemini-2.5-pro',        label: 'Gemini 2.5 Pro' },
+    { provider: 'google', model: 'gemini-2.0-flash',      label: 'Gemini 2.0 Flash' },
+  ],
+  approver: [
+    { provider: 'anthropic', model: 'claude-opus-4-7',    label: 'Claude Opus 4.7' },
+    { provider: 'anthropic', model: 'claude-sonnet-4-6',  label: 'Claude Sonnet 4.6' },
+  ],
+}
+
+// Slot → best-model key for the Suggest button
 const SLOT_SUGGESTIONS = {
   researcher_search:    'perplexity/sonar-pro',
   researcher_reasoning: 'google/gemini-2.5-pro',
   approver:             'anthropic/claude-opus-4-7',
-  intake:               'anthropic/claude-sonnet-4-6',
-  discovery:            'anthropic/claude-sonnet-4-6',
-  reviewer:             'anthropic/claude-sonnet-4-6',
-  researcher_writer:    'anthropic/claude-sonnet-4-6',
 }
 
-const suggestNote = ref('')
+const relevantModels = computed(() => {
+  const slot = selected.value?.llm_slot
+  return SLOT_MODELS[slot] ?? CLAUDE_MODELS
+})
 
 // Compact label shown next to the agent name in the header
 const activeModelLabel = computed(() => {
-  if (!selectedModelKey.value || selectedModelKey.value === '__global__') {
-    return globalDefaultLabel.value ? globalDefaultLabel.value : ''
-  }
+  if (!selectedModelKey.value || selectedModelKey.value === '__global__') return ''
   const parts = selectedModelKey.value.split('/')
-  return parts[parts.length - 1]   // just the model name, no provider prefix
+  return parts[parts.length - 1]
 })
 
 function modelConfigFromKey(key) {
@@ -156,21 +174,12 @@ function keyFromModelConfig(cfg) {
 function onModelChange() { dirty.value = true; suggestNote.value = '' }
 
 function suggestModel() {
-  const slot       = selected.value?.llm_slot
-  const suggested  = slot ? (SLOT_SUGGESTIONS[slot] ?? 'anthropic/claude-sonnet-4-6') : 'anthropic/claude-sonnet-4-6'
-  const [provider, model] = suggested.split('/')
-  const available  = providerModels.value.some(p => p.id === provider && p.models.includes(model))
-
-  if (available) {
-    selectedModelKey.value = suggested
-    dirty.value            = true
-    suggestNote.value      = `✓ Suggested ${model} for this agent's role.`
-  } else {
-    // Fall back to any available model from that provider, or just set the key anyway
-    selectedModelKey.value = suggested
-    dirty.value            = true
-    suggestNote.value      = `${model} suggested — connect ${provider} in Settings to use it.`
-  }
+  const slot      = selected.value?.llm_slot
+  const suggested = slot ? (SLOT_SUGGESTIONS[slot] ?? 'anthropic/claude-sonnet-4-6') : 'anthropic/claude-sonnet-4-6'
+  const model     = suggested.split('/').pop()
+  selectedModelKey.value = suggested
+  dirty.value            = true
+  suggestNote.value      = `✓ ${model} suggested for this agent's role.`
 }
 
 // ── Computed helpers ──────────────────────────────────────────────────────────
@@ -242,13 +251,10 @@ function syncSelected(agent) {
   selected.value      = agent
   const source        = agent.draft ?? agent.latest_published
   editorContent.value = source?.content ?? ''
-  // Sync model picker: draft model_config takes priority over published
   const mc = (agent.draft ?? agent.latest_published)?.model_config ?? null
   selectedModelKey.value = keyFromModelConfig(mc)
   dirty.value   = false
   saveMsg.value = null
-  // Update global default label for this agent's slot
-  updateGlobalDefaultLabel(agent.llm_slot)
 }
 
 function selectAgent(agent) {
@@ -259,25 +265,6 @@ function selectAgent(agent) {
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
-async function loadProviderModels() {
-  try {
-    const res  = await fetch('/api/providers')
-    const data = await res.json()
-    providerModels.value = (data.providers || [])
-      .filter(p => p.connected && p.models?.length)
-      .map(p => ({ id: p.id, name: p.name || p.id, models: p.models }))
-  } catch (_) {}
-}
-
-async function updateGlobalDefaultLabel(slot) {
-  if (!slot) return
-  try {
-    const res  = await fetch('/api/settings/agent-config')
-    const data = await res.json()
-    const cfg  = data.config?.[slot]
-    globalDefaultLabel.value = cfg?.model ? cfg.model.replace('claude-', '').replace(/-\d{8}.*$/, '') : ''
-  } catch (_) {}
-}
 
 async function saveDraft() {
   if (!selected.value) return
@@ -366,7 +353,7 @@ function fmtDate(iso) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadAgents(), loadProviderModels()])
+  await loadAgents()
   if (props.selectedKey) {
     const agent = agents.value.find(a => a.agent_key === props.selectedKey)
     if (agent) selectAgent(agent)

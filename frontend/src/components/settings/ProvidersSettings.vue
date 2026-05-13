@@ -110,14 +110,6 @@
         </template>
         <p v-if="errors[p.id]" class="ps-err">{{ errors[p.id] }}</p>
 
-        <!-- Model chips -->
-        <div v-if="p.connected && p.models.length" class="ps-models">
-          <span v-for="m in p.models" :key="m" class="ps-model-chip">{{ m }}</span>
-        </div>
-        <p v-if="p.connected && !p.models.length" class="ps-no-models">
-          No models fetched yet —
-          <button class="ps-link" @click="refresh(p.id)">fetch now</button>
-        </p>
       </div>
     </div>
   </div>
@@ -315,15 +307,4 @@ onMounted(load)
 .ps-btn-disconnect:hover:not(:disabled) { color: #ef4444; background: #ef444418; }
 .ps-btn-refresh:disabled, .ps-btn-disconnect:disabled { opacity: .4; cursor: not-allowed; }
 
-.ps-models { display: flex; flex-wrap: wrap; gap: 6px; }
-.ps-model-chip {
-  font-size: 11px; font-family: monospace; padding: 3px 10px;
-  background: var(--surf); border: 1px solid var(--bdr);
-  border-radius: 6px; color: var(--muted);
-}
-.ps-no-models { font-size: 12px; color: var(--muted); margin: 0; }
-.ps-link {
-  background: none; border: none; color: var(--pri); font-size: 12px;
-  cursor: pointer; padding: 0; text-decoration: underline;
-}
 </style>
