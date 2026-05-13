@@ -61,7 +61,7 @@ def _validate_env() -> None:
     if not os.getenv("JWT_SECRET") or os.getenv("JWT_SECRET") == "change-me":
         missing.append("JWT_SECRET  (generate with: openssl rand -hex 32)")
 
-    for var in ("AUTH0_DOMAIN", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET", "AUTH0_AUDIENCE"):
+    for var in ("AUTH0_DOMAIN", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET"):
         if not os.getenv(var):
             missing.append(var)
 
