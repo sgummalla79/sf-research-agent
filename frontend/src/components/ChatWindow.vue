@@ -1089,35 +1089,58 @@ function doPDF() {
 
 <style scoped>
 /* ── Variables ───────────────────────────────────────────────────────────────── */
+/* ── Light mode (default) ─────────────────────────────────────────────────── */
 .shell {
-  --bg:       #f1f5f9; --surf:    #fff;  --surf2:  #f8fafc; --bdr:   #e2e8f0;
-  --tx:       #0f172a; --muted:   #64748b;
-  --pri:      #2563eb; --pri-h:   #1d4ed8; --pri-fg: #fff;
-  --ub:       #2563eb; --uf:      #fff;
-  --ab:       #fff;    --abdr:    #e2e8f0;
-  --sbg:      #eff6ff; --stx:     #1d4ed8; --sbdr:  #bfdbfe;
-  --hbg:      #1e293b; --hfg:     #f8fafc;
-  --cbg:      #f1f5f9; --ibdr:    #cbd5e1; --ifocus: #2563eb;
-  --pass-bg:  #f0fdf4; --pass-bdr:#bbf7d0; --pass-tx:#15803d;
-  --fail-bg:  #fef2f2; --fail-bdr:#fecaca; --fail-tx:#b91c1c;
-  --sb-bg:    #1a2535;   /* sidebar background */
-  --sb-hover: #243044;
-  --sb-active:#2d3f5a;
-  --sb-tx:    #c8d4e6;
-  --sb-muted: #6b7f99;
-  --inp: #f8fafc; --hover: #f1f5f9; --active-nav: #eff6ff; --sidebar: #f8fafc;
+  /* Surfaces */
+  --bg:    #f5f5f4; --surf:  #ffffff; --surf2: #fafafa; --bdr: #e5e5e3;
+  /* Text */
+  --tx:    #1a1a1a; --muted: #737373;
+  /* Brand primary — saffron on light bg */
+  --pri:   #b85c2a; --pri-h: #a04e22; --pri-fg: #fff;
+  --ub:    #b85c2a; --uf: #fff;
+  --ab:    #fff;    --abdr: #e5e5e3;
+  /* Selection / highlight — saffron tint */
+  --sbg:   rgba(184,92,42,0.08); --stx: #9a4a1e; --sbdr: rgba(184,92,42,0.25);
+  /* Inputs / focus */
+  --inp:   #ffffff; --ibdr: #d4d4d2; --ifocus: #b85c2a;
+  /* Hover / nav */
+  --hover: #f0efee; --active-nav: rgba(184,92,42,0.08);
+  /* Overlay backgrounds */
+  --hbg:   #1a1a1a; --hfg: #f5f5f4; --cbg: #f5f5f4;
+  /* Status */
+  --pass-bg: #f0fdf4; --pass-bdr: #bbf7d0; --pass-tx: #15803d;
+  --fail-bg: #fef2f2; --fail-bdr: #fecaca; --fail-tx: #b91c1c;
+  /* Sidebar — kept dark (industry standard: Linear, Notion, Slack) */
+  --sb-bg:    #1c1c1c; --sb-hover: #2a2a2a; --sb-active: #323232;
+  --sb-tx:    #d9d9d7; --sb-muted: #737373;
+  --sidebar:  #ffffff;
 }
+
+/* ── Dark mode ────────────────────────────────────────────────────────────── */
 .shell.dark {
-  --bg:#1a1a1a;--surf:#212121;--surf2:#181818;--bdr:rgba(255,255,255,0.09);
-  --tx:#ececea;--muted:#888888;--pri:#c97040;--pri-h:#b5602e;--pri-fg:#fff;
-  --ub:#c97040;--ab:#212121;--abdr:rgba(255,255,255,0.09);
-  --sbg:rgba(201,112,64,0.12);--stx:#d4945a;--sbdr:rgba(201,112,64,0.28);
-  --hbg:#0e0e0e;--hfg:#ececea;--cbg:#1a1a1a;--ibdr:rgba(255,255,255,0.14);--ifocus:#c97040;
-  --pass-bg:#0d1f10;--pass-bdr:#1a4620;--pass-tx:#86efac;
-  --fail-bg:#1f0d0d;--fail-bdr:#4a1a1a;--fail-tx:#fca5a5;
-  --inp:#111111;--hover:#282828;--active-nav:rgba(255,255,255,0.06);--sidebar:#141414;
-  --sb-bg:#111111;--sb-hover:#1e1e1e;--sb-active:#252525;
-  --sb-tx:#d9d9d7;--sb-muted:#5e5e5e;
+  /* Surfaces */
+  --bg:#1a1a1a; --surf:#212121; --surf2:#181818; --bdr:rgba(255,255,255,0.09);
+  /* Text */
+  --tx:#ececea; --muted:#888888;
+  /* Brand primary */
+  --pri:#c97040; --pri-h:#b5602e; --pri-fg:#fff;
+  --ub:#c97040; --ab:#212121; --abdr:rgba(255,255,255,0.09);
+  /* Selection */
+  --sbg:rgba(201,112,64,0.12); --stx:#d4945a; --sbdr:rgba(201,112,64,0.28);
+  /* Inputs / focus */
+  --inp:#111111; --ibdr:rgba(255,255,255,0.14); --ifocus:#c97040;
+  /* Hover / nav */
+  --hover:#282828; --active-nav:rgba(255,255,255,0.06);
+  /* Overlay */
+  --hbg:#0e0e0e; --hfg:#ececea; --cbg:#1a1a1a;
+  --ab:#212121; --abdr:rgba(255,255,255,0.09);
+  /* Status */
+  --pass-bg:#0d1f10; --pass-bdr:#1a4620; --pass-tx:#86efac;
+  --fail-bg:#1f0d0d; --fail-bdr:#4a1a1a; --fail-tx:#fca5a5;
+  /* Sidebar */
+  --sb-bg:#111111; --sb-hover:#1e1e1e; --sb-active:#252525;
+  --sb-tx:#d9d9d7; --sb-muted:#5e5e5e;
+  --sidebar:#141414;
 }
 
 /* ── Privacy banner ──────────────────────────────────────────────────────────── */
@@ -1126,12 +1149,12 @@ function doPDF() {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   height: 28px; padding: 0 20px;
   background: var(--sb-bg);
-  border-top: 1px solid rgba(255,255,255,0.06);
-  font-size: 11px; color: #a8bdd4; letter-spacing: 0.01em;
+  border-top: 1px solid var(--bdr);
+  font-size: 11px; color: var(--sb-muted); letter-spacing: 0.01em;
   white-space: nowrap; overflow: hidden;
 }
 .privacy-banner svg { flex-shrink: 0; opacity: 0.8; }
-.privacy-banner strong { font-weight: 700; color: #d0e2f4; }
+.privacy-banner strong { font-weight: 700; color: var(--sb-tx); }
 
 /* ── Shell ───────────────────────────────────────────────────────────────────── */
 
@@ -1621,7 +1644,7 @@ function doPDF() {
 .p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite;background:#ffd080; }
 @keyframes p-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
 
-.p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap;color:#c97040; }
+.p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap;color:var(--pri); }
 .dark .p-text { color: #ffd080; }
 
 /* Messages */
