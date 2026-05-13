@@ -2,8 +2,9 @@
   "name": "sf-research-agent",
   "private": true,
   "scripts": {
-    "dev:mac": "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"npm run dev:backend:mac\" \"npm run dev:frontend:mac\"",
-    "dev:win": "node scripts/dev-win.js",
+    "dev": "node scripts/dev.js",
+    "dev:mac": "node scripts/dev.js",
+    "dev:win": "node scripts/dev.js",
     "dev:backend:mac": "node scripts/preflight-backend.js && cd backend && ([ -d .venv ] || python3 -m venv .venv) && .venv/bin/pip install -r requirements.txt -q --disable-pip-version-check && .venv/bin/uvicorn api.app:app --reload --port 8000",
     "dev:backend:win": "node scripts/preflight-backend.js && cd backend && (if not exist .venv python -m venv .venv) && .venv\\Scripts\\pip install -r requirements.txt -q --disable-pip-version-check && .venv\\Scripts\\uvicorn api.app:app --reload --port 8000",
     "dev:frontend:mac": "node scripts/preflight-frontend.js && cd frontend && npm install --silent && npm run dev",

@@ -28,6 +28,7 @@ from api.schemas import ReplyRequest, StartRequest
 from config import MAX_FILE_SIZE_MB
 from state import AgentState
 from utils.agent_config import get_agent_config
+from flows.registry import get_flow, CHAT_DEFAULT_MODEL
 from utils.file_parser import extract_text, SUPPORTED_EXTENSIONS
 from utils.file_storage import save_upload
 
@@ -248,10 +249,24 @@ async def start_chat(body: StartRequest, request: Request):
     agent_cfg = get_agent_config()
     await db.save_config(f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
 
+    # Load flow config for agent_flow sessions
+    flow_config: dict = {}
+    if body.session_type == "agent_flow":
+        try:
+            flow = get_flow(body.flow_id)
+            flow_config = flow.prompts
+        except ValueError:
+            pass  # unknown flow → agents fall back to built-in prompts
+
     initial_state = AgentState(
         session_id=session_id,
         project_brief=body.brief,
         session_agent_config=agent_cfg,
+        session_type=body.session_type,
+        flow_id=body.flow_id,
+        flow_config=flow_config,
+        chat_model=body.chat_model or CHAT_DEFAULT_MODEL,
+        extended_thinking=body.extended_thinking,
     )
 
     return StreamingResponse(

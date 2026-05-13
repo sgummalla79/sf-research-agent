@@ -7,6 +7,18 @@ from config import MAX_REVISIONS
 from state import AgentState
 
 
+def route_entry(state: AgentState) -> str:
+    """Route to chat node or agent flow based on session_type."""
+    if state.session_type == "chat":
+        return "chat"
+    return "intake"
+
+
+def route_after_chat(state: AgentState) -> str:
+    """Chat node always ends after one response — no looping pipeline."""
+    return "end"
+
+
 def route_after_intake(state: AgentState) -> str:
     """
     Invalid image → end immediately with a clear rejection message.

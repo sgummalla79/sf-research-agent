@@ -72,9 +72,22 @@ class AgentState(BaseModel):
     # ── Token usage (append-only — each agent appends its records) ────────────
     usage_records: Annotated[list[dict], operator.add] = Field(default_factory=list)
 
+    # ── Session type ──────────────────────────────────────────────────────────
+    # "chat"       → free-form LLM conversation, no pipeline
+    # "agent_flow" → structured LangGraph pipeline identified by flow_id
+    session_type: Literal["chat", "agent_flow"] = "agent_flow"
+
+    # ── Agent flow fields (used when session_type == "agent_flow") ────────────
+    flow_id: str = "architect"
+    # System prompts for the active flow, loaded at session start from the registry.
+    # Agents read from here — never import prompts directly from agent files.
+    flow_config: dict = Field(default_factory=dict)
+
+    # ── Chat fields (used when session_type == "chat") ────────────────────────
+    chat_model: str = "claude-sonnet-4-6"
+    extended_thinking: bool = False
+
     # ── LLM config snapshot — frozen at session start, never mutated ─────────
-    # Keys are agent slot names; values are {provider, model} dicts.
-    # Agents read from here so changing global config never affects running sessions.
     session_agent_config: dict = Field(default_factory=dict)
 
     class Config:

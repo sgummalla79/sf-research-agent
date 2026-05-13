@@ -207,7 +207,7 @@ def run_discovery(state: AgentState) -> dict:
         windowed.append(HumanMessage(content="Please begin the discovery session."))
 
     messages = [
-        SystemMessage(content=DISCOVERY_SYSTEM_PROMPT),
+        SystemMessage(content=state.flow_config.get("DISCOVERY_SYSTEM_PROMPT", DISCOVERY_SYSTEM_PROMPT)),
         *windowed,
     ]
 

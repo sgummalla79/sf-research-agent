@@ -117,7 +117,7 @@ Return your structured verdict with:
     # Reviewer does NOT need conversation history — it works entirely from
     # structured state: document_draft + discovery_questions (already in prompt).
     raw    = invoke_with_retry(llm, [
-        SystemMessage(content=REVIEWER_SYSTEM_PROMPT),
+        SystemMessage(content=state.flow_config.get("REVIEWER_SYSTEM_PROMPT", REVIEWER_SYSTEM_PROMPT)),
         HumanMessage(content=prompt),
     ])
     result: ReviewResult = raw["parsed"]

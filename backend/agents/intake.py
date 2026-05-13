@@ -97,7 +97,7 @@ _MEDIA_TYPES = {
 }
 
 
-def _analyze_image(image_path: str, session_cfg: dict) -> ImageAnalysisResult:
+def _analyze_image(image_path: str, session_cfg: dict, flow_config: dict) -> ImageAnalysisResult:
     suffix     = Path(image_path).suffix.lower()
     media_type = _MEDIA_TYPES.get(suffix, "image/jpeg")
 
@@ -107,7 +107,7 @@ def _analyze_image(image_path: str, session_cfg: dict) -> ImageAnalysisResult:
     llm = get_llm_for_slot("intake", session_cfg).with_structured_output(ImageAnalysisResult, include_raw=True)
 
     raw = invoke_with_retry(llm, [
-        SystemMessage(content=INTAKE_IMAGE_SYSTEM_PROMPT),
+        SystemMessage(content=flow_config.get("INTAKE_IMAGE_SYSTEM_PROMPT", INTAKE_IMAGE_SYSTEM_PROMPT)),
         HumanMessage(content=[
             {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{b64}"}},
             {"type": "text",      "text": "Analyse this image and return your structured assessment."},
@@ -139,7 +139,7 @@ def run_intake(state: AgentState) -> dict:
 
     # ── Image path ────────────────────────────────────────────────────────────
     if state.source_type == "image" and state.uploaded_image_path:
-        result, urec = _analyze_image(state.uploaded_image_path, state.session_agent_config)
+        result, urec = _analyze_image(state.uploaded_image_path, state.session_agent_config, state.flow_config)
 
         if not result.is_architecture_related:
             return {
@@ -181,7 +181,7 @@ def run_intake(state: AgentState) -> dict:
     if state.source_type == "document" and state.raw_document_text:
         llm      = get_llm_for_slot("intake", state.session_agent_config)
         response = invoke_with_retry(llm, [
-            SystemMessage(content=INTAKE_DOCUMENT_PROMPT),
+            SystemMessage(content=state.flow_config.get("INTAKE_DOCUMENT_PROMPT", INTAKE_DOCUMENT_PROMPT)),
             HumanMessage(content=(
                 f"Extract a structured Project Brief from this document.\n\n"
                 f"---\n{state.raw_document_text}\n---"

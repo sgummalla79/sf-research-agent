@@ -272,43 +272,29 @@
       </div>
 
       <!-- Initial input -->
-      <div v-if="!sessionId && !isStreaming" class="input-panel">
-        <div class="mode-toggle">
-          <button class="mode-btn" :class="{ active: inputMode === 'brief' }" @click="inputMode = 'brief'">✏️ Write Brief</button>
-          <button class="mode-btn" :class="{ active: inputMode === 'upload' }" @click="inputMode = 'upload'">📎 Upload File</button>
+      <ChatInput
+        v-if="!sessionId && !isStreaming"
+        :chat-models="chatModels"
+        :flows="flows"
+        @submit="handleChatSubmit"
+        @upload="handleChatUpload"
+        @flow-select="startWithFlow"
+      />
+
+      <!-- Mid-session flow selection popup -->
+      <transition name="fade">
+        <div v-if="flowPopup.show" class="del-overlay" @click.self="flowPopup.show = false">
+          <div class="del-dialog">
+            <p class="del-title">Start {{ flowPopup.flow?.name }}?</p>
+            <p class="del-body">This requires a new session. Your current chat will be saved.</p>
+            <div class="del-btns">
+              <button class="del-cancel" @click="flowPopup.show = false">Cancel</button>
+              <button class="del-confirm" style="background:var(--pri-h);border-color:var(--pri);color:#fff"
+                @click="confirmFlowStart">Start New Session →</button>
+            </div>
+          </div>
         </div>
-        <template v-if="inputMode === 'brief'">
-          <textarea v-model="briefText" class="ta brief-ta" rows="5" placeholder="Describe your project…" />
-          <div class="action-row">
-            <button class="btn-primary" @click="submitBrief" :disabled="!briefText.trim()">Start Session →</button>
-          </div>
-        </template>
-        <template v-else>
-          <div class="drop-zone" :class="{ over: isDragging, filled: !!selectedFile }"
-            @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false"
-            @drop.prevent="onDrop" @click="fileInputRef.click()">
-            <input ref="fileInputRef" type="file" style="display:none"
-              accept=".pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg,.gif,.webp" @change="onFileChange" />
-            <template v-if="selectedFile && imagePreviewUrl">
-              <img :src="imagePreviewUrl" class="img-prev" :alt="selectedFile.name" />
-              <span class="fname">{{ selectedFile.name }}</span><span class="fmeta">{{ fmtSize(selectedFile.size) }}</span>
-            </template>
-            <template v-else-if="selectedFile">
-              <span style="font-size:26px">📄</span>
-              <span class="fname">{{ selectedFile.name }}</span><span class="fmeta">{{ fmtSize(selectedFile.size) }}</span>
-            </template>
-            <template v-else>
-              <span style="font-size:24px">⬆</span>
-              <span class="drop-lbl">Drop a file or click to browse</span>
-              <span class="drop-hint">PDF, DOCX, TXT, MD · PNG, JPG, WebP · max {{ MAX_MB }} MB</span>
-            </template>
-          </div>
-          <div v-if="uploadError" class="upload-err">{{ uploadError }}</div>
-          <div class="action-row">
-            <button class="btn-primary" @click="submitUpload" :disabled="!selectedFile">Upload &amp; Start →</button>
-          </div>
-        </template>
-      </div>
+      </transition>
 
       <!-- Banners -->
       <div v-if="isResumable" class="banner warn">
@@ -549,6 +535,7 @@ import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
 import { marked } from 'marked'
 import { useAgentChat } from '../composables/useAgentChat.js'
 import SettingsPage from './SettingsPage.vue'
+import ChatInput from './ChatInput.vue'
 
 const {
   sessionId, messages, currentStage, pendingQuestions, pendingConfirmation,
@@ -627,20 +614,15 @@ const keysConfigured  = reactive({ anthropic: false, perplexity: false, google: 
 const settingsSaving   = ref(false)
 const settingsSaveMsg  = ref(null)
 const settingsKeyErrors = reactive({ anthropic: '', perplexity: '', google: '' })
-const briefText       = ref('')
 const correctionText  = ref('')
 const replyAnswers    = ref([])
 const messagesEl      = ref(null)
-const inputMode       = ref('brief')
-const selectedFile    = ref(null)
-const isDragging      = ref(false)
-const fileInputRef    = ref(null)
-const uploadError     = ref(null)
-const imagePreviewUrl = ref(null)
 
-const MAX_MB   = 10
-const IMG_EXTS = new Set(['.png','.jpg','.jpeg','.gif','.webp'])
-const ALL_EXTS = ['.pdf','.docx','.doc','.txt','.md',...IMG_EXTS]
+// Chat model + flow state (passed to ChatInput as props)
+const chatModels = ref([])
+const flows      = ref([])
+const flowPopup  = reactive({ show: false, flow: null })
+
 
 const stageLabels = {
   intake:     'Intake Agent',
@@ -730,9 +712,44 @@ async function saveSettings() {
   }
 }
 
+async function fetchFlows() {
+  try {
+    const res = await fetch('/api/flows')
+    if (res.ok) {
+      const data = await res.json()
+      flows.value = data.flows || []
+      chatModels.value = data.chat_models || []
+    }
+  } catch (_) {}
+}
+
+function startWithFlow(flow) {
+  if (sessionId.value) {
+    flowPopup.flow = flow
+    flowPopup.show = true
+  } else {
+    _startWithFlowDirect(flow)
+  }
+}
+
+function _startWithFlowDirect(flow) {
+  newChat()
+  currentView.value = 'chat'
+  startSession('', { sessionType: 'agent_flow', flowId: flow.id })
+}
+
+function confirmFlowStart() {
+  const flow = flowPopup.flow
+  flowPopup.show = false
+  newChat()
+  currentView.value = 'chat'
+  setTimeout(() => _startWithFlowDirect(flow), 50)
+}
+
 onMounted(() => {
   loadSessions()
   fetchKeyStatus()
+  fetchFlows()
   document.addEventListener('click', () => { userMenuOpen.value = false })
 })
 watch(pendingQuestions, qs => { replyAnswers.value = qs.map(() => '') })
@@ -794,27 +811,20 @@ async function handleNewChat() {
 }
 function openChatsView()       { searchQuery.value = ''; currentView.value = 'chats' }
 function selectChat(threadId)  { restoreSession(threadId); currentView.value = 'chat' }
-async function submitBrief()        { if (!briefText.value.trim()) return; await startSession(briefText.value.trim()); briefText.value = '' }
-async function submitConfirmation() { await confirmUnderstanding(correctionText.value); correctionText.value = '' }
-async function submitReplies()      { if (replyAnswers.value.some(a => !a?.trim())) return; await sendReply(replyAnswers.value.map(a => a.trim())); replyAnswers.value = [] }
-async function submitUpload() {
-  if (!selectedFile.value) return
-  await uploadDocument(selectedFile.value)
-  if (imagePreviewUrl.value) { URL.revokeObjectURL(imagePreviewUrl.value); imagePreviewUrl.value = null }
-  selectedFile.value = null
+// ChatInput event handlers
+async function handleChatSubmit(text, opts) {
+  await startSession(text, {
+    sessionType:      'chat',
+    chatModel:        opts.model,
+    extendedThinking: opts.extendedThinking,
+  })
+}
+async function handleChatUpload(file) {
+  await uploadDocument(file)
 }
 
-function setFile(file) {
-  uploadError.value = null; imagePreviewUrl.value = null
-  const ext = '.' + file.name.split('.').pop().toLowerCase()
-  if (!ALL_EXTS.includes(ext)) { uploadError.value = 'Unsupported type.'; return }
-  if (file.size > MAX_MB * 1048576) { uploadError.value = `Max ${MAX_MB} MB.`; return }
-  selectedFile.value = file
-  if (IMG_EXTS.has(ext)) imagePreviewUrl.value = URL.createObjectURL(file)
-}
-function onFileChange(e) { const f = e.target.files?.[0]; if (f) setFile(f) }
-function onDrop(e)       { isDragging.value = false; const f = e.dataTransfer?.files?.[0]; if (f) setFile(f) }
-function fmtSize(b)      { return b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB` }
+async function submitConfirmation() { await confirmUnderstanding(correctionText.value); correctionText.value = '' }
+async function submitReplies()      { if (replyAnswers.value.some(a => !a?.trim())) return; await sendReply(replyAnswers.value.map(a => a.trim())); replyAnswers.value = [] }
 
 function doPDF() {
   if (!documentPanel.content) return
@@ -1433,4 +1443,6 @@ function doPDF() {
 .messages::-webkit-scrollbar,.doc-panel-body::-webkit-scrollbar,.sb-content::-webkit-scrollbar{width:4px}
 .messages::-webkit-scrollbar-thumb,.doc-panel-body::-webkit-scrollbar-thumb,.sb-content::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:99px}
 .sb-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+
+/* ChatInput component handles its own styles */
 </style>

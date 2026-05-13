@@ -294,12 +294,19 @@ export function useAgentChat() {
 
   // ── Sessions API ──────────────────────────────────────────────────────────
 
-  async function startSession(brief) {
+  // opts: { sessionType, flowId, chatModel, extendedThinking }
+  async function startSession(brief, opts = {}) {
     _resetChat()
     _addMessage('user', brief)
     const response = await fetch(`${API_BASE}/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ brief }),
+      body: JSON.stringify({
+        brief,
+        session_type:      opts.sessionType      ?? 'agent_flow',
+        flow_id:           opts.flowId           ?? 'architect',
+        chat_model:        opts.chatModel        ?? 'claude-sonnet-4-6',
+        extended_thinking: opts.extendedThinking ?? false,
+      }),
     })
     const sid = response.headers.get('X-Session-Id')
     if (sid) sessionId.value = sid

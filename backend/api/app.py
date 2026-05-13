@@ -27,6 +27,7 @@ from api.routes.chat import router as chat_router
 from api.routes.settings import router as settings_router
 from api.routes.usage import router as usage_router
 from api.routes.providers import router as providers_router
+from api.routes.flows import router as flows_router
 from graph.builder import build_graph
 from persistence.checkpointer import get_async_checkpointer
 from utils.api_keys import decrypt, populate_cache, populate_config_cache
@@ -129,6 +130,7 @@ app.include_router(chat_router)
 app.include_router(settings_router)
 app.include_router(usage_router)
 app.include_router(providers_router)
+app.include_router(flows_router)
 
 
 @app.get("/health", tags=["ops"])

@@ -150,7 +150,7 @@ For each topic: current value/status, relevant limits, any recent changes, sourc
 
     llm = get_llm_for_slot("researcher_search", state.session_agent_config)
     response = invoke_with_retry(llm, [
-        SystemMessage(content=PERPLEXITY_SYSTEM_PROMPT),
+        SystemMessage(content=state.session_agent_config.get("PERPLEXITY_SYSTEM_PROMPT") or state.flow_config.get("PERPLEXITY_SYSTEM_PROMPT", PERPLEXITY_SYSTEM_PROMPT)),
         HumanMessage(content=prompt),
     ])
     return (
@@ -219,7 +219,7 @@ Brief: {state.project_brief}
 
     llm = get_llm_for_slot("researcher_reasoning", state.session_agent_config)
     response = invoke_with_retry(llm, [
-        SystemMessage(content=GEMINI_SYSTEM_PROMPT),
+        SystemMessage(content=state.session_agent_config.get("GEMINI_SYSTEM_PROMPT") or state.flow_config.get("GEMINI_SYSTEM_PROMPT", GEMINI_SYSTEM_PROMPT)),
         HumanMessage(content=prompt),
     ])
     return (
@@ -386,7 +386,7 @@ Instructions:
     # (on revision) the full prior document + feedback. Passing *state.messages
     # would only add noise from the discovery chat and revision logs.
     response = invoke_with_retry(llm, [
-        SystemMessage(content=WRITER_SYSTEM_PROMPT),
+        SystemMessage(content=state.flow_config.get("WRITER_SYSTEM_PROMPT", WRITER_SYSTEM_PROMPT)),
         HumanMessage(content=user_prompt),
     ])
 

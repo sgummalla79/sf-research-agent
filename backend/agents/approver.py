@@ -124,7 +124,7 @@ Apply your 7-lens strategic review. Return your structured verdict."""
     # Approver does NOT need conversation history — all required context is
     # already structured in the prompt: brief, discovery answers, document, reviewer verdict.
     raw    = invoke_with_retry(llm, [
-        SystemMessage(content=APPROVER_SYSTEM_PROMPT),
+        SystemMessage(content=state.flow_config.get("APPROVER_SYSTEM_PROMPT", APPROVER_SYSTEM_PROMPT)),
         HumanMessage(content=prompt),
     ])
     result: ApprovalResult = raw["parsed"]
