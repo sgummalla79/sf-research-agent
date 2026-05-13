@@ -122,6 +122,23 @@ class SkillManifest(BaseModel):
                     keys.append(key)
         return keys
 
+    @property
+    def agent_slot_map(self) -> dict[str, str]:
+        """Maps agent_key → llm_slot for all agents in this skill."""
+        slot_map: dict[str, str] = {}
+        for stage in self.stages.values():
+            if stage.execution == "fanout_merge":
+                for branch in (stage.fanout or []):
+                    slot_map[branch.agent] = branch.llm_slot
+                if stage.merge:
+                    slot_map[stage.merge.agent] = stage.merge.llm_slot
+            elif stage.agents:
+                for key in stage.agents.values():
+                    slot_map[key] = stage.llm_slot
+            else:
+                slot_map[stage.agent_key] = stage.llm_slot
+        return slot_map
+
     @model_validator(mode="after")
     def pipeline_stages_consistent(self) -> "SkillManifest":
         missing = [s for s in self.pipeline if s not in self.stages]

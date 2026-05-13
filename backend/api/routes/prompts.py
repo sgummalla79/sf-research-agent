@@ -9,6 +9,8 @@ GET  /api/prompts/{flow_id}/{agent_key}/history     — published version list
 GET  /api/prompts/{flow_id}/snapshots               — flow snapshot timeline
 """
 
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
@@ -18,7 +20,8 @@ router = APIRouter(prefix="/api/prompts", tags=["prompts"])
 
 
 class SaveDraftRequest(BaseModel):
-    content: str
+    content:      str
+    agent_model: Optional[dict] = None   # {"provider": "...", "model": "..."} or null
 
 
 def _db(request: Request):
@@ -40,10 +43,12 @@ async def get_flow_prompts(flow_id: str, request: Request):
     db_rows = await _db(request).get_flow_prompts(flow_id)
     by_key  = {r["agent_key"]: r for r in db_rows}
 
+    slot_map = skill.manifest.agent_slot_map
     agents = [
         {
             "agent_key":        key,
             "label":            skill.manifest.agent_labels.get(key, key),
+            "llm_slot":         slot_map.get(key),
             "latest_published": by_key.get(key, {}).get("latest_published"),
             "draft":            by_key.get(key, {}).get("draft"),
         }
@@ -57,7 +62,7 @@ async def get_flow_prompts(flow_id: str, request: Request):
 @router.put("/{flow_id}/{agent_key}/draft")
 async def save_draft(flow_id: str, agent_key: str, body: SaveDraftRequest, request: Request):
     _validate_key(request, flow_id, agent_key)
-    await _db(request).save_prompt_draft(flow_id, agent_key, body.content)
+    await _db(request).save_prompt_draft(flow_id, agent_key, body.content, body.agent_model)
     return {"status": "saved"}
 
 

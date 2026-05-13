@@ -54,6 +54,24 @@
         placeholder="Enter the system prompt for this agent…"
         @input="dirty = true" />
 
+      <!-- Model picker -->
+      <div class="ap-model-section">
+        <div class="ap-model-label">
+          Model
+          <span class="ap-model-hint">Overrides the global default for this agent only</span>
+        </div>
+        <div class="ap-model-row">
+          <select class="ap-model-select" v-model="selectedModelKey" @change="onModelChange">
+            <option value="__global__">Global default{{ globalDefaultLabel ? ` — ${globalDefaultLabel}` : '' }}</option>
+            <optgroup v-for="prov in providerModels" :key="prov.id" :label="prov.name">
+              <option v-for="m in prov.models" :key="m" :value="`${prov.id}/${m}`">
+                {{ m }}
+              </option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+
       <!-- Version history -->
       <div class="ap-history">
         <button class="ap-history-toggle" @click="historyOpen = !historyOpen">
@@ -65,6 +83,7 @@
             :class="{ current: v.version === currentPublishedVersion }">
             <span class="ap-hv-num">v{{ v.version }}</span>
             <span class="ap-hv-date">{{ fmtDate(v.published_at || v.created_at) }}</span>
+            <span v-if="v.model_config" class="ap-hv-model">{{ v.model_config.model }}</span>
             <span class="ap-hv-badge" :class="v.status">{{ v.status }}</span>
             <button v-if="v.status === 'published' && v.version !== currentPublishedVersion"
               class="ap-hv-restore" @click="restoreVersion(v)">Restore</button>
@@ -86,19 +105,35 @@
 import { ref, computed, watch, onMounted } from 'vue'
 
 const props = defineProps({
-  flowId:      { type: String,           default: 'architect' },
-  selectedKey: { type: String, default: null },   // pre-select agent; hides the left list
+  flowId:      { type: String, default: 'architect' },
+  selectedKey: { type: String, default: null },
 })
 
 const agents   = ref([])
 const selected = ref(null)
 
-const editorContent = ref('')
-const dirty         = ref(false)
-const saving        = ref(false)
-const saveMsg       = ref(null)
-const history       = ref([])
-const historyOpen   = ref(false)
+const editorContent    = ref('')
+const dirty            = ref(false)
+const saving           = ref(false)
+const saveMsg          = ref(null)
+const history          = ref([])
+const historyOpen      = ref(false)
+
+// Model picker
+const selectedModelKey  = ref('__global__')  // '__global__' | 'provider/model'
+const providerModels    = ref([])             // [{id, name, models:[]}]
+const globalDefaultLabel = ref('')           // e.g. "Sonnet 4.6"
+
+function modelConfigFromKey(key) {
+  if (!key || key === '__global__') return null
+  const [provider, ...rest] = key.split('/')
+  return { provider, model: rest.join('/') }
+}
+function keyFromModelConfig(cfg) {
+  if (!cfg) return '__global__'
+  return `${cfg.provider}/${cfg.model}`
+}
+function onModelChange() { dirty.value = true }
 
 // ── Computed helpers ──────────────────────────────────────────────────────────
 
@@ -166,11 +201,16 @@ async function loadHistory() {
 }
 
 function syncSelected(agent) {
-  selected.value  = agent
-  const source    = agent.draft ?? agent.latest_published
+  selected.value      = agent
+  const source        = agent.draft ?? agent.latest_published
   editorContent.value = source?.content ?? ''
-  dirty.value     = false
-  saveMsg.value   = null
+  // Sync model picker: draft model_config takes priority over published
+  const mc = (agent.draft ?? agent.latest_published)?.model_config ?? null
+  selectedModelKey.value = keyFromModelConfig(mc)
+  dirty.value   = false
+  saveMsg.value = null
+  // Update global default label for this agent's slot
+  updateGlobalDefaultLabel(agent.llm_slot)
 }
 
 function selectAgent(agent) {
@@ -182,6 +222,26 @@ function selectAgent(agent) {
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
+async function loadProviderModels() {
+  try {
+    const res  = await fetch('/api/providers')
+    const data = await res.json()
+    providerModels.value = (data.providers || [])
+      .filter(p => p.connected && p.models?.length)
+      .map(p => ({ id: p.id, name: p.name || p.id, models: p.models }))
+  } catch (_) {}
+}
+
+async function updateGlobalDefaultLabel(slot) {
+  if (!slot) return
+  try {
+    const res  = await fetch('/api/settings/agent-config')
+    const data = await res.json()
+    const cfg  = data.config?.[slot]
+    globalDefaultLabel.value = cfg?.model ? cfg.model.replace('claude-', '').replace(/-\d{8}.*$/, '') : ''
+  } catch (_) {}
+}
+
 async function saveDraft() {
   if (!selected.value) return
   saving.value = true
@@ -190,7 +250,10 @@ async function saveDraft() {
     const res = await fetch(`/api/prompts/${props.flowId}/${selected.value.agent_key}/draft`, {
       method:  'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ content: editorContent.value }),
+      body:    JSON.stringify({
+        content:      editorContent.value,
+        agent_model: modelConfigFromKey(selectedModelKey.value),
+      }),
     })
     if (res.ok) {
       dirty.value   = false
@@ -266,8 +329,7 @@ function fmtDate(iso) {
 }
 
 onMounted(async () => {
-  await loadAgents()
-  // If parent pre-selected a key, jump straight to that agent
+  await Promise.all([loadAgents(), loadProviderModels()])
   if (props.selectedKey) {
     const agent = agents.value.find(a => a.agent_key === props.selectedKey)
     if (agent) selectAgent(agent)
@@ -363,6 +425,22 @@ onMounted(async () => {
 }
 .ap-textarea:focus { border-color: var(--ifocus); }
 
+/* ── Model picker ── */
+.ap-model-section { display: flex; flex-direction: column; gap: 8px; }
+.ap-model-label {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; font-weight: 600; color: var(--tx);
+}
+.ap-model-hint { font-size: 12px; font-weight: 400; color: var(--muted); }
+.ap-model-row  { display: flex; align-items: center; gap: 10px; }
+.ap-model-select {
+  padding: 7px 12px; border-radius: 8px;
+  border: 1px solid var(--bdr); background: var(--surf2); color: var(--tx);
+  font-size: 13px; font-family: inherit; cursor: pointer; outline: none;
+  transition: border-color .15s; min-width: 280px;
+}
+.ap-model-select:focus { border-color: var(--ifocus); }
+
 /* ── Version history ── */
 .ap-history { border-top: 1px solid var(--bdr); padding-top: 14px; }
 .ap-history-toggle {
@@ -385,6 +463,7 @@ onMounted(async () => {
 .ap-hv-badge.published { background: var(--sbg); color: var(--stx); }
 .ap-hv-badge.draft     { background: #fef3c7; color: #92400e; }
 .dark .ap-hv-badge.draft { background: #1c1400; color: #fcd34d; }
+.ap-hv-model   { font-size: 11px; color: var(--muted); font-family: monospace; }
 .ap-hv-restore { background: none; border: 1px solid var(--bdr); border-radius: 6px; padding: 2px 8px; font-size: 11px; cursor: pointer; color: var(--muted); }
 .ap-hv-restore:hover { color: var(--tx); border-color: var(--tx); }
 .ap-hv-current { font-size: 11px; color: var(--pri); font-weight: 600; }

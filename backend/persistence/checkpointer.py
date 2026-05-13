@@ -445,18 +445,22 @@ class DBContext:
                 )
 
     async def get_flow_prompts(self, flow_id: str) -> list[dict]:
+        import json as _json
         p    = self._p()
         rows = await self._fetchall(
-            f"SELECT id, agent_key, version, content, status, created_at, published_at"
+            f"SELECT id, agent_key, version, content, status, created_at, published_at, model_config"
             f" FROM agent_prompt_versions WHERE flow_id = {p} ORDER BY agent_key, version DESC",
             (flow_id,),
         )
         from collections import defaultdict
         by_key: dict[str, list] = defaultdict(list)
         for r in rows:
-            by_key[r[1]].append({"id": r[0], "agent_key": r[1], "version": r[2],
-                                  "content": r[3], "status": r[4],
-                                  "created_at": r[5], "published_at": r[6]})
+            by_key[r[1]].append({
+                "id": r[0], "agent_key": r[1], "version": r[2],
+                "content": r[3], "status": r[4],
+                "created_at": r[5], "published_at": r[6],
+                "model_config": _json.loads(r[7]) if r[7] else None,
+            })
         result = []
         for agent_key, versions in by_key.items():
             result.append({
@@ -466,9 +470,17 @@ class DBContext:
             })
         return result
 
-    async def save_prompt_draft(self, flow_id: str, agent_key: str, content: str) -> None:
-        p   = self._p()
-        now = datetime.now(timezone.utc).isoformat()
+    async def save_prompt_draft(
+        self,
+        flow_id:      str,
+        agent_key:    str,
+        content:      str,
+        model_config: dict | None = None,
+    ) -> None:
+        import json as _json
+        p            = self._p()
+        now          = datetime.now(timezone.utc).isoformat()
+        model_cfg_s  = _json.dumps(model_config) if model_config else None
         existing = await self._fetchone(
             f"SELECT id FROM agent_prompt_versions WHERE flow_id = {p} AND agent_key = {p} AND status = 'draft'",
             (flow_id, agent_key),
@@ -476,13 +488,13 @@ class DBContext:
         if existing:
             if self._backend == "sqlite":
                 await self._exec(
-                    "UPDATE agent_prompt_versions SET content = ?, created_at = ? WHERE id = ?",
-                    (content, now, existing[0]),
+                    "UPDATE agent_prompt_versions SET content = ?, model_config = ?, created_at = ? WHERE id = ?",
+                    (content, model_cfg_s, now, existing[0]),
                 )
             else:
                 await self._exec(
-                    "UPDATE agent_prompt_versions SET content = %s, created_at = %s WHERE id = %s",
-                    (content, now, existing[0]),
+                    "UPDATE agent_prompt_versions SET content = %s, model_config = %s, created_at = %s WHERE id = %s",
+                    (content, model_cfg_s, now, existing[0]),
                 )
         else:
             max_row = await self._fetchone(
@@ -493,15 +505,17 @@ class DBContext:
             next_ver = (max_row[0] or 0) + 1
             if self._backend == "sqlite":
                 await self._exec(
-                    "INSERT INTO agent_prompt_versions (flow_id, agent_key, version, content, status, created_at)"
-                    " VALUES (?, ?, ?, ?, 'draft', ?)",
-                    (flow_id, agent_key, next_ver, content, now),
+                    "INSERT INTO agent_prompt_versions"
+                    " (flow_id, agent_key, version, content, model_config, status, created_at)"
+                    " VALUES (?, ?, ?, ?, ?, 'draft', ?)",
+                    (flow_id, agent_key, next_ver, content, model_cfg_s, now),
                 )
             else:
                 await self._exec(
-                    "INSERT INTO agent_prompt_versions (flow_id, agent_key, version, content, status, created_at)"
-                    " VALUES (%s, %s, %s, %s, 'draft', %s)",
-                    (flow_id, agent_key, next_ver, content, now),
+                    "INSERT INTO agent_prompt_versions"
+                    " (flow_id, agent_key, version, content, model_config, status, created_at)"
+                    " VALUES (%s, %s, %s, %s, %s, 'draft', %s)",
+                    (flow_id, agent_key, next_ver, content, model_cfg_s, now),
                 )
 
     async def discard_prompt_draft(self, flow_id: str, agent_key: str) -> None:
@@ -584,6 +598,23 @@ class DBContext:
                 result[agent_key] = row[0]
         return result
 
+    async def get_model_config_for_snapshot(
+        self, flow_id: str, snapshot: dict
+    ) -> dict[str, dict | None]:
+        """Return per-agent model_config for all agents in the snapshot (None = use global)."""
+        import json as _json
+        p      = self._p()
+        result = {}
+        for agent_key, version in snapshot["agent_versions"].items():
+            row = await self._fetchone(
+                f"SELECT model_config FROM agent_prompt_versions"
+                f" WHERE flow_id = {p} AND agent_key = {p} AND version = {p} AND status = 'published'",
+                (flow_id, agent_key, version),
+            )
+            if row and row[0]:
+                result[agent_key] = _json.loads(row[0])
+        return result
+
     async def list_snapshots(self, flow_id: str) -> list[dict]:
         import json
         p    = self._p()
@@ -596,13 +627,15 @@ class DBContext:
                  "created_at": r[3], "triggered_by": r[4]} for r in rows]
 
     async def get_agent_version_history(self, flow_id: str, agent_key: str) -> list[dict]:
+        import json as _json
         p    = self._p()
         rows = await self._fetchall(
-            f"SELECT id, version, content, status, created_at, published_at"
+            f"SELECT id, version, content, status, created_at, published_at, model_config"
             f" FROM agent_prompt_versions WHERE flow_id = {p} AND agent_key = {p} ORDER BY version DESC",
             (flow_id, agent_key),
         )
         return [{"id": r[0], "version": r[1], "content": r[2],
+                 "model_config": _json.loads(r[6]) if r[6] else None,
                  "status": r[3], "created_at": r[4], "published_at": r[5]} for r in rows]
 
     async def delete_expired_sessions(self) -> int:
@@ -652,6 +685,21 @@ async def _migrate(conn, backend: str) -> None:
                 await conn.commit()
         except Exception:
             pass  # column already exists
+
+    # ── agent_prompt_versions: model_config (added in upgrade-to-skill) ──────
+    try:
+        if backend == "sqlite":
+            await conn.execute(
+                "ALTER TABLE agent_prompt_versions ADD COLUMN model_config TEXT"
+            )
+            await conn.commit()
+        else:
+            await conn.execute(
+                "ALTER TABLE agent_prompt_versions ADD COLUMN IF NOT EXISTS model_config TEXT"
+            )
+            await conn.commit()
+    except Exception:
+        pass  # column already exists
 
 
 # ── SQLite backend ────────────────────────────────────────────────────────────

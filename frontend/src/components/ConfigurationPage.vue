@@ -60,14 +60,6 @@
           </div>
         </div>
 
-        <div class="cp-divider" />
-
-        <!-- Agent Models (separate from skills) -->
-        <button class="cp-tree-file"
-          :class="{ active: sel?.type === 'models' }"
-          @click="select({ type: 'models' })">
-          <span class="cp-file-icon">⚙</span> Agent Models
-        </button>
 
       </div>
     </aside>
@@ -121,8 +113,6 @@
         <div class="cp-ph-desc">{{ folderMeta[sel.folder]?.desc ?? '' }}</div>
       </div>
 
-      <!-- Agent models -->
-      <AgentConfigSettings v-else-if="sel?.type === 'models'" />
 
       <!-- Nothing selected -->
       <div v-else class="cp-empty-state">
@@ -135,7 +125,6 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
-import AgentConfigSettings  from './settings/AgentConfigSettings.vue'
 import AgentPromptsSettings from './settings/AgentPromptsSettings.vue'
 
 defineEmits(['back'])

@@ -249,7 +249,6 @@ async def start_chat(body: StartRequest, request: Request):
     asyncio.create_task(_save_title(db, session_id, body.brief))
 
     agent_cfg = get_agent_config()
-    await db.save_config(f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
 
     # ── Resolve graph + flow_config from skill registry ──────────────────────
     flow_config:           dict     = {}
@@ -265,10 +264,20 @@ async def start_chat(body: StartRequest, request: Request):
                 flow_config           = {**skill.all_agent_prompts, **db_prompts}
                 flow_snapshot_id      = snapshot["id"]
                 flow_snapshot_version = snapshot["snapshot_version"]
+                # Merge per-agent model overrides into agent_cfg (trump global defaults)
+                model_overrides = await db.get_model_config_for_snapshot(body.flow_id, snapshot)
+                slot_map        = skill.manifest.agent_slot_map
+                for agent_key, model_cfg in model_overrides.items():
+                    slot = slot_map.get(agent_key)
+                    if slot and model_cfg:
+                        agent_cfg[slot] = model_cfg
             else:
                 flow_config = dict(skill.all_agent_prompts)
         except SkillNotFoundError:
             pass  # unknown skill → empty flow_config, agents use defaults
+
+    # Save merged agent_cfg (global defaults + any per-agent model overrides)
+    await db.save_config(f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
 
     # Pick the compiled graph: skill-specific for agent flows, fallback for chat
     graph = (
