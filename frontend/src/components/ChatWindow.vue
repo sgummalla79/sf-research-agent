@@ -1645,10 +1645,10 @@ function doPDF() {
 }
 .greeting-text {
   font-family: 'Martel', serif;
-  font-size: clamp(18px, 2vw, 26px);
-  font-weight: 700;
+  font-size: clamp(28px, 3.5vw, 44px);
+  font-weight: 400;
   color: var(--tx);
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
   margin: 0;
   line-height: 1.2;
 }
