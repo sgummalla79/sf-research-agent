@@ -1317,7 +1317,8 @@ function doPDF() {
   padding: 13px 10px 8px; flex-shrink: 0;
 }
 .sb-app-name {
-  flex: 1; font-size: 13px; font-weight: 600; color: var(--sb-tx);
+  flex: 1; font-size: 26px; font-weight: 700; color: var(--sb-tx);
+  letter-spacing: -0.5px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 .sb-collapse-btn {
