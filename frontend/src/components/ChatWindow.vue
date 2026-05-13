@@ -1105,7 +1105,6 @@ function doPDF() {
   --sb-active:#2d3f5a;
   --sb-tx:    #c8d4e6;
   --sb-muted: #6b7f99;
-  --c-intake:#3b82f6;--c-discovery:#6366f1;--c-research:#8b5cf6;--c-review:#f59e0b;--c-approval:#10b981;
   --inp: #f8fafc; --hover: #f1f5f9; --active-nav: #eff6ff; --sidebar: #f8fafc;
 }
 .shell.dark {
@@ -1119,7 +1118,6 @@ function doPDF() {
   --inp:#111111;--hover:#282828;--active-nav:rgba(255,255,255,0.06);--sidebar:#141414;
   --sb-bg:#111111;--sb-hover:#1e1e1e;--sb-active:#252525;
   --sb-tx:#d9d9d7;--sb-muted:#5e5e5e;
-  --c-intake:#c97040;--c-discovery:#a06030;--c-research:#8b5a28;--c-review:#b07820;--c-approval:#5a8a30;
 }
 
 /* ── Privacy banner ──────────────────────────────────────────────────────────── */
@@ -1598,46 +1596,33 @@ function doPDF() {
 }
 
 /* Track tint — per agent, very subtle */
-.progress-strip.intake     { background: rgba(59,  130, 246, 0.07); }
-.progress-strip.discovery  { background: rgba(99,  102, 241, 0.07); }
-.progress-strip.research { background: rgba(239, 68, 68, 0.07); }
-.progress-strip.review   { background: rgba(245, 158,  11, 0.07); }
-.progress-strip.approval   { background: rgba(16,  185, 129, 0.07); }
+/* All stages use Prajna brand gold */
+.progress-strip.intake,
+.progress-strip.discovery,
+.progress-strip.research,
+.progress-strip.review,
+.progress-strip.approval { background: rgba(255, 208, 128, 0.07); }
 
-/* Slow shimmer — per agent, muted opacity */
+/* Shimmer */
 .progress-strip::after {
   content: '';
   position: absolute; top: 0; bottom: 0;
   width: 55%;
   animation: p-sweep 3.5s linear infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 208, 128, 0.45), transparent);
 }
-.intake::after     { background: linear-gradient(90deg, transparent, rgba(59,  130, 246, 0.5), transparent); }
-.discovery::after  { background: linear-gradient(90deg, transparent, rgba(99,  102, 241, 0.5), transparent); }
-.research::after { background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.5), transparent); }
-.review::after   { background: linear-gradient(90deg, transparent, rgba(245, 158,  11, 0.5), transparent); }
-.approval::after   { background: linear-gradient(90deg, transparent, rgba(16,  185, 129, 0.5), transparent); }
 
 @keyframes p-sweep {
   0%   { left: -55%; }
   100% { left: 100%; }
 }
 
-/* Dot + label — per agent colour */
-.p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite; }
-.intake .p-dot    { background: #3b82f6; }
-.discovery .p-dot { background: #6366f1; }
-.research .p-dot{ background: #ef4444; }
-.review .p-dot  { background: #f59e0b; }
-.approval .p-dot  { background: #10b981; }
+/* Dot + label */
+.p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite;background:#ffd080; }
 @keyframes p-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
 
-.p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap; }
-.intake .p-text    { color: #2563eb; } .discovery .p-text { color: #4f46e5; }
-.research .p-text{ color: #dc2626; } .review .p-text  { color: #b45309; }
-.approval .p-text  { color: #059669; }
-.dark .intake .p-text    { color: #93c5fd; } .dark .discovery .p-text { color: #a5b4fc; }
-.dark .research .p-text{ color: #fca5a5; } .dark .review .p-text  { color: #fcd34d; }
-.dark .approval .p-text  { color: #6ee7b7; }
+.p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap;color:#c97040; }
+.dark .p-text { color: #ffd080; }
 
 /* Messages */
 .messages { flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px;min-height:0; }
