@@ -6,10 +6,10 @@
       <div class="login-brand">
         <div class="login-logo-wrap">
           <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <polygon fill="none" stroke="#c97040" stroke-width="4" stroke-linejoin="round"
+            <polygon fill="none" stroke="#f5a55a" stroke-width="4" stroke-linejoin="round"
               points="50,3 60.4,13.2 73.2,9.7 77.5,23 90.3,27.2 87,40.9 97,50 87,59.1 90.3,72.8 77.5,77 73.2,90.3 60.4,86.8 50,97 39.6,86.8 26.8,90.3 22.5,77 9.7,72.8 13,59.1 3,50 13,40.9 9.7,27.2 22.5,23 26.8,9.7 39.6,13.2"/>
-            <circle cx="50" cy="50" r="33" stroke="#c97040" stroke-width="3.5"/>
-            <g stroke="#c97040" stroke-width="2.8">
+            <circle cx="50" cy="50" r="33" stroke="#f5a55a" stroke-width="3.5"/>
+            <g stroke="#f5a55a" stroke-width="2.8">
               <line x1="50" y1="17" x2="50" y2="41"/>
               <line x1="50" y1="17" x2="50" y2="41" transform="rotate(30,50,50)"/>
               <line x1="50" y1="17" x2="50" y2="41" transform="rotate(60,50,50)"/>
@@ -23,9 +23,9 @@
               <line x1="50" y1="17" x2="50" y2="41" transform="rotate(300,50,50)"/>
               <line x1="50" y1="17" x2="50" y2="41" transform="rotate(330,50,50)"/>
             </g>
-            <circle cx="50" cy="50" r="16" stroke="#c97040" stroke-width="3.5"/>
-            <circle cx="50" cy="50" r="8" stroke="#c97040" stroke-width="3" fill="#c97040" fill-opacity="0.25"/>
-            <circle cx="50" cy="50" r="4" fill="#c97040"/>
+            <circle cx="50" cy="50" r="16" stroke="#f5a55a" stroke-width="3.5"/>
+            <circle cx="50" cy="50" r="8" stroke="#f5a55a" stroke-width="3" fill="#f5a55a" fill-opacity="0.25"/>
+            <circle cx="50" cy="50" r="4" fill="#f5a55a"/>
           </svg>
         </div>
         <span class="login-app-name">Prajna</span>

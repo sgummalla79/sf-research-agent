@@ -18,7 +18,7 @@
 
         <!-- Brand header -->
         <div class="sb-header">
-          <SudarshanChakra :size="22" color="#f5a55a" />
+          <SudarshanChakra :size="22" />
           <span class="sb-app-name">Prajna</span>
           <button class="sb-collapse-btn" title="Collapse sidebar" @click="sidebar.open = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
@@ -235,7 +235,7 @@
       <div class="messages" ref="messagesEl">
         <div v-if="!messages.length && !isStreaming" class="empty-state">
           <div class="greeting-row">
-            <SudarshanChakra :size="48" color="#c97040" />
+            <SudarshanChakra :size="48" />
             <h1 class="greeting-text">{{ greeting }}{{ firstName ? ', ' + firstName : '' }}</h1>
           </div>
         </div>

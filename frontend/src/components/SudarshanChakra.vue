@@ -52,6 +52,6 @@
 <script setup>
 defineProps({
   size:  { type: [Number, String], default: 24 },
-  color: { type: String, default: 'currentColor' },
+  color: { type: String, default: '#f5a55a' },   // Prajna gold — used everywhere
 })
 </script>
