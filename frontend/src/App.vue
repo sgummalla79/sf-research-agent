@@ -3,7 +3,14 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
+import { useAuth } from './composables/useAuth.js'
+
+const { fetchUser } = useAuth()
+
+// Restore session from httpOnly cookie on every page load
+onMounted(fetchUser)
 </script>
 
 <style>

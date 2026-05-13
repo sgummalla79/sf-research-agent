@@ -19,7 +19,6 @@ const routes = [
     name:      'chat',
     component: () => import('../components/ChatWindow.vue'),
   },
-  // Catch-all → redirect home
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
@@ -28,10 +27,13 @@ const router = createRouter({
   routes,
 })
 
-// Auth guard — redirect unauthenticated users to /login
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (to.meta.public) return true
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, fetchUser } = useAuth()
+  // If not authenticated, try to restore from cookie before redirecting
+  if (!isAuthenticated.value) {
+    await fetchUser()
+  }
   if (!isAuthenticated.value) return { name: 'login' }
   return true
 })

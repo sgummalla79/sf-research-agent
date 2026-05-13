@@ -1,23 +1,29 @@
 """
-Auth0 proxy routes — all traffic stays on our domain.
+Auth routes — mirrors sgummalla_works/express-server pattern.
 
-GET  /auth/connections          list enabled Auth0 connections (cached)
-POST /auth/token                username/password login
-POST /auth/callback             social OAuth code exchange
-GET  /auth/me                   current user profile (requires JWT)
-POST /auth/refresh              exchange refresh token for new access token
+All auth flows use httpOnly session cookies (HS256, signed server-side).
+The browser never touches a raw token.
+
+GET  /auth/connections          list enabled social connections (Management API, cached 1h)
+GET  /auth/initiate             redirect browser to Auth0 /authorize
+GET  /auth/callback             Auth0 returns here; exchange code, set cookie, redirect to SPA
+POST /auth/token                email/password login; set cookie, return user JSON
+POST /auth/logout               clear session cookie
+GET  /auth/me                   return current user from cookie (used for bootstrap on mount)
 """
 
 import os
 import logging
 import time
 from typing import Optional
+from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from utils.auth import AuthUser, get_current_user
+from utils.auth import AuthUser, FRONTEND_URL, COOKIE_NAME, sign_session, cookie_options, get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -26,7 +32,7 @@ AUTH0_DOMAIN        = os.getenv("AUTH0_DOMAIN", "")
 AUTH0_CLIENT_ID     = os.getenv("AUTH0_CLIENT_ID", "")
 AUTH0_CLIENT_SECRET = os.getenv("AUTH0_CLIENT_SECRET", "")
 AUTH0_AUDIENCE      = os.getenv("AUTH0_AUDIENCE", "")
-AUTH0_CALLBACK_URL  = os.getenv("AUTH0_CALLBACK_URL", "http://localhost:5173/callback")
+AUTH0_CALLBACK_URL  = os.getenv("AUTH0_CALLBACK_URL", "http://localhost:5173/auth/callback")
 
 _KNOWN_LABELS: dict[str, str] = {
     "google-oauth2": "Google",
@@ -39,7 +45,7 @@ _KNOWN_LABELS: dict[str, str] = {
     "windowslive":   "Microsoft",
 }
 
-# ── Management API token (same SPA credentials, client_credentials grant) ────
+# ── Management API token ──────────────────────────────────────────────────────
 
 _mgmt_token:      str   = ""
 _mgmt_expires_at: float = 0.0
@@ -65,7 +71,7 @@ async def _get_mgmt_token() -> str:
         data = resp.json()
 
     _mgmt_token      = data["access_token"]
-    _mgmt_expires_at = time.time() + data.get("expires_in", 86400) - 60  # refresh 60s early
+    _mgmt_expires_at = time.time() + data.get("expires_in", 86400) - 60
     return _mgmt_token
 
 
@@ -77,12 +83,6 @@ _connections_expires_at: float = 0.0
 
 @router.get("/connections")
 async def list_connections():
-    """
-    Fetch social connections enabled for this app from Auth0 Management API.
-    Uses the same AUTH0_CLIENT_ID + AUTH0_CLIENT_SECRET (client_credentials grant).
-    Results are cached for 1 hour.
-    Each item: {name, display_name, strategy}
-    """
     global _connections_cache, _connections_expires_at
 
     if _connections_cache and time.time() < _connections_expires_at:
@@ -93,10 +93,8 @@ async def list_connections():
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 f"https://{AUTH0_DOMAIN}/api/v2/connections",
-                params={
-                    "client_id": AUTH0_CLIENT_ID,
-                    "fields":    "name,strategy,display_name,enabled_clients",
-                },
+                params={"client_id": AUTH0_CLIENT_ID,
+                        "fields":    "name,strategy,display_name,enabled_clients"},
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=10,
             )
@@ -111,10 +109,10 @@ async def list_connections():
                 "strategy":     c["strategy"],
             }
             for c in raw
-            if c.get("strategy") != "auth0"                          # social only
-            and AUTH0_CLIENT_ID in (c.get("enabled_clients") or [])  # enabled for this app
+            if c.get("strategy") != "auth0"
+            and AUTH0_CLIENT_ID in (c.get("enabled_clients") or [])
         ]
-        _connections_expires_at = time.time() + 3600   # cache 1 hour
+        _connections_expires_at = time.time() + 3600
 
     except Exception as exc:
         logger.error("Auth0 connections fetch failed: %s", exc, exc_info=True)
@@ -127,15 +125,7 @@ async def list_connections():
 
 @router.get("/initiate")
 async def initiate_social(connection: str = ""):
-    """
-    Redirect the browser to Auth0's /authorize endpoint for a specific
-    social connection.  Called by the frontend for social login buttons.
-    All Auth0 config lives server-side — no VITE_ vars needed in the browser.
-    """
-    from fastapi.responses import RedirectResponse
-    from urllib.parse import urlencode
-
-    params = {
+    params: dict = {
         "client_id":     AUTH0_CLIENT_ID,
         "response_type": "code",
         "redirect_uri":  AUTH0_CALLBACK_URL,
@@ -143,12 +133,63 @@ async def initiate_social(connection: str = ""):
     }
     if connection:
         params["connection"] = connection
-
-    url = f"https://{AUTH0_DOMAIN}/authorize?{urlencode(params)}"
-    return RedirectResponse(url)
+    return RedirectResponse(f"https://{AUTH0_DOMAIN}/authorize?{urlencode(params)}")
 
 
-# ── Username / password login ─────────────────────────────────────────────────
+# ── OAuth callback — server-side, sets cookie and redirects to SPA ────────────
+
+@router.get("/callback")
+async def oauth_callback(code: str, request: Request, error: str = ""):
+    if error:
+        return RedirectResponse(f"{FRONTEND_URL}/login?error={error}")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            # Exchange code for tokens
+            token_resp = await client.post(
+                f"https://{AUTH0_DOMAIN}/oauth/token",
+                json={
+                    "grant_type":    "authorization_code",
+                    "client_id":     AUTH0_CLIENT_ID,
+                    "client_secret": AUTH0_CLIENT_SECRET,
+                    "code":          code,
+                    "redirect_uri":  AUTH0_CALLBACK_URL,
+                },
+                timeout=15,
+            )
+            if not token_resp.is_success:
+                raise ValueError(f"Token exchange failed: {token_resp.text}")
+            tokens = token_resp.json()
+
+            # Get user info
+            userinfo_resp = await client.get(
+                f"https://{AUTH0_DOMAIN}/userinfo",
+                headers={"Authorization": f"Bearer {tokens['access_token']}"},
+                timeout=10,
+            )
+            userinfo = userinfo_resp.json()
+
+    except Exception as exc:
+        logger.error("OAuth callback error: %s", exc)
+        return RedirectResponse(f"{FRONTEND_URL}/login?error=auth_failed")
+
+    user = AuthUser(
+        sub     = userinfo["sub"],
+        email   = userinfo.get("email", ""),
+        name    = userinfo.get("name", "") or userinfo.get("nickname", ""),
+        picture = userinfo.get("picture", ""),
+    )
+
+    db = request.app.state.db
+    await db.upsert_user(user.sub, user.email, user.name, user.picture)
+
+    token    = sign_session(user)
+    redirect = RedirectResponse(f"{FRONTEND_URL}/")
+    redirect.set_cookie(value=token, **cookie_options())
+    return redirect
+
+
+# ── Email / password login ────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
     email:      str
@@ -157,8 +198,7 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/token")
-async def login_with_password(body: LoginRequest):
-    """Proxy the Resource Owner Password Grant to Auth0."""
+async def login_with_password(body: LoginRequest, request: Request):
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"https://{AUTH0_DOMAIN}/oauth/token",
@@ -169,77 +209,55 @@ async def login_with_password(body: LoginRequest):
                 "password":      body.password,
                 "client_id":     AUTH0_CLIENT_ID,
                 "client_secret": AUTH0_CLIENT_SECRET,
-                "audience":      AUTH0_AUDIENCE,
-                "scope":         "openid profile email offline_access",
+                "scope":         "openid profile email",
             },
             timeout=15,
         )
 
-    if resp.status_code != 200:
-        detail = resp.json().get("error_description") or resp.json().get("error") or "Login failed."
-        raise HTTPException(status_code=401, detail=detail)
+    if not resp.is_success:
+        detail = resp.json().get("error_description") or "Invalid email or password."
+        raise HTTPException(401, detail)
 
-    return resp.json()
+    tokens = resp.json()
 
-
-# ── Social OAuth code exchange ────────────────────────────────────────────────
-
-class CallbackRequest(BaseModel):
-    code:         str
-    redirect_uri: Optional[str] = None
-
-
-@router.post("/callback")
-async def oauth_callback(body: CallbackRequest):
-    """Exchange an authorization code (from social login) for tokens."""
+    # Fetch userinfo
     async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"https://{AUTH0_DOMAIN}/oauth/token",
-            json={
-                "grant_type":    "authorization_code",
-                "client_id":     AUTH0_CLIENT_ID,
-                "client_secret": AUTH0_CLIENT_SECRET,
-                "code":          body.code,
-                "redirect_uri":  body.redirect_uri or AUTH0_CALLBACK_URL,
-            },
-            timeout=15,
+        ui = await client.get(
+            f"https://{AUTH0_DOMAIN}/userinfo",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+            timeout=10,
         )
+    userinfo = ui.json()
 
-    if resp.status_code != 200:
-        detail = resp.json().get("error_description") or "Code exchange failed."
-        raise HTTPException(status_code=401, detail=detail)
+    user = AuthUser(
+        sub     = userinfo["sub"],
+        email   = userinfo.get("email", body.email),
+        name    = userinfo.get("name", "") or userinfo.get("nickname", ""),
+        picture = userinfo.get("picture", ""),
+    )
 
-    return resp.json()
+    db = request.app.state.db
+    await db.upsert_user(user.sub, user.email, user.name, user.picture)
 
-
-# ── Token refresh ─────────────────────────────────────────────────────────────
-
-class RefreshRequest(BaseModel):
-    refresh_token: str
-
-
-@router.post("/refresh")
-async def refresh_token(body: RefreshRequest):
-    """Exchange a refresh token for a new access token."""
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"https://{AUTH0_DOMAIN}/oauth/token",
-            json={
-                "grant_type":    "refresh_token",
-                "client_id":     AUTH0_CLIENT_ID,
-                "client_secret": AUTH0_CLIENT_SECRET,
-                "refresh_token": body.refresh_token,
-            },
-            timeout=15,
-        )
-
-    if resp.status_code != 200:
-        raise HTTPException(status_code=401, detail="Refresh failed — please log in again.")
-
-    return resp.json()
+    token    = sign_session(user)
+    response = JSONResponse({"user": {
+        "sub": user.sub, "email": user.email,
+        "name": user.name, "picture": user.picture,
+    }})
+    response.set_cookie(value=token, **cookie_options())
+    return response
 
 
-# ── Current user ──────────────────────────────────────────────────────────────
+# ── Logout ────────────────────────────────────────────────────────────────────
+
+@router.post("/logout")
+async def logout():
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(COOKIE_NAME)
+    return response
+
+
+# ── Me (bootstrap) ────────────────────────────────────────────────────────────
 
 @router.get("/me")
 async def get_me(current_user: AuthUser = Depends(get_current_user)):

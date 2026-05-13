@@ -667,10 +667,10 @@ const {
 } = useAgentChat()
 
 const router = useRouter()
-const { user, logout: authLogout } = useAuth()
+const { user, logout } = useAuth()
 
-function handleLogout() {
-  authLogout()
+async function handleLogout() {
+  await logout()
   router.push('/login')
 }
 

@@ -7,7 +7,10 @@
         <line x1="9" y1="2" x2="9" y2="22"/>
       </svg>
       <p class="cb-msg" v-if="!error">Completing sign-in…</p>
-      <p class="cb-err" v-else>{{ error }}<br/><a class="cb-link" href="/login">Back to login</a></p>
+      <div v-else class="cb-err">
+        <p>{{ errorMessage }}</p>
+        <a class="cb-link" href="/login">← Back to login</a>
+      </div>
     </div>
   </div>
 </template>
@@ -15,26 +18,25 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuth } from '../composables/useAuth.js'
 
-const router = useRouter()
-const { handleCallback } = useAuth()
-const error = ref('')
+const router      = useRouter()
+const error       = ref(false)
+const errorMessage = ref('')
 
-onMounted(async () => {
+onMounted(() => {
   const params = new URLSearchParams(window.location.search)
-  const code   = params.get('code')
-  const errMsg = params.get('error_description') || params.get('error')
+  const err    = params.get('error')
 
-  if (errMsg) { error.value = errMsg; return }
-  if (!code)  { error.value = 'No authorization code received.'; return }
-
-  const ok = await handleCallback(code)
-  if (ok) {
-    router.replace('/')
-  } else {
-    error.value = 'Authentication failed. Please try again.'
+  if (err) {
+    error.value        = true
+    errorMessage.value = err === 'auth_failed'
+      ? 'Authentication failed. Please try again.'
+      : decodeURIComponent(err)
+    return
   }
+
+  // Backend handled the real callback and redirected here — just go home
+  router.replace('/')
 })
 </script>
 
@@ -45,11 +47,14 @@ onMounted(async () => {
 }
 .cb-card {
   display: flex; flex-direction: column; align-items: center; gap: 16px;
-  color: #f1f5f9;
 }
-.cb-logo { width: 40px; height: 40px; color: #3b82f6; animation: spin 1.2s linear infinite; }
+.cb-logo {
+  width: 40px; height: 40px; color: #3b82f6;
+  animation: spin 1.2s linear infinite;
+}
 @keyframes spin { to { transform: rotate(360deg); } }
 .cb-msg  { font-size: 15px; color: #94a3b8; }
-.cb-err  { font-size: 14px; color: #fca5a5; text-align: center; line-height: 1.7; }
-.cb-link { color: #3b82f6; text-decoration: underline; cursor: pointer; }
+.cb-err  { text-align: center; display: flex; flex-direction: column; gap: 12px; }
+.cb-err p { font-size: 14px; color: #fca5a5; }
+.cb-link { font-size: 13px; color: #3b82f6; text-decoration: underline; }
 </style>
