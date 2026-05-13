@@ -1045,14 +1045,17 @@ function doPDF() {
   --inp: #f8fafc; --hover: #f1f5f9; --active-nav: #eff6ff; --sidebar: #f8fafc;
 }
 .shell.dark {
-  --bg:#0f172a;--surf:#1e293b;--surf2:#0f172a;--bdr:#334155;
-  --tx:#f1f5f9;--muted:#94a3b8;--pri:#3b82f6;--pri-h:#2563eb;
-  --ub:#3b82f6;--ab:#1e293b;--abdr:#334155;
-  --sbg:#172554;--stx:#93c5fd;--sbdr:#1e40af;
-  --hbg:#020617;--hfg:#f1f5f9;--cbg:#0f172a;--ibdr:#475569;--ifocus:#3b82f6;
-  --pass-bg:#052e16;--pass-bdr:#166534;--pass-tx:#86efac;
-  --fail-bg:#1f0000;--fail-bdr:#991b1b;--fail-tx:#fca5a5;
-  --inp:#0f172a;--hover:#1e293b;--active-nav:#172554;--sidebar:#0f172a;
+  --bg:#1a1a1a;--surf:#212121;--surf2:#181818;--bdr:rgba(255,255,255,0.09);
+  --tx:#ececea;--muted:#888888;--pri:#c97040;--pri-h:#b5602e;--pri-fg:#fff;
+  --ub:#c97040;--ab:#212121;--abdr:rgba(255,255,255,0.09);
+  --sbg:rgba(201,112,64,0.12);--stx:#d4945a;--sbdr:rgba(201,112,64,0.28);
+  --hbg:#0e0e0e;--hfg:#ececea;--cbg:#1a1a1a;--ibdr:rgba(255,255,255,0.14);--ifocus:#c97040;
+  --pass-bg:#0d1f10;--pass-bdr:#1a4620;--pass-tx:#86efac;
+  --fail-bg:#1f0d0d;--fail-bdr:#4a1a1a;--fail-tx:#fca5a5;
+  --inp:#111111;--hover:#282828;--active-nav:rgba(255,255,255,0.06);--sidebar:#141414;
+  --sb-bg:#111111;--sb-hover:#1e1e1e;--sb-active:#252525;
+  --sb-tx:#d9d9d7;--sb-muted:#5e5e5e;
+  --c-intake:#c97040;--c-discovery:#a06030;--c-research:#8b5a28;--c-review:#b07820;--c-approval:#5a8a30;
 }
 
 /* ── Privacy banner ──────────────────────────────────────────────────────────── */
@@ -1460,7 +1463,7 @@ function doPDF() {
 .user-menu {
   position: absolute; bottom: calc(100% + 6px); left: 8px;
   width: calc(100% - 16px);
-  background: #1e2d42; border: 1px solid rgba(255,255,255,0.12);
+  background: var(--sb-hover); border: 1px solid rgba(255,255,255,0.1);
   border-radius: 10px; padding: 6px;
   box-shadow: 0 8px 28px rgba(0,0,0,0.4);
   z-index: 200;
