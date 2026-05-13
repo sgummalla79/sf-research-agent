@@ -10,6 +10,7 @@ POST /auth/refresh              exchange refresh token for new access token
 
 import os
 import logging
+import time
 from typing import Optional
 
 import httpx
@@ -27,68 +28,99 @@ AUTH0_CLIENT_SECRET = os.getenv("AUTH0_CLIENT_SECRET", "")
 AUTH0_AUDIENCE      = os.getenv("AUTH0_AUDIENCE", "")
 AUTH0_CALLBACK_URL  = os.getenv("AUTH0_CALLBACK_URL", "http://localhost:5173/callback")
 
-# Comma-separated list of Auth0 connection names configured for this app.
-# Set in .env — no Management API needed.
-_RAW_CONNECTIONS = os.getenv("AUTH0_CONNECTIONS", "")
-
-# Strategy is inferred from the connection name convention used by Auth0.
-_STRATEGY_MAP = {
-    "google-oauth2":   "google-oauth2",
-    "github":          "github",
-    "linkedin":        "linkedin",
-    "twitter":         "twitter",
-    "facebook":        "facebook",
-    "microsoft":       "microsoft",
-    "apple":           "apple",
-    "windowslive":     "windowslive",
-}
-
-def _infer_strategy(name: str) -> str:
-    lower = name.lower()
-    for key, strategy in _STRATEGY_MAP.items():
-        if key in lower:
-            return strategy
-    return "auth0"   # fallback → database / username-password connection
-
-
-_DISPLAY_NAMES = {
+_KNOWN_LABELS: dict[str, str] = {
     "google-oauth2": "Google",
     "github":        "GitHub",
-    "linkedin":      "LinkedIn",
     "twitter":       "Twitter / X",
     "facebook":      "Facebook",
+    "linkedin":      "LinkedIn",
     "microsoft":     "Microsoft",
     "apple":         "Apple",
     "windowslive":   "Microsoft",
 }
 
-def _display_name(name: str, strategy: str) -> str:
-    return _DISPLAY_NAMES.get(strategy, name.replace("-", " ").title())
+# ── Management API token (same SPA credentials, client_credentials grant) ────
+
+_mgmt_token:      str   = ""
+_mgmt_expires_at: float = 0.0
 
 
-# ── Connections ───────────────────────────────────────────────────────────────
+async def _get_mgmt_token() -> str:
+    global _mgmt_token, _mgmt_expires_at
+    if _mgmt_token and time.time() < _mgmt_expires_at:
+        return _mgmt_token
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"https://{AUTH0_DOMAIN}/oauth/token",
+            json={
+                "grant_type":    "client_credentials",
+                "client_id":     AUTH0_CLIENT_ID,
+                "client_secret": AUTH0_CLIENT_SECRET,
+                "audience":      f"https://{AUTH0_DOMAIN}/api/v2/",
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    _mgmt_token      = data["access_token"]
+    _mgmt_expires_at = time.time() + data.get("expires_in", 86400) - 60  # refresh 60s early
+    return _mgmt_token
+
+
+# ── Connections (cached 1 hour) ───────────────────────────────────────────────
+
+_connections_cache:      list  = []
+_connections_expires_at: float = 0.0
+
 
 @router.get("/connections")
 async def list_connections():
     """
-    Return the connections configured for this app via AUTH0_CONNECTIONS env var.
-    No Management API required.
+    Fetch social connections enabled for this app from Auth0 Management API.
+    Uses the same AUTH0_CLIENT_ID + AUTH0_CLIENT_SECRET (client_credentials grant).
+    Results are cached for 1 hour.
     Each item: {name, display_name, strategy}
-      strategy = "auth0"         → show username/password form
-      strategy = "google-oauth2" → show social button
     """
-    connections = []
-    for raw in _RAW_CONNECTIONS.split(","):
-        name = raw.strip()
-        if not name:
-            continue
-        strategy = _infer_strategy(name)
-        connections.append({
-            "name":         name,
-            "display_name": _display_name(name, strategy),
-            "strategy":     strategy,
-        })
-    return {"connections": connections}
+    global _connections_cache, _connections_expires_at
+
+    if _connections_cache and time.time() < _connections_expires_at:
+        return {"connections": _connections_cache}
+
+    try:
+        token = await _get_mgmt_token()
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"https://{AUTH0_DOMAIN}/api/v2/connections",
+                params={
+                    "client_id": AUTH0_CLIENT_ID,
+                    "fields":    "name,strategy,display_name,enabled_clients",
+                },
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            raw = resp.json()
+
+        _connections_cache = [
+            {
+                "name":         c["name"],
+                "display_name": c.get("display_name") or _KNOWN_LABELS.get(c["name"])
+                                or _KNOWN_LABELS.get(c["strategy"]) or c["name"],
+                "strategy":     c["strategy"],
+            }
+            for c in raw
+            if c.get("strategy") != "auth0"                          # social only
+            and AUTH0_CLIENT_ID in (c.get("enabled_clients") or [])  # enabled for this app
+        ]
+        _connections_expires_at = time.time() + 3600   # cache 1 hour
+
+    except Exception as exc:
+        logger.warning("Could not fetch Auth0 connections: %s", exc)
+        _connections_cache = []
+
+    return {"connections": _connections_cache}
 
 
 # ── Username / password login ─────────────────────────────────────────────────
