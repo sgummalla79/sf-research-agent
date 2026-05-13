@@ -43,22 +43,27 @@ async function loginWithPassword(email, password, connection = 'Username-Passwor
   _loading.value = true
   _error.value   = ''
   try {
-    const res  = await fetch('/auth/token', {
+    const res = await fetch('/auth/token', {
       method:      'POST',
       credentials: 'include',
       headers:     { 'Content-Type': 'application/json' },
       body:        JSON.stringify({ email, password, connection }),
     })
-    const data = await res.json()
+
+    let data = {}
+    try { data = await res.json() } catch { /* non-JSON body */ }
+
     if (!res.ok) {
-      _error.value = data.detail || 'Login failed.'
+      _error.value = data.detail || 'Invalid email or password.'
       return false
     }
     _user.value = data.user
     sessionStorage.setItem('ta_user', JSON.stringify(data.user))
     return true
-  } catch {
-    _error.value = 'Network error. Is the server running?'
+  } catch (e) {
+    _error.value = e?.message?.includes('fetch')
+      ? 'Cannot reach the server. Make sure the backend is running.'
+      : 'Something went wrong. Please try again.'
     return false
   } finally {
     _loading.value = false
