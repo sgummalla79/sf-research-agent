@@ -174,44 +174,67 @@ CREATE TABLE IF NOT EXISTS installed_skills (
 
 # ── Migration ─────────────────────────────────────────────────────────────────
 
-async def _migrate(conn, backend: str) -> None:
+async def _schema_complete(conn, backend: str) -> bool:
     """
-    v2 migration: if the users table does not exist, drop all legacy tables
-    (including LangGraph checkpoint tables) and recreate with the new schema.
-    This is a one-time destructive migration — all old data is wiped.
+    Return True only when the v2 schema is fully in place.
+    Checks both the users table AND that token_usage has user_id —
+    the latter catches partial migrations that crashed mid-way.
     """
     try:
         if backend == "sqlite":
             cur = await conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
             )
-            row = await cur.fetchone()
+            if not await cur.fetchone():
+                return False
+            cur = await conn.execute("PRAGMA table_info(token_usage)")
+            cols = {row[1] for row in await cur.fetchall()}
+            return "user_id" in cols
         else:
             cur = await conn.execute(
                 "SELECT tablename FROM pg_catalog.pg_tables "
                 "WHERE schemaname='public' AND tablename='users'"
             )
-            row = await cur.fetchone()
+            if not await cur.fetchone():
+                return False
+            cur = await conn.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='token_usage' AND column_name='user_id'"
+            )
+            return bool(await cur.fetchone())
+    except Exception:
+        return False
 
-        if row:
+
+async def _migrate(conn, backend: str) -> None:
+    """
+    v2 migration: wipe all pre-auth tables and recreate with user_id columns.
+    Checks schema completeness so a mid-crash partial migration is re-run.
+    """
+    try:
+        if await _schema_complete(conn, backend):
             return  # Already on v2 schema — nothing to do
 
-        # ── Wipe legacy tables ────────────────────────────────────────────────
-        legacy = [
+        # ── Wipe everything (legacy + any partially-created v2 tables) ────────
+        to_drop = [
             "agent_prompt_versions", "flow_prompt_snapshots", "installed_skills",
             "token_usage", "agent_sessions", "app_settings", "app_config",
+            "users",
             # LangGraph internal tables
             "checkpoint_writes", "checkpoint_blobs", "checkpoints",
         ]
-        for table in legacy:
+        for table in to_drop:
             try:
-                await conn.execute(f"DROP TABLE IF EXISTS {table}")
+                await conn.execute(f"DROP TABLE IF EXISTS {table} CASCADE")
             except Exception:
-                pass
+                try:
+                    await conn.execute(f"DROP TABLE IF EXISTS {table}")
+                except Exception:
+                    pass
         await conn.commit()
 
     except Exception:
-        pass  # If anything fails here, let table creation handle it
+        pass  # Let table creation handle edge cases
 
 
 # ── DBContext ─────────────────────────────────────────────────────────────────
