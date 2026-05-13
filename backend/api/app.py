@@ -31,6 +31,7 @@ from api.routes.usage import router as usage_router
 from api.routes.providers import router as providers_router
 from api.routes.flows import router as flows_router
 from api.routes.prompts import router as prompts_router
+from api.routes.skills import router as skills_router
 from framework.engine import SkillEngine
 from framework.registry import SkillRegistry
 from persistence.checkpointer import get_async_checkpointer
@@ -141,6 +142,15 @@ async def lifespan(app: FastAPI):
                 )
                 await db.seed_flow_prompts(flow_id, skill.all_agent_prompts)
 
+        # ── Auto-install any skill not yet in installed_skills ────────────
+        # This runs once for existing deployments so skills discovered on disk
+        # are installed by default.  New skills added later start uninstalled.
+        installed_ids = await db.get_installed_skill_ids()
+        for skill in skill_registry.list_all():
+            if skill.manifest.id not in installed_ids:
+                await db.install_skill(skill.manifest.id)
+                logger.info("Auto-installed skill '%s'", skill.manifest.id)
+
         logger.info("Technical Architecture Agent started — graph ready.")
         yield
     logger.info("Technical Architecture Agent shutting down.")
@@ -163,6 +173,7 @@ app.include_router(usage_router)
 app.include_router(providers_router)
 app.include_router(flows_router)
 app.include_router(prompts_router)
+app.include_router(skills_router)
 
 
 @app.get("/health", tags=["ops"])

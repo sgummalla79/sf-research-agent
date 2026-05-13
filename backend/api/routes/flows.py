@@ -13,8 +13,11 @@ router = APIRouter(prefix="/api/flows", tags=["flows"])
 
 @router.get("")
 async def list_flows(request: Request) -> dict:
-    """Return all available agent flows (from skill registry) and the chat model list."""
+    """Return only installed agent flows and the chat model list."""
+    db             = request.app.state.db
     skill_registry = request.app.state.skill_registry
+
+    installed = await db.get_installed_skill_ids()
     flows = [
         {
             "id":          skill.manifest.id,
@@ -23,6 +26,7 @@ async def list_flows(request: Request) -> dict:
             "icon":        skill.manifest.icon,
         }
         for skill in skill_registry.list_all()
+        if skill.manifest.id in installed
     ]
     return {
         "flows":              flows,

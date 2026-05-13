@@ -120,6 +120,13 @@ CREATE TABLE IF NOT EXISTS flow_prompt_snapshots (
 );
 """
 
+_CREATE_INSTALLED_SKILLS = """
+CREATE TABLE IF NOT EXISTS installed_skills (
+    skill_id     TEXT PRIMARY KEY,
+    installed_at TEXT NOT NULL
+);
+"""
+
 # ── SQL — SQLite (? placeholders) ─────────────────────────────────────────────
 
 _SL = dict(
@@ -638,6 +645,44 @@ class DBContext:
                  "model_config": _json.loads(r[6]) if r[6] else None,
                  "status": r[3], "created_at": r[4], "published_at": r[5]} for r in rows]
 
+    # ── Installed skills ──────────────────────────────────────────────────────
+
+    async def get_installed_skill_ids(self) -> set[str]:
+        p = self._p
+        rows = await self._fetchall(f"SELECT skill_id FROM installed_skills", ())
+        return {r[0] for r in rows}
+
+    async def install_skill(self, skill_id: str) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        p   = self._p
+        if self._backend == "sqlite":
+            await self._conn_or_pool.execute(
+                "INSERT OR IGNORE INTO installed_skills (skill_id, installed_at) VALUES (?, ?)",
+                (skill_id, now),
+            )
+            await self._conn_or_pool.commit()
+        else:
+            async with self._conn_or_pool.connection() as conn:
+                await conn.execute(
+                    "INSERT INTO installed_skills (skill_id, installed_at) VALUES (%s, %s)"
+                    " ON CONFLICT (skill_id) DO NOTHING",
+                    (skill_id, now),
+                )
+                await conn.commit()
+
+    async def uninstall_skill(self, skill_id: str) -> None:
+        if self._backend == "sqlite":
+            await self._conn_or_pool.execute(
+                "DELETE FROM installed_skills WHERE skill_id = ?", (skill_id,)
+            )
+            await self._conn_or_pool.commit()
+        else:
+            async with self._conn_or_pool.connection() as conn:
+                await conn.execute(
+                    "DELETE FROM installed_skills WHERE skill_id = %s", (skill_id,)
+                )
+                await conn.commit()
+
     async def delete_expired_sessions(self) -> int:
         cutoff  = (datetime.now(timezone.utc) - timedelta(days=SESSION_TTL_DAYS)).isoformat()
         rows    = await self._fetchall(self._q("expired"), (cutoff,))
@@ -719,6 +764,7 @@ async def _sqlite_backend():
         await conn.execute(_CREATE_CONFIG_TABLE)
         await conn.execute(_CREATE_PROMPT_VERSIONS_SL)
         await conn.execute(_CREATE_SNAPSHOTS_SL)
+        await conn.execute(_CREATE_INSTALLED_SKILLS)
         await conn.commit()
         await _migrate(conn, "sqlite")
 
@@ -759,6 +805,7 @@ async def _postgres_backend(url: str):
             await conn.execute(_CREATE_CONFIG_TABLE)
             await conn.execute(_CREATE_PROMPT_VERSIONS_PG)
             await conn.execute(_CREATE_SNAPSHOTS_PG)
+            await conn.execute(_CREATE_INSTALLED_SKILLS)
             await conn.commit()
             await _migrate(conn, "postgres")
 
