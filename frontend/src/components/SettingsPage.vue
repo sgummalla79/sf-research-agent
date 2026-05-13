@@ -24,7 +24,6 @@
     <!-- ── Content area ──────────────────────────────────────────── -->
     <main class="sp-content">
       <ProvidersSettings   v-if="activeSection === 'providers'" />
-      <AgentConfigSettings v-else-if="activeSection === 'agent-config'" />
       <div v-else-if="activeSection === 'usage'" class="sp-usage">
         <UsageSection />
       </div>
@@ -34,18 +33,16 @@
 
 <script setup>
 import { ref } from 'vue'
-import ProvidersSettings   from './settings/ProvidersSettings.vue'
-import AgentConfigSettings from './settings/AgentConfigSettings.vue'
-import UsageSection        from './settings/UsageSettings.vue'
+import ProvidersSettings from './settings/ProvidersSettings.vue'
+import UsageSection      from './settings/UsageSettings.vue'
 
 defineEmits(['back'])
 
 const activeSection = ref('providers')
 
 const navItems = [
-  { id: 'providers',    label: 'Providers',         icon: '⚡' },
-  { id: 'agent-config', label: 'Agent Configuration', icon: '⚙' },
-  { id: 'usage',        label: 'Usage & Cost',       icon: '📊' },
+  { id: 'providers', label: 'Providers',   icon: '⚡' },
+  { id: 'usage',     label: 'Usage & Cost', icon: '📊' },
 ]
 </script>
 

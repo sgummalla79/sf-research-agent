@@ -2,7 +2,8 @@
   <div class="shell" :class="{ dark: isDark }">
 
   <!-- ══════════════════ SETTINGS PAGE (full-page overlay) ══════════════════ -->
-  <SettingsPage v-if="appView === 'settings'" @back="appView = 'chat'" />
+  <SettingsPage       v-if="appView === 'settings'"       @back="appView = 'chat'" />
+  <ConfigurationPage  v-else-if="appView === 'configuration'" @back="appView = 'chat'" />
 
   <!-- ══════════════════ MAIN CHAT SHELL ══════════════════ -->
   <div v-else class="shell-chat">
@@ -168,6 +169,13 @@
         <span class="p-text">{{ stageLabels[currentStage] }} is working…</span>
       </div>
 
+      <!-- Active agent flow indicator (locked once session starts) -->
+      <div v-if="sessionFlow && sessionId" class="session-flow-bar">
+        <span class="sfb-icon">{{ sessionFlow.icon }}</span>
+        <span class="sfb-name">{{ sessionFlow.name }}</span>
+        <span class="sfb-label">active</span>
+      </div>
+
       <!-- Messages -->
       <div class="messages" ref="messagesEl">
         <div v-if="!messages.length && !isStreaming" class="empty-state">
@@ -276,21 +284,23 @@
         v-if="!sessionId && !isStreaming"
         :chat-models="chatModels"
         :flows="flows"
+        :pending-flow="pendingFlow"
         @submit="handleChatSubmit"
         @upload="handleChatUpload"
         @flow-select="startWithFlow"
+        @cancel-flow="pendingFlow = null"
       />
 
       <!-- Mid-session flow selection popup -->
       <transition name="fade">
         <div v-if="flowPopup.show" class="del-overlay" @click.self="flowPopup.show = false">
           <div class="del-dialog">
-            <p class="del-title">Start {{ flowPopup.flow?.name }}?</p>
-            <p class="del-body">This requires a new session. Your current chat will be saved.</p>
+            <p class="del-title">Switch to {{ flowPopup.flow?.name }}?</p>
+            <p class="del-body">Your current conversation will be saved. You'll describe your project in the new chat before the agent starts.</p>
             <div class="del-btns">
               <button class="del-cancel" @click="flowPopup.show = false">Cancel</button>
               <button class="del-confirm" style="background:var(--pri-h);border-color:var(--pri);color:#fff"
-                @click="confirmFlowStart">Start New Session →</button>
+                @click="confirmFlowStart">New Chat →</button>
             </div>
           </div>
         </div>
@@ -360,6 +370,10 @@
           <button class="um-item" @click="openSettings(); userMenuOpen = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Settings
+          </button>
+          <button class="um-item" @click="appView = 'configuration'; userMenuOpen = false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            Configuration
           </button>
           <button class="um-item" @click="openUsage(); userMenuOpen = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -535,6 +549,7 @@ import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
 import { marked } from 'marked'
 import { useAgentChat } from '../composables/useAgentChat.js'
 import SettingsPage from './SettingsPage.vue'
+import ConfigurationPage from './ConfigurationPage.vue'
 import ChatInput from './ChatInput.vue'
 
 const {
@@ -548,7 +563,7 @@ const {
 } = useAgentChat()
 
 // App-level view
-const appView      = ref('chat')   // 'chat' | 'settings'
+const appView      = ref('chat')   // 'chat' | 'settings' | 'configuration'
 
 // View state
 const currentView  = ref('chat')   // 'chat' | 'chats'
@@ -619,9 +634,11 @@ const replyAnswers    = ref([])
 const messagesEl      = ref(null)
 
 // Chat model + flow state (passed to ChatInput as props)
-const chatModels = ref([])
-const flows      = ref([])
-const flowPopup  = reactive({ show: false, flow: null })
+const chatModels  = ref([])
+const flows       = ref([])
+const pendingFlow = ref(null)   // flow selected, session not yet started (cancellable)
+const sessionFlow = ref(null)   // flow locked for the active session
+const flowPopup   = reactive({ show: false, flow: null })
 
 
 const stageLabels = {
@@ -725,25 +742,23 @@ async function fetchFlows() {
 
 function startWithFlow(flow) {
   if (sessionId.value) {
+    // Mid-session: ask user to confirm new chat first
     flowPopup.flow = flow
     flowPopup.show = true
   } else {
-    _startWithFlowDirect(flow)
+    // No session: arm the pending flow, wait for user to type description
+    pendingFlow.value = flow
+    currentView.value = 'chat'
   }
-}
-
-function _startWithFlowDirect(flow) {
-  newChat()
-  currentView.value = 'chat'
-  startSession('', { sessionType: 'agent_flow', flowId: flow.id })
 }
 
 function confirmFlowStart() {
   const flow = flowPopup.flow
   flowPopup.show = false
+  sessionFlow.value = null
   newChat()
   currentView.value = 'chat'
-  setTimeout(() => _startWithFlowDirect(flow), 50)
+  pendingFlow.value = flow   // arm — session starts only when user submits
 }
 
 onMounted(() => {
@@ -758,7 +773,7 @@ watch(pendingQuestions, qs => { replyAnswers.value = qs.map(() => '') })
 watch(() => sessionId.value, async (id) => {
   sessionModelConfig.value = null
   sessionModelsOpen.value  = false
-  if (!id) return
+  if (!id) { sessionFlow.value = null; return }
   try {
     const res = await fetch(`/api/chat/session-config/${id}`)
     if (res.ok) {
@@ -800,6 +815,8 @@ function fmtTokens(n) { return n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n)
 function fmtCost(c)   { return c < 0.01 ? `$${(c).toFixed(4)}` : `$${c.toFixed(3)}` }
 
 async function handleNewChat() {
+  pendingFlow.value = null
+  sessionFlow.value = null
   const missing = Object.entries(keysConfigured).filter(([, v]) => !v).map(([k]) => k)
   if (missing.length) {
     openSettings()
@@ -813,11 +830,18 @@ function openChatsView()       { searchQuery.value = ''; currentView.value = 'ch
 function selectChat(threadId)  { restoreSession(threadId); currentView.value = 'chat' }
 // ChatInput event handlers
 async function handleChatSubmit(text, opts) {
-  await startSession(text, {
-    sessionType:      'chat',
-    chatModel:        opts.model,
-    extendedThinking: opts.extendedThinking,
-  })
+  if (pendingFlow.value) {
+    // Lock the flow for this session, then start
+    sessionFlow.value = pendingFlow.value
+    pendingFlow.value = null
+    await startSession(text, { sessionType: 'agent_flow', flowId: sessionFlow.value.id })
+  } else {
+    await startSession(text, {
+      sessionType:      'chat',
+      chatModel:        opts.model,
+      extendedThinking: opts.extendedThinking,
+    })
+  }
 }
 async function handleChatUpload(file) {
   await uploadDocument(file)
@@ -1281,6 +1305,22 @@ function doPDF() {
   transition: height .2s ease, opacity .2s ease;
 }
 .progress-strip.visible { height: 32px; opacity: 1; }
+
+/* Active agent flow indicator bar */
+.session-flow-bar {
+  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  padding: 5px 20px; background: var(--sbg);
+  border-bottom: 1px solid var(--sbdr);
+  font-size: 12.5px; font-weight: 500; color: var(--stx);
+}
+.sfb-icon  { font-size: 14px; }
+.sfb-name  { font-weight: 600; }
+.sfb-label {
+  margin-left: 2px; font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: 1px 6px; border-radius: 10px;
+  background: var(--sbdr); color: var(--stx); opacity: 0.8;
+}
 
 /* Track tint — per agent, very subtle */
 .progress-strip.intake     { background: rgba(59,  130, 246, 0.07); }

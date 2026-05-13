@@ -18,7 +18,7 @@
 
       <!-- Textarea -->
       <textarea v-model="text" class="cb-ta"
-        placeholder="How can I help you today?"
+        :placeholder="pendingFlow ? `Describe your project for ${pendingFlow.name}…` : 'How can I help you today?'"
         rows="2"
         @keydown.meta.enter.prevent="handleSend"
         @keydown.ctrl.enter.prevent="handleSend" />
@@ -62,13 +62,20 @@
           </div>
         </div>
 
+        <!-- Pending flow pill — inline next to + button -->
+        <div v-if="pendingFlow" class="cb-flow-pill">
+          <span class="cb-flow-pill-icon">{{ pendingFlow.icon }}</span>
+          <span>{{ pendingFlow.name }}</span>
+          <button class="cb-flow-pill-rm" @click.stop="$emit('cancel-flow')" title="Back to normal chat">✕</button>
+        </div>
+
         <div v-if="uploadError" class="cb-upload-err">{{ uploadError }}</div>
 
         <!-- Right controls -->
         <div class="cb-controls">
 
-          <!-- Model picker -->
-          <div class="cb-model-wrap">
+          <!-- Model picker (hidden when an agent flow is armed) -->
+          <div v-if="!pendingFlow" class="cb-model-wrap">
             <button class="cb-model-btn" @click.stop="modelPickerOpen = !modelPickerOpen">
               {{ selectedModel.display }}<span v-if="extendedThinking" class="cb-model-adaptive"> · Adaptive</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="10" height="10">
@@ -115,11 +122,12 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
-  chatModels: { type: Array, default: () => [] },
-  flows:      { type: Array, default: () => [] },
+  chatModels:  { type: Array,  default: () => [] },
+  flows:       { type: Array,  default: () => [] },
+  pendingFlow: { type: Object, default: null },
 })
 
-const emit = defineEmits(['submit', 'upload', 'flow-select'])
+const emit = defineEmits(['submit', 'upload', 'flow-select', 'cancel-flow'])
 
 // ── Internal state ────────────────────────────────────────────────────────────
 const text             = ref('')
@@ -206,6 +214,22 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 }
 .chat-box:focus-within { border-color: var(--ifocus); }
 .chat-box.drop-over    { border-color: var(--pri); background: var(--sbg); }
+
+/* Pending flow pill (inline in bottom bar) */
+.cb-flow-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px 4px 10px; border-radius: 20px;
+  background: var(--sbg); border: 1px solid var(--sbdr);
+  color: var(--stx); font-size: 12.5px; font-weight: 600;
+}
+.cb-flow-pill-icon { font-size: 14px; }
+.cb-flow-pill-rm {
+  background: none; border: none; cursor: pointer;
+  color: var(--stx); opacity: 0.6; padding: 0 0 0 2px;
+  font-size: 12px; line-height: 1; border-radius: 50%;
+  transition: opacity .13s;
+}
+.cb-flow-pill-rm:hover { opacity: 1; }
 
 /* File chip */
 .cb-file-row { display: flex; }
