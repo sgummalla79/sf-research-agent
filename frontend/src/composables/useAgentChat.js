@@ -1,4 +1,5 @@
 import { ref, reactive } from 'vue'
+import { apiFetch } from './useFetch.js'
 
 const API_BASE = '/api/chat'
 
@@ -71,9 +72,9 @@ export function useAgentChat() {
 
       case 'stage_start': {
         currentStage.value = event.stage
-        if (['researcher', 'reviewer', 'approver'].includes(event.stage)) {
-          const typeMap = { researcher: 'preparing', reviewer: 'reviewing', approver: 'approving' }
-          const m = _addMessage('agent', event.stage === 'researcher' ? 'Preparing your architecture document…' : '', event.stage, typeMap[event.stage])
+        if (['research', 'review', 'approval'].includes(event.stage)) {
+          const typeMap = { research: 'preparing', review: 'reviewing', approval: 'approving' }
+          const m = _addMessage('agent', event.stage === 'research' ? 'Preparing your architecture document…' : '', event.stage, typeMap[event.stage])
           m.isStreaming = true
           setCurrentMsg(m)
         } else {
@@ -102,15 +103,16 @@ export function useAgentChat() {
 
       case 'document_ready': {
         if (currentMsg) {
-          currentMsg.isStreaming = false
-          currentMsg.type        = 'document'
-          currentMsg.content     = ''
-          currentMsg.docVersion  = event.version
+          currentMsg.isStreaming  = false
+          currentMsg.type         = 'document'
+          currentMsg.content      = ''
+          currentMsg.docVersion   = event.version
           currentMsg.docSessionId = event.session_id || sessionId.value
           setCurrentMsg(null)
         }
         currentStage.value = null
         if (!sessionId.value && event.session_id) sessionId.value = event.session_id
+        if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
       }
 
@@ -124,6 +126,7 @@ export function useAgentChat() {
           setCurrentMsg(null)
         }
         currentStage.value = null
+        if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
       }
 
@@ -137,6 +140,7 @@ export function useAgentChat() {
           setCurrentMsg(null)
         }
         currentStage.value = null
+        if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
       }
 
@@ -181,7 +185,7 @@ export function useAgentChat() {
   async function fetchSessionUsage(sid) {
     if (!sid) return
     try {
-      const res  = await fetch(`/api/usage/session/${sid}`)
+      const res  = await apiFetch(`/api/usage/session/${sid}`)
       if (!res.ok) return
       const data = await res.json()
       sessionUsage.input_tokens  = data.totals?.input_tokens  ?? 0
@@ -219,7 +223,7 @@ export function useAgentChat() {
   async function loadSessions() {
     sidebar.loading = true
     try {
-      const res  = await fetch(`${API_BASE}/sessions`)
+      const res  = await apiFetch(`${API_BASE}/sessions`)
       const data = await res.json()
       sidebar.pinned = data.pinned  || []
       sidebar.recent = data.recent  || []
@@ -233,7 +237,7 @@ export function useAgentChat() {
   }
 
   async function pinSession(threadId) {
-    const res = await fetch(`${API_BASE}/session/${threadId}/pin`, { method: 'POST' })
+    const res = await apiFetch(`${API_BASE}/session/${threadId}/pin`, { method: 'POST' })
     if (!res.ok) {
       const err = await res.json()
       alert(err.detail || 'Could not pin')
@@ -243,19 +247,19 @@ export function useAgentChat() {
   }
 
   async function unpinSession(threadId) {
-    await fetch(`${API_BASE}/session/${threadId}/pin`, { method: 'DELETE' })
+    await apiFetch(`${API_BASE}/session/${threadId}/pin`, { method: 'DELETE' })
     await loadSessions()
   }
 
   async function deleteSession(threadId) {
-    await fetch(`${API_BASE}/session/${threadId}`, { method: 'DELETE' })
+    await apiFetch(`${API_BASE}/session/${threadId}`, { method: 'DELETE' })
     if (sessionId.value === threadId) _resetChat()
     await loadSessions()
   }
 
   async function renameSession(threadId, title) {
     if (!title.trim()) return
-    await fetch(`${API_BASE}/session/${threadId}`, {
+    await apiFetch(`${API_BASE}/session/${threadId}`, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ title: title.trim() }),
@@ -267,7 +271,7 @@ export function useAgentChat() {
     _resetChat()
     sessionId.value = sid
 
-    const res  = await fetch(`${API_BASE}/session/${sid}/restore`)
+    const res  = await apiFetch(`${API_BASE}/session/${sid}/restore`)
     const data = await res.json()
     if (data.error) { error.value = data.error; return }
 
@@ -275,7 +279,7 @@ export function useAgentChat() {
       if (m.content?.trim()) _addMessage(m.role, m.content, m.stage || null, 'text')
     }
     if (data.has_document) {
-      const card       = _addMessage('agent', '', 'researcher', 'document')
+      const card       = _addMessage('agent', '', 'research', 'document')
       card.docVersion   = data.document_version
       card.docSessionId = sid
     }
@@ -285,9 +289,9 @@ export function useAgentChat() {
       const qs = data.pending_questions
       _addMessage('agent', qs.map((q, i) => `${i+1}. ${q}`).join('\n\n'), 'discovery')
       pendingQuestions.value = qs
-    } else if (data.current_stage === 'complete')     isComplete.value  = true
-    else if (data.current_stage === 'halted')         isHalted.value    = true
-    else if (!terminal.includes(data.current_stage))  isResumable.value = true
+    } else if (data.current_stage === 'complete')                             isComplete.value  = true
+    else if (data.current_stage === 'halted')                                isHalted.value    = true
+    else if (data.current_stage && !terminal.includes(data.current_stage))   isResumable.value = true
 
     fetchSessionUsage(sid)
   }
@@ -298,7 +302,7 @@ export function useAgentChat() {
   async function startSession(brief, opts = {}) {
     _resetChat()
     _addMessage('user', brief)
-    const response = await fetch(`${API_BASE}/start`, {
+    const response = await apiFetch(`${API_BASE}/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         brief,
@@ -319,7 +323,7 @@ export function useAgentChat() {
     _addMessage('user', `Uploaded: ${file.name}`)
     const formData = new FormData()
     formData.append('file', file)
-    const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData })
+    const response = await apiFetch(`${API_BASE}/upload`, { method: 'POST', body: formData })
     if (!response.ok) {
       const err = await response.json().catch(() => ({ detail: 'Upload failed' }))
       error.value = err.detail || 'Upload failed'; return
@@ -334,7 +338,7 @@ export function useAgentChat() {
     if (!sessionId.value) return
     pendingConfirmation.value = null
     _addMessage('user', correction.trim() ? `Correction: ${correction.trim()}` : 'Confirmed — looks right.')
-    const response = await fetch(`${API_BASE}/reply/${sessionId.value}`, {
+    const response = await apiFetch(`${API_BASE}/reply/${sessionId.value}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ answers: [correction.trim()] }),
     })
@@ -345,13 +349,54 @@ export function useAgentChat() {
     if (!sessionId.value) return
     error.value       = null
     isResumable.value = false
-    const response = await fetch(`${API_BASE}/retry/${sessionId.value}`, { method: 'POST' })
+    const response = await apiFetch(`${API_BASE}/retry/${sessionId.value}`, { method: 'POST' })
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       error.value = data.detail || 'Retry failed.'
       return
     }
     await _readStream(response)
+  }
+
+  // ── Post-completion chat ───────────────────────────────────────────────────
+
+  async function sendMessage(text, model = 'claude-sonnet-4-6') {
+    if (!sessionId.value) return
+    _addMessage('user', text)
+    const response = await apiFetch(`${API_BASE}/message/${sessionId.value}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, chat_model: model }),
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      error.value = err.detail || 'Message failed.'
+      return
+    }
+    await _readStream(response)
+    // Restore complete flag — _readStream's done handler will re-set it since
+    // the backend echoes status:"complete" for every post-completion turn.
+  }
+
+  async function forkSession(fromSessionId, flow, opts = {}) {
+    _resetChat()
+    _addMessage('user', `Starting new session with **${flow.name}**, using your existing document as reference.`)
+    const response = await apiFetch(`${API_BASE}/fork/${fromSessionId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        flow_id:           flow.id,
+        chat_model:        opts.chatModel        ?? 'claude-sonnet-4-6',
+        extended_thinking: opts.extendedThinking ?? false,
+      }),
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      error.value = err.detail || 'Fork failed.'
+      return
+    }
+    const sid = response.headers.get('X-Session-Id')
+    if (sid) sessionId.value = sid
+    await _readStream(response)
+    loadSessions()
   }
 
   async function sendReply(answers) {
@@ -362,7 +407,7 @@ export function useAgentChat() {
       ? answers[0]
       : qs.map((q, i) => `**Q${i+1}:** ${q}\n**A:** ${answers[i] || '—'}`).join('\n\n')
     _addMessage('user', userText)
-    const response = await fetch(`${API_BASE}/reply/${sessionId.value}`, {
+    const response = await apiFetch(`${API_BASE}/reply/${sessionId.value}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ answers }),
     })
@@ -375,7 +420,7 @@ export function useAgentChat() {
     documentPanel.loading = true
     documentPanel.open    = true
     try {
-      const res  = await fetch(`${API_BASE}/document/${sid || sessionId.value}`)
+      const res  = await apiFetch(`${API_BASE}/document/${sid || sessionId.value}`)
       const data = await res.json()
       documentPanel.content = data.content
       documentPanel.version = data.version ?? version
@@ -411,6 +456,7 @@ export function useAgentChat() {
     pinSession, unpinSession, deleteSession, renameSession,
     // chat ops
     startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
+    sendMessage, forkSession,
     // doc panel
     openDocumentPanel, closeDocumentPanel, downloadMD, downloadPDF,
   }

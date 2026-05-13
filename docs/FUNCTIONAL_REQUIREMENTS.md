@@ -1,8 +1,8 @@
-# Functional Requirements — Technical Architecture Agent
+# Functional Requirements — Prajna
 
 ## 1. Purpose
 
-Technical Architecture Agent is a multi-agent AI system that guides users through a structured technical architecture engagement and produces a formal Architecture Recommendation Document. The system is platform-agnostic and covers any enterprise or SaaS platform — Salesforce, ServiceNow, Microsoft 365, Workday, MuleSoft, SAP, and others. It serves both executive and delivery-team audiences.
+Prajna is a multi-agent AI system that guides users through a structured technical architecture engagement and produces a formal Architecture Recommendation Document. The system is platform-agnostic and works with any enterprise or SaaS technology stack. It serves both executive and delivery-team audiences.
 
 ---
 
@@ -46,7 +46,7 @@ A direct conversation with Claude (no pipeline). Accessible from the main input 
 Structured 5-stage pipeline sessions. Triggered by selecting a flow from the **+** menu in the input box.
 
 Available flows:
-- **Architecture Engagement** — formal Architecture Recommendation Document via intake → discovery → research → review → approval
+- **Technical Architect** — formal Architecture Recommendation Document via intake → discovery → research → review → approval
 
 ---
 
@@ -91,7 +91,7 @@ After extracting a project brief from an uploaded file:
 The Discovery Agent conducts a platform-adaptive interrogation to close knowledge gaps.
 
 **Behaviour:**
-- Detects the platform(s) from the project brief (Salesforce, ServiceNow, Microsoft, Workday, MuleSoft, SAP, or generic SaaS)
+- Detects the platform(s) from the project brief and adapts questions accordingly
 - Uses a platform-specific question checklist for the detected platform
 - Groups independent questions together (up to 5 per round)
 - Marks discovery complete when all critical gaps are closed

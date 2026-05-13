@@ -10,13 +10,18 @@ Usage:
 import argparse
 import asyncio
 import uuid
+from pathlib import Path
 
 from langchain_core.messages import HumanMessage
 from langgraph.types import Command
 
-from graph.builder import build_graph
+from framework.engine import SkillEngine
+from framework.registry import SkillRegistry
 from persistence.checkpointer import get_async_checkpointer
 from state import AgentState
+
+_SKILLS_DIR = Path(__file__).parent / "skills"
+_DEFAULT_SKILL = "architect"
 
 
 def print_sep():
@@ -24,21 +29,28 @@ def print_sep():
 
 
 async def run(brief: str = "", session_id: str = "", reply: str = ""):
-    async with get_async_checkpointer() as checkpointer:
-        graph = build_graph(checkpointer)
+    async with get_async_checkpointer() as db:
+        registry = SkillRegistry(_SKILLS_DIR)
+        registry.load_all()
+        skill  = registry.get(_DEFAULT_SKILL)
+        graph  = SkillEngine().build(skill, db.checkpointer)
 
         if not session_id:
             session_id = str(uuid.uuid4())
             print(f"New session: {session_id}")
             print_sep()
-            initial_state = AgentState(session_id=session_id, project_brief=brief)
+            initial_state = AgentState(
+                session_id    = session_id,
+                project_brief = brief,
+                flow_config   = dict(skill.all_agent_prompts),
+            )
             config = {"configurable": {"thread_id": session_id}}
-            state = await graph.ainvoke(initial_state, config)
+            state  = await graph.ainvoke(initial_state, config)
         else:
             print(f"Resuming session: {session_id}")
             print_sep()
             config = {"configurable": {"thread_id": session_id}}
-            state = await graph.ainvoke(
+            state  = await graph.ainvoke(
                 Command(resume=reply) if reply else {"messages": [HumanMessage(content=reply)]},
                 config,
             )
@@ -65,7 +77,7 @@ async def run(brief: str = "", session_id: str = "", reply: str = ""):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Technical Architecture Agent CLI")
+    parser = argparse.ArgumentParser(description="Prajna CLI")
     parser.add_argument("--brief",      default="", help="Initial project brief (new session)")
     parser.add_argument("--session-id", default="", help="Resume an existing session")
     parser.add_argument("--reply",      default="", help="Your answer to the agent's question")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import operator
 from typing import Annotated, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
 
@@ -13,6 +13,15 @@ class DiscoveryQuestion(BaseModel):
     question: str
     answer: Optional[str] = None
     satisfied: bool = False   # True once the agent deems the answer sufficient
+
+
+# ── Discovery structured output ───────────────────────────────────────────────
+
+class DiscoveryOutput(BaseModel):
+    next_questions:     list[str]
+    updated_questions:  list[DiscoveryQuestion]
+    discovery_complete: bool
+    reasoning:          str
 
 
 # ── Reviewer structured output ─────────────────────────────────────────────────
@@ -94,5 +103,4 @@ class AgentState(BaseModel):
     # ── LLM config snapshot — frozen at session start, never mutated ─────────
     session_agent_config: dict = Field(default_factory=dict)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)

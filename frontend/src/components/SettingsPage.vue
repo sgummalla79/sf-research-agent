@@ -23,7 +23,7 @@
 
     <!-- ── Content area ──────────────────────────────────────────── -->
     <main class="sp-content">
-      <ProvidersSettings   v-if="activeSection === 'providers'" />
+      <ProvidersSettings v-if="activeSection === 'providers'" />
       <div v-else-if="activeSection === 'usage'" class="sp-usage">
         <UsageSection />
       </div>
@@ -41,7 +41,7 @@ defineEmits(['back'])
 const activeSection = ref('providers')
 
 const navItems = [
-  { id: 'providers', label: 'Providers',   icon: '⚡' },
+  { id: 'providers', label: 'Providers',    icon: '⚡' },
   { id: 'usage',     label: 'Usage & Cost', icon: '📊' },
 ]
 </script>

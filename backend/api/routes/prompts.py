@@ -1,106 +1,131 @@
 """
-Agent prompt versioning API.
+Agent prompt versioning API — per user.
 
-GET  /api/prompts/{flow_id}                        — all agents + current state
-PUT  /api/prompts/{flow_id}/{agent_key}/draft       — save/update draft
-DELETE /api/prompts/{flow_id}/{agent_key}/draft     — discard draft
-POST /api/prompts/{flow_id}/{agent_key}/publish     — publish draft → new snapshot
-GET  /api/prompts/{flow_id}/{agent_key}/history     — published version list
-GET  /api/prompts/{flow_id}/snapshots               — flow snapshot timeline
+GET    /api/prompts/{flow_id}                        — all agents + current state
+PUT    /api/prompts/{flow_id}/{agent_key}/draft       — save/update draft
+DELETE /api/prompts/{flow_id}/{agent_key}/draft       — discard draft
+POST   /api/prompts/{flow_id}/publish                — publish ALL agents (skill-level)
+GET    /api/prompts/{flow_id}/snapshots              — skill version timeline
 """
 
-from fastapi import APIRouter, HTTPException, Request
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from flows.registry import get_all_flows, get_flow
+from framework.registry import SkillNotFoundError
+from utils.auth import AuthUser, get_current_user
 
 router = APIRouter(prefix="/api/prompts", tags=["prompts"])
 
 
 class SaveDraftRequest(BaseModel):
-    content: str
+    content:     str
+    agent_model: Optional[dict] = None
 
 
 def _db(request: Request):
     return request.app.state.db
 
 
+def _skill(request: Request, flow_id: str):
+    try:
+        return request.app.state.skill_registry.get(flow_id)
+    except SkillNotFoundError:
+        raise HTTPException(404, f"Skill '{flow_id}' not found")
+
+
 # ── List all agents for a flow ────────────────────────────────────────────────
 
 @router.get("/{flow_id}")
-async def get_flow_prompts(flow_id: str, request: Request):
-    try:
-        flow = get_flow(flow_id)
-    except ValueError:
-        raise HTTPException(404, f"Flow '{flow_id}' not found")
-
-    db_rows = await _db(request).get_flow_prompts(flow_id)
+async def get_flow_prompts(
+    flow_id: str,
+    request: Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    skill   = _skill(request, flow_id)
+    db_rows = await _db(request).get_flow_prompts(current_user.sub, flow_id)
     by_key  = {r["agent_key"]: r for r in db_rows}
 
-    agents = []
-    for key in flow.agent_keys:
-        row = by_key.get(key, {})
-        agents.append({
+    slot_map = skill.manifest.agent_slot_map
+    agents = [
+        {
             "agent_key":        key,
-            "label":            flow.agent_labels.get(key, key),
-            "latest_published": row.get("latest_published"),
-            "draft":            row.get("draft"),
-        })
-
-    return {"flow_id": flow_id, "agents": agents}
+            "label":            skill.manifest.agent_labels.get(key, key),
+            "llm_slot":         slot_map.get(key),
+            "latest_published": by_key.get(key, {}).get("latest_published"),
+            "draft":            by_key.get(key, {}).get("draft"),
+        }
+        for key in skill.manifest.ordered_agent_keys
+    ]
+    has_draft = any(a["draft"] for a in agents)
+    return {"flow_id": flow_id, "agents": agents, "has_draft": has_draft}
 
 
 # ── Draft management ──────────────────────────────────────────────────────────
 
 @router.put("/{flow_id}/{agent_key}/draft")
-async def save_draft(flow_id: str, agent_key: str, body: SaveDraftRequest, request: Request):
-    _validate_key(flow_id, agent_key)
-    await _db(request).save_prompt_draft(flow_id, agent_key, body.content)
+async def save_draft(
+    flow_id:   str,
+    agent_key: str,
+    body:      SaveDraftRequest,
+    request:   Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    _validate_key(request, flow_id, agent_key)
+    await _db(request).save_prompt_draft(
+        current_user.sub, flow_id, agent_key, body.content, body.agent_model
+    )
     return {"status": "saved"}
 
 
 @router.delete("/{flow_id}/{agent_key}/draft")
-async def discard_draft(flow_id: str, agent_key: str, request: Request):
-    _validate_key(flow_id, agent_key)
-    await _db(request).discard_prompt_draft(flow_id, agent_key)
+async def discard_draft(
+    flow_id:   str,
+    agent_key: str,
+    request:   Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    _validate_key(request, flow_id, agent_key)
+    await _db(request).discard_prompt_draft(current_user.sub, flow_id, agent_key)
     return {"status": "discarded"}
 
 
-# ── Publish ───────────────────────────────────────────────────────────────────
+# ── Skill-level publish ───────────────────────────────────────────────────────
 
-@router.post("/{flow_id}/{agent_key}/publish")
-async def publish_agent(flow_id: str, agent_key: str, request: Request):
-    _validate_key(flow_id, agent_key)
-    try:
-        result = await _db(request).publish_prompt(flow_id, agent_key)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+@router.post("/{flow_id}/publish")
+async def publish_skill(
+    flow_id: str,
+    request: Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    skill      = _skill(request, flow_id)
+    agent_keys = skill.manifest.ordered_agent_keys
+    result     = await _db(request).publish_skill(current_user.sub, flow_id, agent_keys)
+    if not result["published_agents"]:
+        raise HTTPException(400, "No unpublished drafts to publish.")
     return result
-
-
-# ── Version history ───────────────────────────────────────────────────────────
-
-@router.get("/{flow_id}/{agent_key}/history")
-async def get_history(flow_id: str, agent_key: str, request: Request):
-    _validate_key(flow_id, agent_key)
-    history = await _db(request).get_agent_version_history(flow_id, agent_key)
-    return {"flow_id": flow_id, "agent_key": agent_key, "history": history}
 
 
 # ── Snapshots ─────────────────────────────────────────────────────────────────
 
 @router.get("/{flow_id}/snapshots")
-async def list_snapshots(flow_id: str, request: Request):
-    snapshots = await _db(request).list_snapshots(flow_id)
+async def list_snapshots(
+    flow_id: str,
+    request: Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    snapshots = await _db(request).list_snapshots(current_user.sub, flow_id)
     return {"flow_id": flow_id, "snapshots": snapshots}
 
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 
-def _validate_key(flow_id: str, agent_key: str) -> None:
-    try:
-        flow = get_flow(flow_id)
-    except ValueError:
-        raise HTTPException(404, f"Flow '{flow_id}' not found")
-    if agent_key not in flow.agent_keys:
-        raise HTTPException(404, f"Agent key '{agent_key}' not in flow '{flow_id}'")
+def _validate_key(request: Request, flow_id: str, agent_key: str) -> None:
+    skill = _skill(request, flow_id)
+    if agent_key not in skill.agents:
+        raise HTTPException(
+            404,
+            f"Agent key '{agent_key}' not found in skill '{flow_id}'. "
+            f"Available: {skill.manifest.ordered_agent_keys}",
+        )

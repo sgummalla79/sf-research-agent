@@ -110,20 +110,13 @@
         </template>
         <p v-if="errors[p.id]" class="ps-err">{{ errors[p.id] }}</p>
 
-        <!-- Model chips -->
-        <div v-if="p.connected && p.models.length" class="ps-models">
-          <span v-for="m in p.models" :key="m" class="ps-model-chip">{{ m }}</span>
-        </div>
-        <p v-if="p.connected && !p.models.length" class="ps-no-models">
-          No models fetched yet —
-          <button class="ps-link" @click="refresh(p.id)">fetch now</button>
-        </p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { apiFetch } from '../../composables/useFetch.js'
 import { ref, reactive, onMounted } from 'vue'
 
 const providers     = ref([])
@@ -138,7 +131,7 @@ const disconnecting = reactive({})
 async function load() {
   loading.value = true
   try {
-    const res = await fetch('/api/providers')
+    const res = await apiFetch('/api/providers')
     if (res.ok) {
       const data = await res.json()
       providers.value = data.providers || []
@@ -196,7 +189,7 @@ async function connect(pid) {
       body = { api_key: (keyInputs[pid] || '').trim() }
     }
 
-    const res  = await fetch(`/api/providers/${pid}/connect`, {
+    const res  = await apiFetch(`/api/providers/${pid}/connect`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(body),
@@ -225,7 +218,7 @@ async function connect(pid) {
 async function refresh(pid) {
   refreshing[pid] = true
   try {
-    const res  = await fetch(`/api/providers/${pid}/refresh`, { method: 'POST' })
+    const res  = await apiFetch(`/api/providers/${pid}/refresh`, { method: 'POST' })
     const data = await res.json()
     if (res.ok) {
       const p = providers.value.find(x => x.id === pid)
@@ -239,7 +232,7 @@ async function refresh(pid) {
 async function disconnect(pid) {
   disconnecting[pid] = true
   try {
-    const res = await fetch(`/api/providers/${pid}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/providers/${pid}`, { method: 'DELETE' })
     if (res.ok) await load()
   } finally {
     disconnecting[pid] = false
@@ -264,14 +257,14 @@ onMounted(load)
   display: flex; flex-direction: column; gap: 12px;
   transition: border-color .2s;
 }
-.ps-card.connected { border-color: #22c55e44; }
+.ps-card.connected { border-color: var(--success-bdr); }
 
 .ps-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .ps-card-info { display: flex; flex-direction: column; gap: 3px; }
 .ps-name { font-size: 15px; font-weight: 700; color: var(--tx); }
 .ps-desc { font-size: 12px; color: var(--muted); }
 .ps-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; flex-shrink: 0; white-space: nowrap; }
-.ps-badge.ok  { background: #22c55e22; color: #4ade80; }
+.ps-badge.ok  { background: rgba(34,197,94,0.1); color: var(--success-tx); }
 .ps-badge.off { background: #6b728022; color: var(--muted); }
 
 .ps-mode-toggle { display: flex; gap: 6px; }
@@ -293,9 +286,9 @@ onMounted(load)
   color: var(--tx); outline: none; transition: border-color .15s;
 }
 .ps-input:focus   { border-color: var(--ifocus); }
-.ps-input-err     { border-color: #ef4444 !important; }
+.ps-input-err     { border-color: var(--danger) !important; }
 .ps-input::placeholder { color: var(--muted); }
-.ps-err { font-size: 12px; color: #ef4444; margin: -6px 0 0; }
+.ps-err { font-size: 12px; color: var(--danger); margin: -6px 0 0; }
 
 .ps-btn-connect {
   padding: 9px 16px; background: var(--pri); color: var(--pri-fg);
@@ -312,18 +305,7 @@ onMounted(load)
   transition: color .15s, background .15s; flex-shrink: 0;
 }
 .ps-btn-refresh:hover:not(:disabled)    { color: var(--tx); background: var(--inp); }
-.ps-btn-disconnect:hover:not(:disabled) { color: #ef4444; background: #ef444418; }
+.ps-btn-disconnect:hover:not(:disabled) { color: var(--danger); background: var(--danger-h); }
 .ps-btn-refresh:disabled, .ps-btn-disconnect:disabled { opacity: .4; cursor: not-allowed; }
 
-.ps-models { display: flex; flex-wrap: wrap; gap: 6px; }
-.ps-model-chip {
-  font-size: 11px; font-family: monospace; padding: 3px 10px;
-  background: var(--surf); border: 1px solid var(--bdr);
-  border-radius: 6px; color: var(--muted);
-}
-.ps-no-models { font-size: 12px; color: var(--muted); margin: 0; }
-.ps-link {
-  background: none; border: none; color: var(--pri); font-size: 12px;
-  cursor: pointer; padding: 0; text-decoration: underline;
-}
 </style>

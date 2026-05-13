@@ -18,7 +18,8 @@
 
         <!-- Brand header -->
         <div class="sb-header">
-          <span class="sb-app-name">Technical Architecture Agent</span>
+          <SudarshanChakra :size="22" color="var(--pri)" />
+          <span class="sb-app-name">Prajna</span>
           <button class="sb-collapse-btn" title="Collapse sidebar" @click="sidebar.open = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
               <rect x="2" y="2" width="20" height="20" rx="5"/>
@@ -53,17 +54,35 @@
             <div class="sb-section-hdr">📌 Pinned</div>
             <div v-for="s in sidebar.pinned.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase()))"
               :key="s.thread_id"
-              class="sb-row" :class="{ active: s.thread_id === sessionId }"
+              class="sb-row" :class="{ active: s.thread_id === sessionId, 'menu-open': menuOpenId === s.thread_id }"
               @click="editingId !== s.thread_id && restoreSession(s.thread_id)">
               <input v-if="editingId === s.thread_id" class="rename-input"
                 v-model="editingTitle" ref="renameInputRef"
                 @blur="saveRename(s.thread_id)" @keydown.enter.prevent="saveRename(s.thread_id)"
                 @keydown.esc="editingId = null" @click.stop />
               <span v-else class="sb-row-title">{{ s.brief_snippet || 'New conversation' }}</span>
-              <div v-if="editingId !== s.thread_id" class="sb-row-actions" @click.stop>
-                <button class="sa-btn" title="Unpin" @click="unpinSession(s.thread_id)">📌</button>
-                <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
-                <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+              <div v-if="editingId !== s.thread_id" class="sb-row-menu" @click.stop>
+                <button class="sb-more-btn" :class="{ active: menuOpenId === s.thread_id }"
+                  @click="toggleMenu(s.thread_id)">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                    <circle cx="12" cy="5"  r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                  </svg>
+                </button>
+                <div v-if="menuOpenId === s.thread_id" class="sb-ctx-menu">
+                  <button class="ctx-item" @click="unpinSession(s.thread_id); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    Unpin
+                  </button>
+                  <button class="ctx-item" @click="startRename(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Rename
+                  </button>
+                  <div class="ctx-divider"/>
+                  <button class="ctx-item ctx-delete" @click="confirmDelete(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </template>
@@ -74,17 +93,35 @@
             <div class="sb-section-hdr">Recent</div>
             <div v-for="s in sidebar.recent.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase()))"
               :key="s.thread_id"
-              class="sb-row" :class="{ active: s.thread_id === sessionId }"
+              class="sb-row" :class="{ active: s.thread_id === sessionId, 'menu-open': menuOpenId === s.thread_id }"
               @click="editingId !== s.thread_id && restoreSession(s.thread_id)">
               <input v-if="editingId === s.thread_id" class="rename-input"
                 v-model="editingTitle"
                 @blur="saveRename(s.thread_id)" @keydown.enter.prevent="saveRename(s.thread_id)"
                 @keydown.esc="editingId = null" @click.stop />
               <span v-else class="sb-row-title">{{ s.brief_snippet || 'New conversation' }}</span>
-              <div v-if="editingId !== s.thread_id" class="sb-row-actions" @click.stop>
-                <button class="sa-btn" title="Pin" @click="pinSession(s.thread_id)">📍</button>
-                <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
-                <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+              <div v-if="editingId !== s.thread_id" class="sb-row-menu" @click.stop>
+                <button class="sb-more-btn" :class="{ active: menuOpenId === s.thread_id }"
+                  @click="toggleMenu(s.thread_id)">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                    <circle cx="12" cy="5"  r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                  </svg>
+                </button>
+                <div v-if="menuOpenId === s.thread_id" class="sb-ctx-menu">
+                  <button class="ctx-item" @click="pinSession(s.thread_id); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    Pin
+                  </button>
+                  <button class="ctx-item" @click="startRename(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Rename
+                  </button>
+                  <div class="ctx-divider"/>
+                  <button class="ctx-item ctx-delete" @click="confirmDelete(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </template>
@@ -95,9 +132,10 @@
 
       <!-- ── COLLAPSED ────────────────────────────────────── -->
       <template v-else>
-        <button class="col-icon-btn brand" title="Technical Architecture Agent" @click="sidebar.open = true">
+        <button class="col-icon-btn brand" title="Prajna" @click="sidebar.open = true">
           <div class="sf-logo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
               <rect x="2" y="2" width="20" height="20" rx="5"/>
               <line x1="9" y1="2" x2="9" y2="22"/>
             </svg>
@@ -141,19 +179,36 @@
         <div v-if="!filteredChats.length" class="cp-empty">No conversations found</div>
 
         <div v-for="s in filteredChats" :key="s.thread_id"
-          class="cp-row" :class="{ active: s.thread_id === sessionId }"
+          class="cp-row" :class="{ active: s.thread_id === sessionId, 'menu-open': menuOpenId === s.thread_id }"
           @click="selectChat(s.thread_id)">
           <div class="cp-row-body">
             <div class="cp-row-title">{{ s.brief_snippet || 'New conversation' }}</div>
             <div class="cp-row-meta">{{ relativeTime(s.last_modified || s.created_at) }}</div>
           </div>
           <div class="cp-row-actions" @click.stop>
-            <button class="sa-btn" :title="s.pinned ? 'Unpin' : 'Pin'"
-              @click="s.pinned ? unpinSession(s.thread_id) : pinSession(s.thread_id)">
-              {{ s.pinned ? '📌' : '📍' }}
-            </button>
-            <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
-            <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+            <div class="sb-row-menu">
+              <button class="sb-more-btn cp-more-btn" :class="{ active: menuOpenId === s.thread_id }"
+                @click="toggleMenu(s.thread_id)">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15">
+                  <circle cx="12" cy="5"  r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                </svg>
+              </button>
+              <div v-if="menuOpenId === s.thread_id" class="sb-ctx-menu cp-ctx-menu">
+                <button class="ctx-item" @click="s.pinned ? unpinSession(s.thread_id) : pinSession(s.thread_id); menuOpenId = null">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  {{ s.pinned ? 'Unpin' : 'Pin' }}
+                </button>
+                <button class="ctx-item" @click="startRename(s); menuOpenId = null">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Rename
+                </button>
+                <div class="ctx-divider"/>
+                <button class="ctx-item ctx-delete" @click="confirmDelete(s); menuOpenId = null">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  Delete
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -179,8 +234,10 @@
       <!-- Messages -->
       <div class="messages" ref="messagesEl">
         <div v-if="!messages.length && !isStreaming" class="empty-state">
-          <div class="empty-icon">🏗️</div>
-          <p class="empty-sub">Write a project brief or upload a document to begin.</p>
+          <div class="greeting-row">
+            <SudarshanChakra :size="48" />
+            <h1 class="greeting-text">{{ greeting }}{{ firstName ? ', ' + firstName : '' }}</h1>
+          </div>
         </div>
 
         <div v-for="(msg, i) in messages" :key="i" class="message" :class="msg.role">
@@ -268,9 +325,11 @@
           </div>
         </template>
         <template v-else>
-          <div v-for="(q, i) in pendingQuestions" :key="i" class="multi-item">
-            <label class="multi-label">{{ i + 1 }}. {{ q }}</label>
-            <textarea v-model="replyAnswers[i]" class="ta" :placeholder="`Answer ${i + 1}…`" rows="2" />
+          <div class="multi-scroll">
+            <div v-for="(q, i) in pendingQuestions" :key="i" class="multi-item">
+              <label class="multi-label">{{ i + 1 }}. {{ q }}</label>
+              <textarea v-model="replyAnswers[i]" class="ta" :placeholder="`Answer ${i + 1}…`" rows="2" />
+            </div>
           </div>
           <div class="action-row">
             <button class="btn-primary" @click="submitReplies"
@@ -279,16 +338,35 @@
         </template>
       </div>
 
-      <!-- Initial input -->
+      <!-- Banners -->
+      <div v-if="isResumable" class="banner warn">
+        <span>⚡ This session was interrupted mid-run.</span>
+        <button class="retry-btn" @click="retrySession">↺ Resume Session</button>
+      </div>
+      <div v-if="isComplete" class="banner ok">
+        🎉 Document approved and finalised. Continue chatting below, or add a new skill to start a follow-up session.
+      </div>
+      <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
+      <div v-if="isInvalidInput" class="banner err">❌ Image doesn't appear to be architecture-related.</div>
+      <div v-if="error" class="banner err">
+        <span>{{ error }}</span>
+        <button v-if="sessionId && !isComplete && !isHalted" class="retry-btn" @click="retrySession">
+          ↺ Retry
+        </button>
+      </div>
+
+      <!-- Chat input — shown for new sessions AND for follow-up chat on completed sessions -->
       <ChatInput
-        v-if="!sessionId && !isStreaming"
+        v-if="(!sessionId || isComplete) && !isStreaming"
         :chat-models="chatModels"
         :flows="flows"
-        :pending-flow="pendingFlow"
+        :pending-flow="isComplete ? null : pendingFlow"
+        :hint="isComplete ? 'Ask a question about your document, or use + to add a new skill…' : undefined"
         @submit="handleChatSubmit"
         @upload="handleChatUpload"
         @flow-select="startWithFlow"
         @cancel-flow="pendingFlow = null"
+        @manage-skills="appView = 'configuration'"
       />
 
       <!-- Mid-session flow selection popup -->
@@ -306,20 +384,33 @@
         </div>
       </transition>
 
-      <!-- Banners -->
-      <div v-if="isResumable" class="banner warn">
-        <span>⚡ This session was interrupted mid-run.</span>
-        <button class="retry-btn" @click="retrySession">↺ Resume Session</button>
-      </div>
-      <div v-if="isComplete"     class="banner ok">🎉 Document approved and finalised.</div>
-      <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
-      <div v-if="isInvalidInput" class="banner err">❌ Image doesn't appear to be architecture-related.</div>
-      <div v-if="error" class="banner err">
-        <span>{{ error }}</span>
-        <button v-if="sessionId && !isComplete && !isHalted" class="retry-btn" @click="retrySession">
-          ↺ Retry
-        </button>
-      </div>
+      <!-- Fork confirmation — new skill or file on a completed session -->
+      <transition name="fade">
+        <div v-if="forkConfirm.show" class="del-overlay" @click.self="forkConfirm.show = false">
+          <div class="del-dialog">
+            <template v-if="forkConfirm.type === 'skill'">
+              <p class="del-title">Start a new session with {{ forkConfirm.flow?.name }}?</p>
+              <p class="del-body">
+                Your approved architecture document will be used as a starting reference.
+                The full <strong>{{ forkConfirm.flow?.name }}</strong> pipeline will run from there —
+                discovery, research, review, and approval — producing a new document in a separate session.
+              </p>
+            </template>
+            <template v-else>
+              <p class="del-title">Start a new session with this file?</p>
+              <p class="del-body">
+                Uploading a file on a completed session starts a fresh session.
+                Your current document is preserved — this will not modify it.
+              </p>
+            </template>
+            <div class="del-btns">
+              <button class="del-cancel" @click="forkConfirm.show = false">Cancel</button>
+              <button class="del-confirm" style="background:var(--pri-h);border-color:var(--pri);color:#fff"
+                @click="executeFork">Continue →</button>
+            </div>
+          </div>
+        </div>
+      </transition>
 
     </div><!-- /chat-pane -->
 
@@ -361,9 +452,14 @@
     <!-- Avatar area — matches sidebar width -->
     <div class="sf-avatar-area" :class="{ collapsed: !sidebar.open }">
       <button class="avatar-btn" @click="userMenuOpen = !userMenuOpen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+        <img v-if="user?.picture" :src="user.picture" class="avatar-photo" />
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
           <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
         </svg>
+        <div v-if="sidebar.open && user" class="avatar-user-info">
+          <span class="avatar-user-name">{{ user.name || user.email }}</span>
+          <span class="avatar-user-email">{{ user.email }}</span>
+        </div>
       </button>
       <transition name="um-pop">
         <div v-if="userMenuOpen" class="user-menu">
@@ -385,6 +481,11 @@
             <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             {{ isDark ? 'Light mode' : 'Dark mode' }}
+          </button>
+          <div class="um-divider"></div>
+          <button class="um-item um-signout" @click="handleLogout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign out
           </button>
         </div>
       </transition>
@@ -546,11 +647,15 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { marked } from 'marked'
 import { useAgentChat } from '../composables/useAgentChat.js'
+import { useAuth } from '../composables/useAuth.js'
+import { apiFetch } from '../composables/useFetch.js'
 import SettingsPage from './SettingsPage.vue'
 import ConfigurationPage from './ConfigurationPage.vue'
 import ChatInput from './ChatInput.vue'
+import SudarshanChakra from './SudarshanChakra.vue'
 
 const {
   sessionId, messages, currentStage, pendingQuestions, pendingConfirmation,
@@ -559,8 +664,76 @@ const {
   loadSessions, newChat, restoreSession,
   pinSession, unpinSession, deleteSession, renameSession,
   startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
+  sendMessage, forkSession,
   openDocumentPanel, closeDocumentPanel, downloadMD,
 } = useAgentChat()
+
+const router = useRouter()
+const { user, logout } = useAuth()
+
+const _GREETINGS = {
+  morning: [
+    'Good morning',       // English
+    'Suprabhat',          // Sanskrit / Hindi
+    'Bonjour',            // French
+    'Buenos días',        // Spanish
+    'Guten Morgen',       // German
+    'Buongiorno',         // Italian
+    'Bom dia',            // Portuguese
+    'Günaydın',           // Turkish
+    'Kalimera',           // Greek
+    'Ohayou gozaimasu',   // Japanese
+    'Subah bakhair',      // Urdu
+    'Sabah alkhayr',      // Arabic
+    'Dobroe utro',        // Russian
+    'Selamat pagi',       // Malay/Indonesian
+  ],
+  afternoon: [
+    'Good afternoon',
+    'Shubh dopahar',      // Hindi
+    'Bon après-midi',     // French
+    'Buenas tardes',      // Spanish
+    'Guten Nachmittag',   // German
+    'Buon pomeriggio',    // Italian
+    'Boa tarde',          // Portuguese
+    'İyi öğleden sonralar', // Turkish
+    'Konnichiwa',         // Japanese
+    'Masa alkhayr',       // Arabic
+    'Selamat siang',      // Malay
+  ],
+  evening: [
+    'Good evening',
+    'Shubh sandhya',      // Sanskrit
+    'Bonsoir',            // French
+    'Buenas noches',      // Spanish
+    'Guten Abend',        // German
+    'Buona sera',         // Italian
+    'Boa noite',          // Portuguese
+    'İyi akşamlar',       // Turkish
+    'Konbanwa',           // Japanese
+    'Masa alkhayr',       // Arabic
+    'Selamat malam',      // Malay
+  ],
+}
+
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  const bucket = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  const list = _GREETINGS[bucket]
+  return list[Math.floor(Math.random() * list.length)]
+})
+
+const firstName = computed(() => {
+  const name = user.value?.name || ''
+  // Never use email — if name looks like an email or is empty, return nothing
+  if (!name || name.includes('@')) return ''
+  return name.split(/\s+/)[0]
+})
+
+async function handleLogout() {
+  await logout()
+  router.push('/login')
+}
 
 // App-level view
 const appView      = ref('chat')   // 'chat' | 'settings' | 'configuration'
@@ -574,6 +747,13 @@ const renameInputRef = ref(null)
 
 // Delete confirmation state
 const deleteConfirm = ref({ show: false, threadId: null, title: '' })
+
+// Three-dot context menu — tracks which row has its menu open
+const menuOpenId = ref(null)
+function toggleMenu(id) { menuOpenId.value = menuOpenId.value === id ? null : id }
+
+// Fork confirmation — shown when user picks a new skill/file on a completed session
+const forkConfirm = reactive({ show: false, flow: null, file: null, type: 'skill' })
 
 function confirmDelete(s) {
   deleteConfirm.value = { show: true, threadId: s.thread_id, title: s.brief_snippet || 'this conversation' }
@@ -642,11 +822,11 @@ const flowPopup   = reactive({ show: false, flow: null })
 
 
 const stageLabels = {
-  intake:     'Intake Agent',
-  discovery:  'Discovery Agent',
-  researcher: 'Research Agent',
-  reviewer:   'Review Agent',
-  approver:   'Approver Gate',
+  intake:    'Intake Agent',
+  discovery: 'Discovery Agent',
+  research:  'Research Agent',
+  review:    'Review Agent',
+  approval:  'Approver Gate',
 }
 
 // Flat sorted list: pinned first, then recent — filtered by search query
@@ -658,7 +838,7 @@ const filteredChats = computed(() => {
 
 async function fetchKeyStatus() {
   try {
-    const res = await fetch('/api/settings/keys')
+    const res = await apiFetch('/api/settings/keys')
     if (res.ok) {
       const data = await res.json()
       keysConfigured.anthropic  = !!data.anthropic
@@ -672,7 +852,7 @@ async function openUsage() {
   usageOpen.value   = true
   globalUsage.loading = true
   try {
-    const res  = await fetch('/api/usage/summary')
+    const res  = await apiFetch('/api/usage/summary')
     if (res.ok) {
       const data = await res.json()
       globalUsage.totals        = data.totals        ?? { input_tokens: 0, output_tokens: 0, cost_usd: 0 }
@@ -731,7 +911,7 @@ async function saveSettings() {
 
 async function fetchFlows() {
   try {
-    const res = await fetch('/api/flows')
+    const res = await apiFetch('/api/flows')
     if (res.ok) {
       const data = await res.json()
       flows.value = data.flows || []
@@ -741,6 +921,14 @@ async function fetchFlows() {
 }
 
 function startWithFlow(flow) {
+  if (isComplete.value) {
+    // Session finished — ask before forking into a new session
+    forkConfirm.flow = flow
+    forkConfirm.file = null
+    forkConfirm.type = 'skill'
+    forkConfirm.show = true
+    return
+  }
   if (sessionId.value) {
     // Mid-session: ask user to confirm new chat first
     flowPopup.flow = flow
@@ -765,7 +953,7 @@ onMounted(() => {
   loadSessions()
   fetchKeyStatus()
   fetchFlows()
-  document.addEventListener('click', () => { userMenuOpen.value = false })
+  document.addEventListener('click', () => { userMenuOpen.value = false; menuOpenId.value = null })
 })
 watch(pendingQuestions, qs => { replyAnswers.value = qs.map(() => '') })
 
@@ -775,7 +963,7 @@ watch(() => sessionId.value, async (id) => {
   sessionModelsOpen.value  = false
   if (!id) { sessionFlow.value = null; return }
   try {
-    const res = await fetch(`/api/chat/session-config/${id}`)
+    const res = await apiFetch(`/api/chat/session-config/${id}`)
     if (res.ok) {
       const data = await res.json()
       sessionModelConfig.value = data.config || null
@@ -830,6 +1018,11 @@ function openChatsView()       { searchQuery.value = ''; currentView.value = 'ch
 function selectChat(threadId)  { restoreSession(threadId); currentView.value = 'chat' }
 // ChatInput event handlers
 async function handleChatSubmit(text, opts) {
+  if (isComplete.value) {
+    // Post-completion follow-up chat — stay in same session
+    await sendMessage(text, opts.model)
+    return
+  }
   if (pendingFlow.value) {
     // Lock the flow for this session, then start
     sessionFlow.value = pendingFlow.value
@@ -844,7 +1037,34 @@ async function handleChatSubmit(text, opts) {
   }
 }
 async function handleChatUpload(file) {
+  if (isComplete.value) {
+    // File upload on a completed session → fork into a new session
+    forkConfirm.file = file
+    forkConfirm.flow = null
+    forkConfirm.type = 'file'
+    forkConfirm.show = true
+    return
+  }
   await uploadDocument(file)
+}
+
+async function executeFork() {
+  const prevId = sessionId.value
+  const flow   = forkConfirm.flow
+  const file   = forkConfirm.file
+  forkConfirm.show = false
+
+  if (forkConfirm.type === 'file' && file) {
+    // File fork: start a completely fresh session with the uploaded file
+    sessionFlow.value = null
+    await uploadDocument(file)
+    return
+  }
+
+  // Skill fork: new session seeded with the existing document
+  if (!flow) return
+  sessionFlow.value = flow
+  await forkSession(prevId, flow)
 }
 
 async function submitConfirmation() { await confirmUnderstanding(correctionText.value); correctionText.value = '' }
@@ -869,34 +1089,70 @@ function doPDF() {
 
 <style scoped>
 /* ── Variables ───────────────────────────────────────────────────────────────── */
+/* ── Light mode (default) ─────────────────────────────────────────────────── */
 .shell {
-  --bg:       #f1f5f9; --surf:    #fff;  --surf2:  #f8fafc; --bdr:   #e2e8f0;
-  --tx:       #0f172a; --muted:   #64748b;
-  --pri:      #2563eb; --pri-h:   #1d4ed8; --pri-fg: #fff;
-  --ub:       #2563eb; --uf:      #fff;
-  --ab:       #fff;    --abdr:    #e2e8f0;
-  --sbg:      #eff6ff; --stx:     #1d4ed8; --sbdr:  #bfdbfe;
-  --hbg:      #1e293b; --hfg:     #f8fafc;
-  --cbg:      #f1f5f9; --ibdr:    #cbd5e1; --ifocus: #2563eb;
-  --pass-bg:  #f0fdf4; --pass-bdr:#bbf7d0; --pass-tx:#15803d;
-  --fail-bg:  #fef2f2; --fail-bdr:#fecaca; --fail-tx:#b91c1c;
-  --sb-bg:    #1a2535;   /* sidebar background */
-  --sb-hover: #243044;
-  --sb-active:#2d3f5a;
-  --sb-tx:    #c8d4e6;
-  --sb-muted: #6b7f99;
-  --c-intake:#3b82f6;--c-discovery:#6366f1;--c-researcher:#8b5cf6;--c-reviewer:#f59e0b;--c-approver:#10b981;
-  --inp: #f8fafc; --hover: #f1f5f9; --active-nav: #eff6ff; --sidebar: #f8fafc;
+  /* Surfaces */
+  --bg:    #f5f5f4; --surf: #ffffff; --surf2: #fafafa; --bdr: #e5e5e3;
+  /* Text */
+  --tx:    #1a1a1a; --muted: #737373;
+  /* Brand primary — deeper saffron for light bg readability */
+  --pri:   #b85c2a; --pri-h: #a04e22; --pri-fg: #fff;
+  --ub:    #b85c2a; --uf: #fff;
+  --ab:    #fff;    --abdr: #e5e5e3;
+  /* Selection / highlight */
+  --sbg: rgba(184,92,42,0.08); --stx: #9a4a1e; --sbdr: rgba(184,92,42,0.25);
+  /* Inputs / focus */
+  --inp: #ffffff; --ibdr: #d4d4d2; --ifocus: #b85c2a;
+  /* Hover / nav */
+  --hover: #f0efee; --active-nav: rgba(184,92,42,0.1);
+  /* Overlay */
+  --hbg: #1a1a1a; --hfg: #f5f5f4; --cbg: #f5f5f4;
+  /* Semantic: pass / fail */
+  --pass-bg: #f0fdf4; --pass-bdr: #bbf7d0; --pass-tx: #15803d;
+  --fail-bg: #fef2f2; --fail-bdr: #fecaca; --fail-tx: #b91c1c;
+  /* Semantic: danger */
+  --danger: #ef4444; --danger-h: rgba(239,68,68,0.1); --danger-tx: #dc2626;
+  /* Semantic: draft badge */
+  --draft-bg: #fef3c7; --draft-tx: #92400e;
+  /* Semantic: success */
+  --success-tx: #15803d; --success-bdr: rgba(34,197,94,0.35);
+  /* Sidebar — light in light mode */
+  --sb-bg:    #f0efee; --sb-hover: #e8e7e5; --sb-active: rgba(184,92,42,0.1);
+  --sb-tx:    #1a1a1a; --sb-muted: #737373;
+  --sidebar:  #ffffff;
 }
+
+/* ── Dark mode ────────────────────────────────────────────────────────────── */
 .shell.dark {
-  --bg:#0f172a;--surf:#1e293b;--surf2:#0f172a;--bdr:#334155;
-  --tx:#f1f5f9;--muted:#94a3b8;--pri:#3b82f6;--pri-h:#2563eb;
-  --ub:#3b82f6;--ab:#1e293b;--abdr:#334155;
-  --sbg:#172554;--stx:#93c5fd;--sbdr:#1e40af;
-  --hbg:#020617;--hfg:#f1f5f9;--cbg:#0f172a;--ibdr:#475569;--ifocus:#3b82f6;
-  --pass-bg:#052e16;--pass-bdr:#166534;--pass-tx:#86efac;
-  --fail-bg:#1f0000;--fail-bdr:#991b1b;--fail-tx:#fca5a5;
-  --inp:#0f172a;--hover:#1e293b;--active-nav:#172554;--sidebar:#0f172a;
+  /* Surfaces */
+  --bg: #1a1a1a; --surf: #212121; --surf2: #181818; --bdr: rgba(255,255,255,0.09);
+  /* Text */
+  --tx: #ececea; --muted: #888888;
+  /* Brand primary */
+  --pri: #c97040; --pri-h: #b5602e; --pri-fg: #fff;
+  --ub: #c97040; --ab: #212121; --abdr: rgba(255,255,255,0.09);
+  /* Selection */
+  --sbg: rgba(201,112,64,0.12); --stx: #d4945a; --sbdr: rgba(201,112,64,0.28);
+  /* Inputs / focus */
+  --inp: #111111; --ibdr: rgba(255,255,255,0.14); --ifocus: #c97040;
+  /* Hover / nav */
+  --hover: #282828; --active-nav: rgba(255,255,255,0.06);
+  /* Overlay */
+  --hbg: #0e0e0e; --hfg: #ececea; --cbg: #1a1a1a;
+  --ab: #212121; --abdr: rgba(255,255,255,0.09);
+  /* Semantic: pass / fail */
+  --pass-bg: #0d1f10; --pass-bdr: #1a4620; --pass-tx: #86efac;
+  --fail-bg: #1f0d0d; --fail-bdr: #4a1a1a; --fail-tx: #fca5a5;
+  /* Semantic: danger */
+  --danger: #ef4444; --danger-h: rgba(239,68,68,0.15); --danger-tx: #fca5a5;
+  /* Semantic: draft badge */
+  --draft-bg: #1c1400; --draft-tx: #fcd34d;
+  /* Semantic: success */
+  --success-tx: #86efac; --success-bdr: rgba(34,197,94,0.2);
+  /* Sidebar — dark */
+  --sb-bg: #111111; --sb-hover: #1e1e1e; --sb-active: #252525;
+  --sb-tx: #d9d9d7; --sb-muted: #5e5e5e;
+  --sidebar: #141414;
 }
 
 /* ── Privacy banner ──────────────────────────────────────────────────────────── */
@@ -905,12 +1161,12 @@ function doPDF() {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   height: 28px; padding: 0 20px;
   background: var(--sb-bg);
-  border-top: 1px solid rgba(255,255,255,0.06);
-  font-size: 11px; color: #a8bdd4; letter-spacing: 0.01em;
+  border-top: 1px solid var(--bdr);
+  font-size: 11px; color: var(--sb-muted); letter-spacing: 0.01em;
   white-space: nowrap; overflow: hidden;
 }
 .privacy-banner svg { flex-shrink: 0; opacity: 0.8; }
-.privacy-banner strong { font-weight: 700; color: #d0e2f4; }
+.privacy-banner strong { font-weight: 700; color: var(--sb-tx); }
 
 /* ── Shell ───────────────────────────────────────────────────────────────────── */
 
@@ -939,11 +1195,10 @@ function doPDF() {
 .sf-avatar-area {
   width: 240px; flex-shrink: 0;
   display: flex; align-items: center;
-  padding: 8px 10px; position: relative;
-  transition: width 0.22s ease;
+  padding: 6px 8px; position: relative;
   border-right: 1px solid rgba(255,255,255,0.06);
 }
-.sf-avatar-area.collapsed { width: 52px; justify-content: center; padding: 8px 0; }
+.sf-avatar-area.collapsed { width: 52px; justify-content: center; padding: 6px 0; }
 .usage-bar-empty { flex: 1; }
 
 /* ═══════════════════════ SIDEBAR ═══════════════════════ */
@@ -1029,15 +1284,8 @@ function doPDF() {
 }
 .cp-row-meta { font-size: 13px; color: var(--muted); }
 .cp-row-actions {
-  display: none; align-items: center; gap: 2px; flex-shrink: 0; margin-left: 12px;
+  display: flex; align-items: center; flex-shrink: 0; margin-left: 12px;
 }
-.cp-row:hover .cp-row-actions,
-.cp-row.active .cp-row-actions { display: flex; }
-
-/* Action buttons inside chats page use theme colours, not sidebar colours */
-.cp-row .sa-btn        { color: var(--muted); }
-.cp-row .sa-btn:hover  { background: var(--bdr); color: var(--tx); }
-.cp-row .sa-btn.del:hover { background: rgba(220,38,38,.15); color: #dc2626; }
 
 /* ═══════════════════════ SETTINGS MODAL ════════════════════ */
 .settings-dialog {
@@ -1169,7 +1417,8 @@ function doPDF() {
   padding: 13px 10px 8px; flex-shrink: 0;
 }
 .sb-app-name {
-  flex: 1; font-size: 13px; font-weight: 600; color: var(--sb-tx);
+  flex: 1; font-size: 26px; font-weight: 700; color: var(--sb-tx);
+  font-family: 'Martel', serif; letter-spacing: -0.3px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 .sb-collapse-btn {
@@ -1208,7 +1457,6 @@ function doPDF() {
   display: flex; align-items: center;
   padding: 7px 8px; border-radius: 8px;
   cursor: pointer; min-width: 0; gap: 0;
-  transition: background .12s;
 }
 .sb-row:hover  { background: var(--sb-hover); }
 .sb-row.active { background: var(--sb-active); }
@@ -1222,20 +1470,45 @@ function doPDF() {
   border: 1px solid rgba(255,255,255,0.25); border-radius: 5px;
   padding: 2px 6px; outline: none; min-width: 0; color: var(--sb-tx);
 }
-.sb-row-actions {
-  display: none; align-items: center; gap: 1px; flex-shrink: 0; margin-left: 4px;
-}
-.sb-row:hover .sb-row-actions,
-.sb-row.active .sb-row-actions { display: flex; }
-.sa-btn {
-  width: 22px; height: 22px; border: none; border-radius: 4px;
-  background: transparent; color: var(--sb-muted);
-  cursor: pointer; font-size: 11px;
+/* ── Three-dot context menu (sidebar + chats-page) ───────────────────────── */
+.sb-row-menu { position: relative; flex-shrink: 0; margin-left: 4px; }
+
+.sb-more-btn {
   display: flex; align-items: center; justify-content: center;
-  transition: background .1s, color .1s;
+  width: 24px; height: 24px; border: none; border-radius: 5px;
+  background: transparent; color: var(--sb-muted);
+  cursor: pointer; opacity: 0;
 }
-.sa-btn:hover     { background: rgba(255,255,255,0.1); color: var(--sb-tx); }
-.sa-btn.del:hover { background: rgba(239,68,68,0.2);   color: #f87171; }
+.sb-row:hover .sb-more-btn,
+.sb-row.menu-open .sb-more-btn,
+.sb-more-btn.active { opacity: 1; }
+.sb-more-btn:hover,
+.sb-more-btn.active { background: rgba(255,255,255,0.12); color: var(--sb-tx); }
+
+.sb-ctx-menu {
+  position: absolute; right: 0; top: calc(100% + 4px);
+  width: 164px; background: var(--surf);
+  border: 1px solid var(--bdr); border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.22);
+  z-index: 600; padding: 4px 0;
+}
+.ctx-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 8px 12px;
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; color: var(--tx); text-align: left;
+}
+.ctx-item:hover { background: rgba(100,116,139,0.13); }
+.ctx-item svg { flex-shrink: 0; color: var(--muted); }
+.ctx-divider { height: 1px; background: var(--bdr); margin: 4px 0; }
+.ctx-delete { color: #ef4444; }
+.ctx-delete svg { color: #ef4444; }
+.ctx-delete:hover { background: rgba(239,68,68,.12); }
+
+/* chats-page overrides — button always visible, menu opens upward */
+.cp-more-btn { display: flex !important; color: var(--muted); }
+.cp-more-btn:hover, .cp-more-btn.active { background: var(--hover); color: var(--tx); }
+.cp-ctx-menu { top: auto; bottom: calc(100% + 4px); }
 
 /* ── COLLAPSED icon buttons ──────────────────────────────── */
 .col-icon-btn {
@@ -1250,20 +1523,44 @@ function doPDF() {
 .col-icon-btn.brand .sf-logo { pointer-events: none; }
 
 /* ── User footer (expanded) ──────────────────────────────── */
-.avatar-btn {
-  width: 36px; height: 36px; border-radius: 50%;
-  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.15);
-  color: var(--sb-tx); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background .15s, border-color .15s;
+.avatar-photo {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover;
 }
-.avatar-btn:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.28); }
+.avatar-user-info {
+  display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: left;
+}
+.avatar-user-name {
+  font-size: 14px; font-weight: 600; color: var(--sb-tx);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.avatar-user-email {
+  font-size: 12px; color: var(--sb-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.avatar-btn {
+  width: 100%; border-radius: 8px; border: none;
+  background: transparent; color: var(--sb-tx); cursor: pointer;
+  display: flex; align-items: center; gap: 9px;
+  padding: 5px 6px;
+  transition: background .13s;
+}
+.avatar-btn:hover { background: var(--sb-hover); }
+/* When sidebar is collapsed, shrink back to icon-only circle */
+.sf-avatar-area.collapsed .avatar-btn {
+  width: 36px; height: 36px; border-radius: 50%; padding: 0;
+  justify-content: center;
+  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.15);
+}
+.sf-avatar-area.collapsed .avatar-btn:hover {
+  background: rgba(255,255,255,0.18);
+}
 
 /* User menu popup */
 .user-menu {
   position: absolute; bottom: calc(100% + 6px); left: 8px;
   width: calc(100% - 16px);
-  background: #1e2d42; border: 1px solid rgba(255,255,255,0.12);
+  background: var(--sb-hover); border: 1px solid rgba(255,255,255,0.1);
   border-radius: 10px; padding: 6px;
   box-shadow: 0 8px 28px rgba(0,0,0,0.4);
   z-index: 200;
@@ -1282,6 +1579,17 @@ function doPDF() {
   transition: background .12s;
 }
 .um-item:hover { background: var(--sb-hover); }
+.um-signout { color: #f87171; }
+.um-signout:hover { background: rgba(239,68,68,.15); }
+
+.um-user-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px 6px;
+}
+.um-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+.um-user-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.um-user-name { font-size: 13px; font-weight: 600; color: var(--sb-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.um-user-email { font-size: 11px; color: var(--sb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Menu pop transition */
 .um-pop-enter-active { transition: opacity .15s ease, transform .15s ease; }
@@ -1323,56 +1631,57 @@ function doPDF() {
 }
 
 /* Track tint — per agent, very subtle */
-.progress-strip.intake     { background: rgba(59,  130, 246, 0.07); }
-.progress-strip.discovery  { background: rgba(99,  102, 241, 0.07); }
-.progress-strip.researcher { background: rgba(239, 68, 68, 0.07); }
-.progress-strip.reviewer   { background: rgba(245, 158,  11, 0.07); }
-.progress-strip.approver   { background: rgba(16,  185, 129, 0.07); }
+/* All stages use Prajna brand gold */
+.progress-strip.intake,
+.progress-strip.discovery,
+.progress-strip.research,
+.progress-strip.review,
+.progress-strip.approval { background: rgba(255, 208, 128, 0.07); }
 
-/* Slow shimmer — per agent, muted opacity */
+/* Shimmer */
 .progress-strip::after {
   content: '';
   position: absolute; top: 0; bottom: 0;
   width: 55%;
   animation: p-sweep 3.5s linear infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 208, 128, 0.45), transparent);
 }
-.intake::after     { background: linear-gradient(90deg, transparent, rgba(59,  130, 246, 0.5), transparent); }
-.discovery::after  { background: linear-gradient(90deg, transparent, rgba(99,  102, 241, 0.5), transparent); }
-.researcher::after { background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.5), transparent); }
-.reviewer::after   { background: linear-gradient(90deg, transparent, rgba(245, 158,  11, 0.5), transparent); }
-.approver::after   { background: linear-gradient(90deg, transparent, rgba(16,  185, 129, 0.5), transparent); }
 
 @keyframes p-sweep {
   0%   { left: -55%; }
   100% { left: 100%; }
 }
 
-/* Dot + label — per agent colour */
-.p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite; }
-.intake .p-dot    { background: #3b82f6; }
-.discovery .p-dot { background: #6366f1; }
-.researcher .p-dot{ background: #ef4444; }
-.reviewer .p-dot  { background: #f59e0b; }
-.approver .p-dot  { background: #10b981; }
+/* Dot + label */
+.p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite;background:#ffd080; }
 @keyframes p-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
 
-.p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap; }
-.intake .p-text    { color: #2563eb; } .discovery .p-text { color: #4f46e5; }
-.researcher .p-text{ color: #dc2626; } .reviewer .p-text  { color: #b45309; }
-.approver .p-text  { color: #059669; }
-.dark .intake .p-text    { color: #93c5fd; } .dark .discovery .p-text { color: #a5b4fc; }
-.dark .researcher .p-text{ color: #fca5a5; } .dark .reviewer .p-text  { color: #fcd34d; }
-.dark .approver .p-text  { color: #6ee7b7; }
+.p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap;color:var(--pri); }
+.dark .p-text { color: #ffd080; }
 
 /* Messages */
 .messages { flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px;min-height:0; }
-.empty-state{margin:auto;text-align:center;color:var(--muted);padding:40px 20px}
-.empty-icon{font-size:42px;margin-bottom:12px}.empty-title{font-size:16px;font-weight:600;color:var(--tx);margin:0 0 6px}.empty-sub{font-size:14px;margin:0}
+.empty-state {
+  margin: auto; display: flex; align-items: center; justify-content: center;
+  padding: 40px 20px;
+}
+.greeting-row {
+  display: flex; align-items: center; gap: 18px;
+}
+.greeting-text {
+  font-family: 'Martel', serif;
+  font-size: clamp(28px, 3.5vw, 44px);
+  font-weight: 400;
+  color: var(--tx);
+  letter-spacing: -0.2px;
+  margin: 0;
+  line-height: 1.2;
+}
 .message{display:flex;flex-direction:column;max-width:82%}
 .message.user{align-self:flex-end;align-items:flex-end}.message.agent{align-self:flex-start;align-items:flex-start}
 .stage-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:99px;margin-bottom:5px;background:var(--sbg);color:var(--stx)}
-.stage-tag.discovery{background:#dbeafe;color:#1e40af}.stage-tag.researcher{background:#fee2e2;color:#991b1b}.stage-tag.reviewer{background:#ffedd5;color:#9a3412}.stage-tag.approver{background:#dcfce7;color:#166534}
-.dark .stage-tag.discovery{background:#1e3a5f;color:#93c5fd}.dark .stage-tag.researcher{background:#450a0a;color:#fca5a5}.dark .stage-tag.reviewer{background:#431407;color:#fdba74}.dark .stage-tag.approver{background:#052e16;color:#86efac}
+.stage-tag.discovery{background:#dbeafe;color:#1e40af}.stage-tag.research{background:#fee2e2;color:#991b1b}.stage-tag.review{background:#ffedd5;color:#9a3412}.stage-tag.approval{background:#dcfce7;color:#166534}
+.dark .stage-tag.discovery{background:#1e3a5f;color:#93c5fd}.dark .stage-tag.research{background:#450a0a;color:#fca5a5}.dark .stage-tag.review{background:#431407;color:#fdba74}.dark .stage-tag.approval{background:#052e16;color:#86efac}
 .bubble{padding:11px 15px;border-radius:14px;font-size:14px;line-height:1.65;word-break:break-word}
 .message.user .bubble{background:var(--ub);color:var(--uf);border-radius:14px 14px 3px 14px}
 .message.agent .bubble{background:var(--ab);color:var(--tx);border:1px solid var(--abdr);border-radius:3px 14px 14px 14px}
@@ -1405,6 +1714,8 @@ function doPDF() {
 
 /* Input panel */
 .input-panel{flex-shrink:0;padding:15px 28px;background:var(--surf);border-top:1px solid var(--bdr);display:flex;flex-direction:column;gap:10px}
+.multi-scroll{max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px}
+.multi-scroll::-webkit-scrollbar{width:4px}.multi-scroll::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:99px}
 .multi-item{display:flex;flex-direction:column;gap:5px}.multi-label{font-size:13px;font-weight:500;color:var(--tx);line-height:1.4}
 .input-row{display:flex;gap:10px;align-items:flex-end}
 .ta{width:100%;box-sizing:border-box;padding:10px 13px;border:1px solid var(--ibdr);border-radius:10px;font-size:14px;font-family:inherit;resize:vertical;outline:none;background:var(--surf2);color:var(--tx);transition:border-color .15s;line-height:1.5}

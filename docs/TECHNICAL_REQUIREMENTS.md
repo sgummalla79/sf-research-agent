@@ -1,4 +1,4 @@
-# Technical Requirements — Technical Architecture Agent
+# Technical Requirements — Prajna
 
 ## 1. System Architecture
 
