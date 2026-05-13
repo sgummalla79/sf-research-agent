@@ -70,6 +70,56 @@ CREATE TABLE IF NOT EXISTS app_config (
 );
 """
 
+_CREATE_PROMPT_VERSIONS_SL = """
+CREATE TABLE IF NOT EXISTS agent_prompt_versions (
+    id           INTEGER PRIMARY KEY,
+    flow_id      TEXT    NOT NULL,
+    agent_key    TEXT    NOT NULL,
+    version      INTEGER NOT NULL,
+    content      TEXT    NOT NULL,
+    status       TEXT    NOT NULL DEFAULT 'draft',
+    created_at   TEXT    NOT NULL,
+    published_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_apv_flow_key ON agent_prompt_versions(flow_id, agent_key);
+"""
+
+_CREATE_PROMPT_VERSIONS_PG = """
+CREATE TABLE IF NOT EXISTS agent_prompt_versions (
+    id           SERIAL  PRIMARY KEY,
+    flow_id      TEXT    NOT NULL,
+    agent_key    TEXT    NOT NULL,
+    version      INTEGER NOT NULL,
+    content      TEXT    NOT NULL,
+    status       TEXT    NOT NULL DEFAULT 'draft',
+    created_at   TEXT    NOT NULL,
+    published_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_apv_flow_key ON agent_prompt_versions(flow_id, agent_key);
+"""
+
+_CREATE_SNAPSHOTS_SL = """
+CREATE TABLE IF NOT EXISTS flow_prompt_snapshots (
+    id               INTEGER PRIMARY KEY,
+    flow_id          TEXT    NOT NULL,
+    snapshot_version INTEGER NOT NULL,
+    agent_versions   TEXT    NOT NULL,
+    created_at       TEXT    NOT NULL,
+    triggered_by     TEXT    NOT NULL
+);
+"""
+
+_CREATE_SNAPSHOTS_PG = """
+CREATE TABLE IF NOT EXISTS flow_prompt_snapshots (
+    id               SERIAL  PRIMARY KEY,
+    flow_id          TEXT    NOT NULL,
+    snapshot_version INTEGER NOT NULL,
+    agent_versions   TEXT    NOT NULL,
+    created_at       TEXT    NOT NULL,
+    triggered_by     TEXT    NOT NULL
+);
+"""
+
 # ── SQL — SQLite (? placeholders) ─────────────────────────────────────────────
 
 _SL = dict(
@@ -337,6 +387,211 @@ class DBContext:
         row = await self._fetchone(sql, (key,))
         return row[0] if row else None
 
+    # ── Agent prompt versioning ───────────────────────────────────────────────
+
+    def _p(self) -> str:
+        return "?" if self._backend == "sqlite" else "%s"
+
+    async def is_flow_seeded(self, flow_id: str) -> bool:
+        p = self._p()
+        row = await self._fetchone(
+            f"SELECT COUNT(*) FROM agent_prompt_versions WHERE flow_id = {p} AND status = 'published'",
+            (flow_id,),
+        )
+        return bool(row and row[0] > 0)
+
+    async def seed_flow_prompts(self, flow_id: str, prompts: dict[str, str]) -> None:
+        import json
+        now = datetime.now(timezone.utc).isoformat()
+        p   = self._p()
+        if self._backend == "sqlite":
+            for agent_key, content in prompts.items():
+                await self._conn_or_pool.execute(
+                    "INSERT INTO agent_prompt_versions (flow_id, agent_key, version, content, status, created_at, published_at)"
+                    " VALUES (?, ?, 1, ?, 'published', ?, ?)",
+                    (flow_id, agent_key, content, now, now),
+                )
+            await self._conn_or_pool.execute(
+                "INSERT INTO flow_prompt_snapshots (flow_id, snapshot_version, agent_versions, created_at, triggered_by)"
+                " VALUES (?, 1, ?, ?, 'seed')",
+                (flow_id, json.dumps({k: 1 for k in prompts}), now),
+            )
+            await self._conn_or_pool.commit()
+        else:
+            async with self._conn_or_pool.connection() as conn:
+                for agent_key, content in prompts.items():
+                    await conn.execute(
+                        "INSERT INTO agent_prompt_versions (flow_id, agent_key, version, content, status, created_at, published_at)"
+                        " VALUES (%s, %s, 1, %s, 'published', %s, %s)",
+                        (flow_id, agent_key, content, now, now),
+                    )
+                await conn.execute(
+                    "INSERT INTO flow_prompt_snapshots (flow_id, snapshot_version, agent_versions, created_at, triggered_by)"
+                    " VALUES (%s, 1, %s, %s, 'seed')",
+                    (flow_id, json.dumps({k: 1 for k in prompts}), now),
+                )
+
+    async def get_flow_prompts(self, flow_id: str) -> list[dict]:
+        p    = self._p()
+        rows = await self._fetchall(
+            f"SELECT id, agent_key, version, content, status, created_at, published_at"
+            f" FROM agent_prompt_versions WHERE flow_id = {p} ORDER BY agent_key, version DESC",
+            (flow_id,),
+        )
+        from collections import defaultdict
+        by_key: dict[str, list] = defaultdict(list)
+        for r in rows:
+            by_key[r[1]].append({"id": r[0], "agent_key": r[1], "version": r[2],
+                                  "content": r[3], "status": r[4],
+                                  "created_at": r[5], "published_at": r[6]})
+        result = []
+        for agent_key, versions in by_key.items():
+            result.append({
+                "agent_key":        agent_key,
+                "latest_published": next((v for v in versions if v["status"] == "published"), None),
+                "draft":            next((v for v in versions if v["status"] == "draft"),     None),
+            })
+        return result
+
+    async def save_prompt_draft(self, flow_id: str, agent_key: str, content: str) -> None:
+        p   = self._p()
+        now = datetime.now(timezone.utc).isoformat()
+        existing = await self._fetchone(
+            f"SELECT id FROM agent_prompt_versions WHERE flow_id = {p} AND agent_key = {p} AND status = 'draft'",
+            (flow_id, agent_key),
+        )
+        if existing:
+            if self._backend == "sqlite":
+                await self._exec(
+                    "UPDATE agent_prompt_versions SET content = ?, created_at = ? WHERE id = ?",
+                    (content, now, existing[0]),
+                )
+            else:
+                await self._exec(
+                    "UPDATE agent_prompt_versions SET content = %s, created_at = %s WHERE id = %s",
+                    (content, now, existing[0]),
+                )
+        else:
+            max_row = await self._fetchone(
+                f"SELECT MAX(version) FROM agent_prompt_versions"
+                f" WHERE flow_id = {p} AND agent_key = {p} AND status = 'published'",
+                (flow_id, agent_key),
+            )
+            next_ver = (max_row[0] or 0) + 1
+            if self._backend == "sqlite":
+                await self._exec(
+                    "INSERT INTO agent_prompt_versions (flow_id, agent_key, version, content, status, created_at)"
+                    " VALUES (?, ?, ?, ?, 'draft', ?)",
+                    (flow_id, agent_key, next_ver, content, now),
+                )
+            else:
+                await self._exec(
+                    "INSERT INTO agent_prompt_versions (flow_id, agent_key, version, content, status, created_at)"
+                    " VALUES (%s, %s, %s, %s, 'draft', %s)",
+                    (flow_id, agent_key, next_ver, content, now),
+                )
+
+    async def discard_prompt_draft(self, flow_id: str, agent_key: str) -> None:
+        p = self._p()
+        await self._exec(
+            f"DELETE FROM agent_prompt_versions WHERE flow_id = {p} AND agent_key = {p} AND status = 'draft'",
+            (flow_id, agent_key),
+        )
+
+    async def publish_prompt(self, flow_id: str, agent_key: str) -> dict:
+        import json
+        p   = self._p()
+        now = datetime.now(timezone.utc).isoformat()
+        draft = await self._fetchone(
+            f"SELECT id, version FROM agent_prompt_versions WHERE flow_id = {p} AND agent_key = {p} AND status = 'draft'",
+            (flow_id, agent_key),
+        )
+        if not draft:
+            raise ValueError(f"No draft to publish for {flow_id}/{agent_key}")
+        draft_id, draft_ver = draft
+        if self._backend == "sqlite":
+            await self._exec(
+                "UPDATE agent_prompt_versions SET status = 'published', published_at = ? WHERE id = ?",
+                (now, draft_id),
+            )
+        else:
+            await self._exec(
+                "UPDATE agent_prompt_versions SET status = 'published', published_at = %s WHERE id = %s",
+                (now, draft_id),
+            )
+        # Build snapshot: latest published version per agent
+        rows = await self._fetchall(
+            f"SELECT agent_key, MAX(version) FROM agent_prompt_versions"
+            f" WHERE flow_id = {p} AND status = 'published' GROUP BY agent_key",
+            (flow_id,),
+        )
+        agent_versions = {r[0]: r[1] for r in rows}
+        max_snap = await self._fetchone(
+            f"SELECT MAX(snapshot_version) FROM flow_prompt_snapshots WHERE flow_id = {p}",
+            (flow_id,),
+        )
+        next_snap = (max_snap[0] or 0) + 1
+        if self._backend == "sqlite":
+            await self._exec(
+                "INSERT INTO flow_prompt_snapshots (flow_id, snapshot_version, agent_versions, created_at, triggered_by)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (flow_id, next_snap, json.dumps(agent_versions), now, agent_key),
+            )
+        else:
+            await self._exec(
+                "INSERT INTO flow_prompt_snapshots (flow_id, snapshot_version, agent_versions, created_at, triggered_by)"
+                " VALUES (%s, %s, %s, %s, %s)",
+                (flow_id, next_snap, json.dumps(agent_versions), now, agent_key),
+            )
+        return {"snapshot_version": next_snap, "agent_key": agent_key, "version": draft_ver}
+
+    async def get_latest_snapshot(self, flow_id: str) -> dict | None:
+        import json
+        p   = self._p()
+        row = await self._fetchone(
+            f"SELECT id, snapshot_version, agent_versions, created_at, triggered_by"
+            f" FROM flow_prompt_snapshots WHERE flow_id = {p} ORDER BY snapshot_version DESC LIMIT 1",
+            (flow_id,),
+        )
+        if not row:
+            return None
+        return {"id": row[0], "flow_id": flow_id, "snapshot_version": row[1],
+                "agent_versions": json.loads(row[2]), "created_at": row[3], "triggered_by": row[4]}
+
+    async def get_prompt_content_for_snapshot(self, flow_id: str, snapshot: dict) -> dict[str, str]:
+        p      = self._p()
+        result = {}
+        for agent_key, version in snapshot["agent_versions"].items():
+            row = await self._fetchone(
+                f"SELECT content FROM agent_prompt_versions"
+                f" WHERE flow_id = {p} AND agent_key = {p} AND version = {p} AND status = 'published'",
+                (flow_id, agent_key, version),
+            )
+            if row:
+                result[agent_key] = row[0]
+        return result
+
+    async def list_snapshots(self, flow_id: str) -> list[dict]:
+        import json
+        p    = self._p()
+        rows = await self._fetchall(
+            f"SELECT id, snapshot_version, agent_versions, created_at, triggered_by"
+            f" FROM flow_prompt_snapshots WHERE flow_id = {p} ORDER BY snapshot_version DESC",
+            (flow_id,),
+        )
+        return [{"id": r[0], "snapshot_version": r[1], "agent_versions": json.loads(r[2]),
+                 "created_at": r[3], "triggered_by": r[4]} for r in rows]
+
+    async def get_agent_version_history(self, flow_id: str, agent_key: str) -> list[dict]:
+        p    = self._p()
+        rows = await self._fetchall(
+            f"SELECT id, version, content, status, created_at, published_at"
+            f" FROM agent_prompt_versions WHERE flow_id = {p} AND agent_key = {p} ORDER BY version DESC",
+            (flow_id, agent_key),
+        )
+        return [{"id": r[0], "version": r[1], "content": r[2],
+                 "status": r[3], "created_at": r[4], "published_at": r[5]} for r in rows]
+
     async def delete_expired_sessions(self) -> int:
         cutoff  = (datetime.now(timezone.utc) - timedelta(days=SESSION_TTL_DAYS)).isoformat()
         rows    = await self._fetchall(self._q("expired"), (cutoff,))
@@ -401,6 +656,8 @@ async def _sqlite_backend():
         await conn.execute(_CREATE_SETTINGS_TABLE)
         await conn.execute(_CREATE_USAGE_TABLE)
         await conn.execute(_CREATE_CONFIG_TABLE)
+        await conn.execute(_CREATE_PROMPT_VERSIONS_SL)
+        await conn.execute(_CREATE_SNAPSHOTS_SL)
         await conn.commit()
         await _migrate(conn, "sqlite")
 
@@ -439,6 +696,8 @@ async def _postgres_backend(url: str):
             await conn.execute(_CREATE_SETTINGS_TABLE)
             await conn.execute(_CREATE_USAGE_TABLE)
             await conn.execute(_CREATE_CONFIG_TABLE)
+            await conn.execute(_CREATE_PROMPT_VERSIONS_PG)
+            await conn.execute(_CREATE_SNAPSHOTS_PG)
             await conn.commit()
             await _migrate(conn, "postgres")
 

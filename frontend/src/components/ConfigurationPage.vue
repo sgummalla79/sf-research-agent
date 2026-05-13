@@ -5,18 +5,36 @@
         <span class="cp-back-arrow">←</span>
         <span>Back to Chat</span>
       </div>
-      <div class="cp-title">Configuration</div>
+
+      <div class="cp-nav">
+        <button v-for="item in navItems" :key="item.id"
+          class="cp-nav-item" :class="{ active: section === item.id }"
+          @click="section = item.id">
+          <span class="cp-nav-icon">{{ item.icon }}</span>
+          <span>{{ item.label }}</span>
+        </button>
+      </div>
     </aside>
 
     <main class="cp-content">
-      <AgentConfigSettings />
+      <AgentConfigSettings v-if="section === 'models'" />
+      <AgentPromptsSettings v-else-if="section === 'prompts'" flow-id="architect" />
     </main>
   </div>
 </template>
 
 <script setup>
-import AgentConfigSettings from './settings/AgentConfigSettings.vue'
+import { ref } from 'vue'
+import AgentConfigSettings  from './settings/AgentConfigSettings.vue'
+import AgentPromptsSettings from './settings/AgentPromptsSettings.vue'
+
 defineEmits(['back'])
+
+const section  = ref('prompts')
+const navItems = [
+  { id: 'prompts', label: 'Agent Prompts', icon: '📝' },
+  { id: 'models',  label: 'Agent Models',  icon: '⚙'  },
+]
 </script>
 
 <style scoped>
@@ -43,11 +61,17 @@ defineEmits(['back'])
 .cp-back:hover { background: var(--hover); color: var(--tx); }
 .cp-back-arrow { font-size: 16px; line-height: 1; }
 
-.cp-title {
-  padding: 4px 10px;
-  font-size: 12px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .07em; color: var(--muted);
+.cp-nav { display: flex; flex-direction: column; gap: 2px; }
+.cp-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 8px;
+  font-size: 13px; font-weight: 500; color: var(--muted);
+  background: none; border: none; cursor: pointer; text-align: left; width: 100%;
+  transition: background .15s, color .15s;
 }
+.cp-nav-item:hover  { background: var(--hover); color: var(--tx); }
+.cp-nav-item.active { background: var(--active-nav); color: var(--tx); font-weight: 600; }
+.cp-nav-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
 
 .cp-content {
   flex: 1; min-width: 0; overflow-y: auto;

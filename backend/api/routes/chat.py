@@ -249,12 +249,21 @@ async def start_chat(body: StartRequest, request: Request):
     agent_cfg = get_agent_config()
     await db.save_config(f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
 
-    # Load flow config for agent_flow sessions
-    flow_config: dict = {}
+    # Load flow config — merge code defaults with latest published prompt snapshot
+    flow_config:          dict     = {}
+    flow_snapshot_id:     int|None = None
+    flow_snapshot_version:int|None = None
     if body.session_type == "agent_flow":
         try:
-            flow = get_flow(body.flow_id)
-            flow_config = flow.prompts
+            flow     = get_flow(body.flow_id)
+            snapshot = await db.get_latest_snapshot(body.flow_id)
+            if snapshot:
+                db_prompts            = await db.get_prompt_content_for_snapshot(body.flow_id, snapshot)
+                flow_config           = {**flow.prompts, **db_prompts}
+                flow_snapshot_id      = snapshot["id"]
+                flow_snapshot_version = snapshot["snapshot_version"]
+            else:
+                flow_config = dict(flow.prompts)
         except ValueError:
             pass  # unknown flow → agents fall back to built-in prompts
 
@@ -265,6 +274,8 @@ async def start_chat(body: StartRequest, request: Request):
         session_type=body.session_type,
         flow_id=body.flow_id,
         flow_config=flow_config,
+        flow_snapshot_id=flow_snapshot_id,
+        flow_snapshot_version=flow_snapshot_version,
         chat_model=body.chat_model or CHAT_DEFAULT_MODEL,
         extended_thinking=body.extended_thinking,
     )

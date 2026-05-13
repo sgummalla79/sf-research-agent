@@ -87,6 +87,10 @@ class AgentState(BaseModel):
     chat_model: str = "claude-sonnet-4-6"
     extended_thinking: bool = False
 
+    # ── Prompt snapshot — frozen at session start ────────────────────────────
+    flow_snapshot_id:      int | None = None   # row id in flow_prompt_snapshots
+    flow_snapshot_version: int | None = None   # human-readable version number
+
     # ── LLM config snapshot — frozen at session start, never mutated ─────────
     session_agent_config: dict = Field(default_factory=dict)
 

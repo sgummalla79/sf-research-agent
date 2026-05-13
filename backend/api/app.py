@@ -28,6 +28,7 @@ from api.routes.settings import router as settings_router
 from api.routes.usage import router as usage_router
 from api.routes.providers import router as providers_router
 from api.routes.flows import router as flows_router
+from api.routes.prompts import router as prompts_router
 from graph.builder import build_graph
 from persistence.checkpointer import get_async_checkpointer
 from utils.api_keys import decrypt, populate_cache, populate_config_cache
@@ -110,6 +111,13 @@ async def lifespan(app: FastAPI):
         else:
             populate_agent_config(DEFAULT_AGENT_CONFIG)
 
+        # ── Seed agent prompt versions (v1 from code defaults, once) ──────────
+        from flows.registry import get_all_flows
+        for flow_id, flow_cfg in get_all_flows().items():
+            if not await db.is_flow_seeded(flow_id):
+                logger.info("Seeding agent prompts for flow '%s'", flow_id)
+                await db.seed_flow_prompts(flow_id, flow_cfg.prompts)
+
         logger.info("Salesforce Architecture Agent started — graph ready.")
         yield
     logger.info("Salesforce Architecture Agent shutting down.")
@@ -131,6 +139,7 @@ app.include_router(settings_router)
 app.include_router(usage_router)
 app.include_router(providers_router)
 app.include_router(flows_router)
+app.include_router(prompts_router)
 
 
 @app.get("/health", tags=["ops"])

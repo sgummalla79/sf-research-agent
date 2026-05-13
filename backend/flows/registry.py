@@ -17,17 +17,39 @@ from dataclasses import dataclass, field
 
 @dataclass
 class FlowConfig:
-    id:          str
-    name:        str
-    description: str
-    icon:        str
-    prompts:     dict[str, str] = field(default_factory=dict)
+    id:           str
+    name:         str
+    description:  str
+    icon:         str
+    prompts:      dict[str, str] = field(default_factory=dict)
+    agent_keys:   list[str]      = field(default_factory=list)   # ordered display list
+    agent_labels: dict[str, str] = field(default_factory=dict)   # key → human label
 
 
 # ── Agent flow registry ───────────────────────────────────────────────────────
 
 def _load_flows() -> dict[str, FlowConfig]:
     from flows.architect import PROMPTS as ARCHITECT_PROMPTS
+    _ARCHITECT_KEYS = [
+        "INTAKE_DOCUMENT_PROMPT",
+        "INTAKE_IMAGE_SYSTEM_PROMPT",
+        "DISCOVERY_SYSTEM_PROMPT",
+        "PERPLEXITY_SYSTEM_PROMPT",
+        "GEMINI_SYSTEM_PROMPT",
+        "WRITER_SYSTEM_PROMPT",
+        "REVIEWER_SYSTEM_PROMPT",
+        "APPROVER_SYSTEM_PROMPT",
+    ]
+    _ARCHITECT_LABELS = {
+        "INTAKE_DOCUMENT_PROMPT":     "Intake: Document",
+        "INTAKE_IMAGE_SYSTEM_PROMPT": "Intake: Image Analysis",
+        "DISCOVERY_SYSTEM_PROMPT":    "Discovery Agent",
+        "PERPLEXITY_SYSTEM_PROMPT":   "Research: Web Search",
+        "GEMINI_SYSTEM_PROMPT":       "Research: Architecture",
+        "WRITER_SYSTEM_PROMPT":       "Research: Writer",
+        "REVIEWER_SYSTEM_PROMPT":     "Review Agent",
+        "APPROVER_SYSTEM_PROMPT":     "Approver Gate",
+    }
     return {
         "architect": FlowConfig(
             id="architect",
@@ -36,6 +58,8 @@ def _load_flows() -> dict[str, FlowConfig]:
                         "5-stage pipeline: intake → discovery → research → review → approval.",
             icon="⚡",
             prompts=ARCHITECT_PROMPTS,
+            agent_keys=_ARCHITECT_KEYS,
+            agent_labels=_ARCHITECT_LABELS,
         ),
     }
 
