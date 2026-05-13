@@ -1,4 +1,4 @@
-# UI Design Document — SF Research Agent
+# UI Design Document — Technical Architecture Agent
 
 ## 1. Layout Architecture
 
@@ -110,7 +110,7 @@ A permanent slim banner at the very top of the shell, above all content:
 ### Expanded state (240px)
 
 ```
-Salesforce Architect Agent         [⊟]   ← collapse icon
+Technical Architecture Agent    [⊟]   ← collapse icon
 [+]  New Chat
 [💬] Chats
 
@@ -246,7 +246,7 @@ Chats                                        [+ New chat]
 
 🔍  Search your chats...
 
-Your chats with Salesforce Architect Agent
+Your conversations
 ─────────────────────────────────────────────
 Kong API Token Review
 Last message 2 days ago

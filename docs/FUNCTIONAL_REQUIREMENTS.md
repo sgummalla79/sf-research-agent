@@ -1,8 +1,8 @@
-# Functional Requirements Document — SF Research Agent
+# Functional Requirements — Technical Architecture Agent
 
 ## 1. Purpose
 
-SF Research Agent is a multi-agent AI system that guides users through a structured Salesforce architecture discussion and produces a formal Architecture Recommendation Document. The system targets **Service Cloud, Experience Cloud, and Data Cloud** implementations and serves both executive and delivery-team audiences.
+Technical Architecture Agent is a multi-agent AI system that guides users through a structured technical architecture engagement and produces a formal Architecture Recommendation Document. The system is platform-agnostic and covers any enterprise or SaaS platform — Salesforce, ServiceNow, Microsoft 365, Workday, MuleSoft, SAP, and others. It serves both executive and delivery-team audiences.
 
 ---
 
@@ -10,7 +10,7 @@ SF Research Agent is a multi-agent AI system that guides users through a structu
 
 | Role | Description |
 |---|---|
-| **Architect / User** | Configures API keys, starts sessions, answers discovery questions, reviews output |
+| **Architect / User** | Configures API keys, starts sessions, answers discovery questions, reviews and customises agent prompts, reviews output |
 | **System (AI Agents)** | Intake, Discovery, Researcher, Reviewer, Approver |
 
 ---
@@ -31,77 +31,106 @@ If any key is missing when **New Chat** is clicked, the Settings modal opens aut
 
 ---
 
-## 4. Session Lifecycle
+## 4. Session Types
 
-### 4.1 Starting a Session
+### 4.1 Free-Form Chat
 
-The user may start a session in three ways:
+A direct conversation with Claude (no pipeline). Accessible from the main input when no Agent Flow is selected.
+
+- Model selector: Opus 4.7, Sonnet 4.6 (default), Haiku 4.5
+- Adaptive Thinking toggle: enables Anthropic Extended Thinking for deeper reasoning
+- Supports `⌘/Ctrl + Enter` to send
+
+### 4.2 Agent Flow Sessions
+
+Structured 5-stage pipeline sessions. Triggered by selecting a flow from the **+** menu in the input box.
+
+Available flows:
+- **Architecture Engagement** — formal Architecture Recommendation Document via intake → discovery → research → review → approval
+
+---
+
+## 5. Agent Flow Session Lifecycle
+
+### 5.1 Starting a Flow Session
+
+1. Click **+** in the input box → select an Agent Flow
+2. A pill appears in the bottom bar showing the selected flow
+3. Placeholder updates to "Describe your project for [Flow Name]…"
+4. Model picker and Adaptive Thinking are hidden (flow uses agent model config)
+5. User types a project description and sends
+6. Session starts — the flow is locked for the life of this session
+7. A flow indicator bar appears below the progress strip showing which flow is active
+
+**Mid-session flow change:** clicking a flow when a session is active shows a confirmation dialog. Confirming creates a new chat with the flow armed — session only starts when the user submits a description.
+
+The user may **cancel** the selected flow before submitting (click ✕ on the pill) to return to normal chat mode.
+
+### 5.2 Input Methods
 
 | Method | Description |
 |---|---|
-| **Write Brief** | Type a free-form project brief directly into the chat |
-| **Upload Document** | Upload a PDF, DOCX, TXT, or MD file; the system extracts and summarises the brief |
-| **Upload Image** | Upload a PNG, JPG, GIF, or WebP architecture diagram; Claude Vision validates and extracts the brief |
+| **Write Brief** | Type a project description directly |
+| **Upload Document** | Upload PDF, DOCX, TXT, or MD — text extracted and summarised |
+| **Upload Image** | Upload a PNG, JPG, GIF, or WebP architecture diagram — Claude Vision extracts the brief |
 
 **File upload constraints:**
 - Maximum file size: 10 MB (configurable)
 - PDF: maximum 50 pages processed (configurable)
-- Images: must depict architecture-related content (validated by Claude Vision before session starts)
+- Images: must depict architecture-related content (validated before session starts)
 
-### 4.2 Intake Confirmation (document/image only)
+### 5.3 Intake Confirmation (document/image only)
 
 After extracting a project brief from an uploaded file:
-1. The graph pauses and displays the extracted understanding to the user
-2. The user reads and optionally adds corrections
+1. The graph pauses and displays the extracted understanding
+2. The user optionally adds corrections
 3. User clicks "Looks right — start discovery →" to proceed
-4. Any corrections are appended to the project brief before discovery begins
 
-### 4.3 Discovery Phase
+### 5.4 Discovery Phase
 
-The Discovery Agent conducts a structured interrogation to close knowledge gaps before research begins.
+The Discovery Agent conducts a platform-adaptive interrogation to close knowledge gaps.
 
 **Behaviour:**
-- Classifies the discussion type (Salesforce implementation, integration pattern, security design, architecture review, etc.)
-- Asks only questions relevant to the confirmed discussion type
-- Groups independent questions together (up to 5 per round) to minimise back-and-forth
-- Asks follow-up rounds only when prior answers open new dependent gaps
-- Marks discovery complete when all critical gaps for the confirmed scope are closed
-- Safety cap: maximum 30 questions total before automatically proceeding
+- Detects the platform(s) from the project brief (Salesforce, ServiceNow, Microsoft, Workday, MuleSoft, SAP, or generic SaaS)
+- Uses a platform-specific question checklist for the detected platform
+- Groups independent questions together (up to 5 per round)
+- Marks discovery complete when all critical gaps are closed
+- Safety cap: maximum 30 questions before automatically proceeding
 
-### 4.4 Research Phase
+### 5.5 Research Phase
 
-Runs automatically after discovery. No user interaction required.
+Runs automatically after discovery. Two agents run in parallel:
 
-Two research agents run in parallel:
-1. **Perplexity Sonar Pro** — real-time web search for current Salesforce limits, Spring/Summer release notes, known issues, and citations
-2. **Gemini 2.5 Pro** — deep architectural patterns, integration approaches, security models, Well-Architected Framework guidance
+1. **Perplexity Sonar Pro** — real-time web search for current platform limits, official documentation, release notes, and citations. Restricted to official vendor sources and GA features only.
+2. **Gemini 2.5 Pro** — deep architectural pattern reasoning and design guidance for the detected platforms.
 
-Claude Sonnet synthesises both research outputs into the final document.
+Claude Sonnet synthesises both research outputs into the Architecture Recommendation Document.
 
-### 4.5 Document Structure
+### 5.6 Document Structure
 
 The Architecture Recommendation Document contains:
 
 1. Executive Summary
-2. Architectural Goals & Constraints
-3. Recommended Architecture (sub-sections per cloud)
-4. Security Architecture
-5. Technical Recommendations & Governor Limit Considerations
-6. Deployment & Release Strategy
-7. Risk Register
-8. Open Questions & Assumptions
+2. Engagement Context & Constraints
+3. Current State Assessment (if applicable)
+4. Proposed Architecture
+5. Platform Limits & Constraints (official sources only, GA features only)
+6. Security Architecture
+7. Integration Architecture (if applicable)
+8. Operational Considerations
+9. Implementation Roadmap
+10. Risks & Mitigations
+11. Open Questions & Assumptions
 
-For non-Salesforce-centric discussions (pattern review, security design, etc.), a shorter focused document structure is used.
+### 5.7 Review Phase
 
-### 4.6 Review Phase
+The Review Agent performs a one-way peer review against a checklist covering technical accuracy, platform limits, completeness, soundness, and presentation quality. Returns: **PASSED** or **FAILED** with specific, actionable critical issues.
 
-The Review Agent performs a one-way peer review against a 30-item checklist. Returns: **PASSED** or **FAILED** with specific, actionable critical issues.
+### 5.8 Approval Phase
 
-### 4.7 Approval Phase
+The Approver Agent evaluates the document against 7 strategic lenses: business alignment, platform authorisation (GA sources only), risk honesty, completeness, scope discipline, commercial prudence, and client readiness. Returns: **APPROVED** or **REJECTED** with required changes.
 
-The Approver Agent evaluates the document against 7 strategic lenses. Returns: **APPROVED** or **REJECTED** with required changes.
-
-### 4.8 Revision Loop
+### 5.9 Revision Loop
 
 If the Approver rejects:
 1. Required changes are returned to the Researcher
@@ -112,36 +141,67 @@ If the Approver rejects:
 
 ---
 
-## 5. Document Output
+## 6. Document Output
 
-### 5.1 Viewing
+### 6.1 Viewing
 
 - The document appears as a **document card** in the chat
-- Clicking "View →" opens an inline right panel (42% width) — the chat pane narrows
+- Clicking "View →" opens an inline right panel (42% width)
 - Full markdown rendering with headings, tables, code blocks
 
-### 5.2 Downloading
+### 6.2 Downloading
 
-Two formats available from the document panel:
+Two formats:
 - **Markdown (.md)** — direct download of raw markdown
 - **PDF** — opens a print-ready HTML page; user saves via browser print dialog
 
 ---
 
-## 6. Session Management
+## 7. Agent Prompt Versioning
 
-### 6.1 Persistence
+Accessible via **avatar icon → Configuration → Agent Prompts**.
+
+### 7.1 Overview
+
+Each agent's system prompt is versioned independently:
+
+- **Draft** — editable, not yet applied to new sessions
+- **Published** — immutable once published; applied to all new sessions
+- Every publish automatically creates a new **Flow Snapshot** capturing the current published version of all agents in the flow
+
+### 7.2 Workflow
+
+1. Select an agent from the list (shows current version badge)
+2. Edit the prompt in the editor
+3. Click **Save as Draft** — changes are staged but not active
+4. Click **Publish vN** — draft becomes the new published version; new flow snapshot is created
+5. All new sessions from this point use the new version
+6. **↩ Revert to published** — resets editor to current published content (no API call)
+7. **Discard draft** — deletes the draft; published version remains active
+
+### 7.3 Session Audit
+
+Each session records the Flow Snapshot ID at start time. The snapshot captures the exact version of every agent prompt used in that session — fully auditable.
+
+### 7.4 Version History
+
+Each agent shows a collapsible version history. Past published versions can be loaded into the editor ("Restore") to create a new draft from them.
+
+---
+
+## 8. Session Management
+
+### 8.1 Persistence
 
 - Sessions persist for **15 days** (configurable via `SESSION_TTL_DAYS`)
 - Sessions are automatically deleted after TTL expires
-- Uploaded files are deleted alongside their session on expiry
 
-### 6.2 Session Listing
+### 8.2 Session Listing
 
-- Sidebar shows all sessions in two sections: **Pinned** (ordered by pin date) and **Recent** (ordered by last modified)
+- Sidebar shows **Pinned** (ordered by pin date) and **Recent** (ordered by last modified)
 - Smart titles generated by Claude Haiku within ~500ms of session creation
 
-### 6.3 Session Operations
+### 8.3 Session Operations
 
 | Operation | Description |
 |---|---|
@@ -154,96 +214,70 @@ Two formats available from the document panel:
 
 ---
 
-## 7. Settings
+## 9. Settings
 
 Accessible via **avatar icon → Settings**.
 
-### 7.1 API Key Management
+### 9.1 Providers
 
 - Three password-masked inputs for Anthropic, Perplexity, and Google API keys
 - Each shows a **Configured ✓** or **Not set** badge
-- On save, each provided key is validated against its provider's live API before being stored
-- Keys are encrypted at rest using Fernet symmetric encryption (`SETTINGS_SECRET`)
-- Partial updates allowed — leaving a field empty keeps the existing key
-- Invalid keys show inline error messages with provider-specific guidance
+- Keys validated against provider APIs before saving; encrypted at rest
 
----
-
-## 8. Usage & Cost Estimation
+### 9.2 Usage & Cost
 
 Accessible via **avatar icon → Usage**.
 
-### 8.1 Token Tracking
+- Token counts captured after every LLM call
+- Permanent usage bar in shell footer shows current session totals per model
+- Usage modal shows global totals and per-model breakdown across all sessions
 
-Token counts are captured after every LLM call (including structured-output calls via `include_raw=True`). Records are grouped by model and stored per session.
-
-### 8.2 Session Usage Bar
-
-A permanent bar at the very bottom of the shell footer shows the current session's usage:
-- **Session** cell: total input tokens, output tokens, estimated cost
-- One cell per model used (dynamic — only models that ran appear): Claude Sonnet 4.6, Perplexity Sonar Pro, Gemini 2.5 Pro, Claude Haiku 4.5
-- Updates after every stream segment (not just at completion)
-
-### 8.3 Usage Modal
-
-The Usage modal (avatar → Usage) shows:
-- Overall totals across all sessions
-- Per-model breakdown with input tokens, output tokens, and estimated cost
-- Session count
-
-**Pricing used for estimates** (approximate, based on published rates):
+**Pricing estimates** (per 1M tokens):
 
 | Model | Input | Output |
 |---|---|---|
-| Claude Sonnet 4.6 | $3.00 / 1M | $15.00 / 1M |
-| Claude Haiku 4.5 | $0.80 / 1M | $4.00 / 1M |
-| Perplexity Sonar Pro | $3.00 / 1M | $15.00 / 1M |
-| Gemini 2.5 Pro | $1.25 / 1M | $10.00 / 1M |
+| Claude Sonnet 4.6 | $3.00 | $15.00 |
+| Claude Haiku 4.5 | $0.80 | $4.00 |
+| Perplexity Sonar Pro | $3.00 | $15.00 |
+| Gemini 2.5 Pro | $1.25 | $10.00 |
 
 ---
 
-## 9. Privacy
+## 10. Configuration
 
-- **All conversations are incognito** — no data is shared beyond the live API call
-- **Data never leaves your machine** — sessions, messages, and documents are stored in a local SQLite database (or self-hosted PostgreSQL)
-- **API keys encrypted at rest** — stored using Fernet AES encryption; the encryption key (`SETTINGS_SECRET`) never leaves the server
-- **No model training** — API usage does not contribute to model training (per provider API terms)
-- A permanent privacy banner at the top of the UI reinforces these guarantees
+Accessible via **avatar icon → Configuration**.
 
----
+### 10.1 Agent Prompts
 
-## 10. Search
+Versioned prompt editor — see Section 7.
 
-### 10.1 Chats Page Search
+### 10.2 Agent Models
 
-- Full-page view accessible from sidebar "Chats" icon
-- Real-time search across all session titles (pinned + recent)
-- Filters as the user types; no submit required
+Per-agent LLM assignment. Changes take effect on new sessions (locked at session start).
 
 ---
 
-## 11. Error Handling
+## 11. Privacy
+
+- **All conversations are incognito** — no data shared beyond the live API call
+- **Data never leaves your machine** — stored in local SQLite or self-hosted PostgreSQL
+- **API keys encrypted at rest** — Fernet AES encryption; encryption key never reaches the client
+- **No model training** — API usage does not contribute to model training
+- Permanent privacy banner visible at all times
+
+---
+
+## 12. Error Handling
 
 | Scenario | Behaviour |
 |---|---|
 | LLM API rate limit or timeout | Automatic retry with exponential backoff (up to 5 attempts, 2s–32s) |
-| Invalid API key on save | Inline error per key with provider-specific guidance; key not saved |
+| Invalid API key on save | Inline error per key; key not saved |
 | API keys missing on New Chat | Settings modal opens automatically; session blocked |
-| Image not architecture-related | Clear rejection message shown; user can upload a different file |
+| Image not architecture-related | Clear rejection message; user can upload a different file |
 | Unsupported file type | 415 error with accepted formats listed |
 | File too large | Client-side check before upload; server enforces the same limit |
 | Session not found on restore | Error message displayed in chat |
-| Maximum revisions reached | Session marked as halted; human review message shown |
-| Max 10 pinned sessions | Server-side 409 error; alert shown to user |
-
----
-
-## 12. Accessibility & UX
-
-- **Keyboard navigation:** Discovery questions support Enter to submit (single question mode)
-- **Auto-scroll:** Messages area scrolls to bottom as new content streams in
-- **Streaming cursor:** Blinking cursor shown while agent is actively generating text
-- **Empty state:** Friendly prompt shown when no messages exist in a session
-- **Tooltips:** Icon-only buttons in collapsed sidebar provide `title` tooltips
-- **Confirmation on delete:** All delete operations require explicit confirmation
-- **Dark mode default:** App launches in dark mode; toggle available in user menu
+| Maximum revisions reached | Session marked as halted |
+| Max 10 pinned sessions | Server-side 409 error; alert shown |
+| No draft to publish | 400 error from API |

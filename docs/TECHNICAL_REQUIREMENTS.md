@@ -1,30 +1,33 @@
-# Technical Requirements Document — SF Research Agent
+# Technical Requirements — Technical Architecture Agent
 
 ## 1. System Architecture
 
 ```
                         ┌─────────────────────────────┐
                         │        Vue 3 Frontend        │
-                        │   (Vite, ChatWindow.vue)     │
+                        │  (Vite, ChatWindow.vue,      │
+                        │   ChatInput.vue)             │
                         └──────────────┬──────────────┘
                                        │  HTTP / SSE
                         ┌──────────────▼──────────────┐
                         │       FastAPI Backend        │
-                        │   /api/chat/* endpoints      │
+                        │   /api/chat/*                │
+                        │   /api/flows/*               │
+                        │   /api/prompts/*             │
                         │   /api/settings/*            │
                         │   /api/usage/*               │
                         └──────────────┬──────────────┘
                                        │
                         ┌──────────────▼──────────────┐
                         │     LangGraph Orchestrator   │
-                        │  (5-node StateGraph)         │
+                        │  chat node + 5-stage flow    │
                         └──┬───────┬────────┬─────────┘
                            │       │        │
               ┌────────────▼─┐  ┌──▼──┐  ┌─▼──────────┐
               │   Perplexity │  │Gemini│  │   Claude   │
               │  Sonar Pro   │  │2.5Pro│  │ Sonnet 4.6 │
-              │(live web     │  │(arch │  │(intake,    │
-              │ search)      │  │ patt)│  │ write, rev)│
+              │ (web search) │  │(arch │  │(intake,    │
+              │              │  │ patt)│  │ write, rev)│
               └──────────────┘  └─────┘  └────────────┘
                                        │
                         ┌──────────────▼──────────────┐
@@ -32,7 +35,9 @@
                         │  (LangGraph checkpointer     │
                         │   + agent_sessions           │
                         │   + app_settings             │
-                        │   + token_usage)             │
+                        │   + token_usage              │
+                        │   + agent_prompt_versions    │
+                        │   + flow_prompt_snapshots)   │
                         └─────────────────────────────┘
 ```
 
@@ -78,127 +83,192 @@
 
 ```python
 class AgentState(BaseModel):
-    session_id:           str
-    created_at:           str
-    current_stage:        Literal["intake","discovery","research","review","approval","complete","halted","invalid_input"]
-    revision_count:       int
-    source_type:          Literal["brief","document","image"]
-    uploaded_file_path:   str
-    uploaded_image_path:  str
-    raw_document_text:    str
-    project_brief:        str
-    discovery_questions:  list[DiscoveryQuestion]
-    discovery_complete:   bool
-    document_draft:       str
-    document_version:     int
-    review_result:        Optional[ReviewResult]
-    approval_result:      Optional[ApprovalResult]
-    messages:             Annotated[list[BaseMessage], add_messages]
-    usage_records:        Annotated[list[dict], operator.add]   # appended by each agent
+    session_id:             str
+    created_at:             str
+    current_stage:          Literal["intake","discovery","research","review","approval",
+                                    "complete","halted","invalid_input"]
+    revision_count:         int
+    source_type:            Literal["brief","document","image"]
+    uploaded_file_path:     str
+    uploaded_image_path:    str
+    raw_document_text:      str
+    project_brief:          str
+    discovery_questions:    list[DiscoveryQuestion]
+    discovery_complete:     bool
+    document_draft:         str
+    document_version:       int
+    review_result:          Optional[ReviewResult]
+    approval_result:        Optional[ApprovalResult]
+    messages:               Annotated[list[BaseMessage], add_messages]
+    usage_records:          Annotated[list[dict], operator.add]
+    session_type:           Literal["chat", "agent_flow"]
+    flow_id:                str
+    flow_config:            dict     # prompts loaded from DB snapshot at session start
+    flow_snapshot_id:       int | None
+    flow_snapshot_version:  int | None
+    chat_model:             str
+    extended_thinking:      bool
+    session_agent_config:   dict     # LLM model config locked at session start
 ```
 
 ### Graph topology
 
 ```
-intake ──► discovery ⟲ (interrupt per question group)
-              │
-              ▼ (discovery_complete=True)
-          researcher ──► reviewer ──► approver
-              ▲               │           │
-              │   (FAILED)    │           │ (REJECTED)
-              └───────────────┘           │
-              ▲                           │
-              └───────────────────────────┘
-                              │ (APPROVED)
-                             END
+router ──► chat (free-form) ──► END
+       │
+       └──► intake ──► discovery ⟲ (interrupt per question group)
+                           │
+                           ▼ (discovery_complete=True)
+                       researcher ──► reviewer ──► approver
+                           ▲               │           │
+                           │   (FAILED)    │           │ (REJECTED)
+                           └───────────────┘           │
+                           ▲                           │
+                           └───────────────────────────┘
+                                           │ (APPROVED)
+                                          END
 ```
 
 ---
 
-## 4. LLM Model Assignment
+## 4. Agent Architecture
+
+### BaseAgent (agents/base.py)
+
+All single-LLM-call agents extend `BaseAgent`:
+
+```python
+class BaseAgent:
+    prompt_key: str   # key in state.flow_config
+    llm_slot:   str   # key in session_agent_config
+    schema:     type | None = None  # Pydantic structured output
+
+    def __call__(self, state): ...        # LangGraph node entry point
+    def _build_llm(self, state): ...      # get slot LLM + optional schema wrap
+    def _build_messages(self, state): ... # default: [system + human]
+    def _build_human_prompt(self, state): ...  # override in subclass
+    def _post_process(self, state, result, urec): ...  # override in subclass
+```
+
+| Agent | Class | Overrides |
+|---|---|---|
+| Discovery | `DiscoveryAgent(BaseAgent)` | `_build_messages` (windowed history), `_post_process` (interrupt loop) |
+| Reviewer | `ReviewerAgent(BaseAgent)` | `_build_human_prompt`, `_post_process` |
+| Approver | `ApproverAgent(BaseAgent)` | `_build_human_prompt`, `_post_process` |
+| Researcher | plain function | fan-out pattern (3 LLMs in parallel) |
+| Intake | plain function | IO routing (file vs image paths) |
+
+### LLM Model Assignment
 
 | Agent | Model | Rationale |
 |---|---|---|
 | Intake (text extraction) | Claude Sonnet 4.6 | Reasoning + document understanding |
 | Intake (image validation) | Claude Sonnet 4.6 (Vision) | Multimodal — validates architecture diagrams |
-| Discovery | Claude Sonnet 4.6 | Reasoning — classifies discussion type, generates targeted questions |
-| Researcher (Step 1a) | Perplexity Sonar Pro | Real-time web search — current Salesforce limits, citations, release notes |
+| Discovery | Claude Sonnet 4.6 | Reasoning — classifies platform, generates targeted questions |
+| Researcher (Step 1a) | Perplexity Sonar Pro | Real-time web search — official documentation, limits, release notes |
 | Researcher (Step 1b) | Gemini 2.5 Pro | Large context + architectural pattern reasoning |
-| Researcher (Step 2) | Claude Sonnet 4.6 | Document writing — follows structured 8-section template |
-| Reviewer | Claude Sonnet 4.6 | Reasoning — structured checklist evaluation |
-| Approver | Claude Sonnet 4.6 | Reasoning — 7-lens strategic review |
+| Researcher (Step 2) | Claude Sonnet 4.6 | Document writing — structured multi-section output |
+| Reviewer | Claude Sonnet 4.6 | Structured checklist evaluation |
+| Approver | Claude Sonnet 4.6 | 7-lens strategic review |
+| Chat (free-form) | User-selected | Sonnet 4.6 default; Extended Thinking via Anthropic SDK |
 | Session title generation | Claude Haiku 4.5 | Fast + cost-efficient, fires in background |
-
-### Parallel execution (Researcher)
-
-Perplexity and Gemini run concurrently via `ThreadPoolExecutor(max_workers=2)`. Claude writing waits for both to complete.
-
-### Token usage capture
-
-Every LLM call captures `response.usage_metadata`. Structured-output calls use `include_raw=True` to access token counts alongside the parsed Pydantic result. Usage records are appended to `AgentState.usage_records` and flushed to the `token_usage` table after each graph stream segment.
 
 ---
 
-## 5. API Endpoints
+## 5. Prompt Versioning
+
+### Flow Config Loading (at session start)
+
+1. Get latest `flow_prompt_snapshots` row for the flow
+2. For each agent key in the snapshot's `agent_versions` map, fetch the exact published content from `agent_prompt_versions`
+3. Merge DB content on top of code defaults: `flow_config = {**code_defaults, **db_prompts}`
+4. Store `flow_snapshot_id` and `flow_snapshot_version` in `AgentState`
+
+### Seeding (first boot)
+
+If `agent_prompt_versions` has no published rows for a flow, seed all agents with v1 from the code defaults in `flows/<flow_id>.py` and create `flow_prompt_snapshots` v1.
+
+---
+
+## 6. API Endpoints
 
 ### Chat (SSE streaming)
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/chat/start` | Start new session from text brief; returns SSE stream |
-| POST | `/api/chat/upload` | Start new session from file upload; returns SSE stream |
-| POST | `/api/chat/reply/{session_id}` | Resume graph after interrupt (discovery answer / confirmation) |
-| GET | `/api/chat/document/{session_id}` | Fetch current document draft as JSON |
+| POST | `/api/chat/start` | Start new session; returns SSE stream + `X-Session-Id` header |
+| POST | `/api/chat/upload` | Start from file upload; returns SSE stream |
+| POST | `/api/chat/reply/{id}` | Resume after interrupt (discovery answer / confirmation) |
+| POST | `/api/chat/retry/{id}` | Retry interrupted session |
+| GET  | `/api/chat/document/{id}` | Fetch current document draft |
+| GET  | `/api/chat/session-config/{id}` | Fetch locked agent model config for a session |
 
 ### Session management
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/chat/sessions` | List all sessions `{pinned:[...], recent:[...]}` |
-| GET | `/api/chat/session/{id}/restore` | Load full session state for frontend reconstruction |
-| POST | `/api/chat/session/{id}/pin` | Pin session (max 10) |
+| GET    | `/api/chat/sessions` | List all sessions `{pinned:[...], recent:[...]}` |
+| GET    | `/api/chat/session/{id}/restore` | Load full session state |
+| POST   | `/api/chat/session/{id}/pin` | Pin session (max 10) |
 | DELETE | `/api/chat/session/{id}/pin` | Unpin session |
-| PATCH | `/api/chat/session/{id}` | Rename session `{"title": "..."}` |
+| PATCH  | `/api/chat/session/{id}` | Rename session `{"title": "..."}` |
 | DELETE | `/api/chat/session/{id}` | Delete session + uploaded files |
 
-### Settings
+### Flows
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/settings/keys` | Returns `{anthropic: bool, perplexity: bool, google: bool}` — configured status only, never values |
-| POST | `/api/settings/keys` | Validate keys against provider APIs, then encrypt and store. Returns HTTP 422 with per-key errors if any key is rejected. |
+| GET | `/api/flows` | Available agent flows + chat models + default model |
+
+### Agent prompt versioning
+
+| Method | Path | Description |
+|---|---|---|
+| GET    | `/api/prompts/{flow_id}` | All agents + current draft/published state |
+| PUT    | `/api/prompts/{flow_id}/{agent_key}/draft` | Save/update draft |
+| DELETE | `/api/prompts/{flow_id}/{agent_key}/draft` | Discard draft |
+| POST   | `/api/prompts/{flow_id}/{agent_key}/publish` | Publish draft → new flow snapshot |
+| GET    | `/api/prompts/{flow_id}/{agent_key}/history` | Published version list |
+| GET    | `/api/prompts/{flow_id}/snapshots` | Flow snapshot timeline |
+
+### Settings & providers
+
+| Method | Path | Description |
+|---|---|---|
+| GET  | `/api/settings/keys` | Configured status per provider (never values) |
+| POST | `/api/settings/keys` | Validate + encrypt + store API keys |
 
 ### Usage
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/api/usage/session/{id}` | Token usage + cost breakdown by model for one session |
-| GET | `/api/usage/summary` | Total usage + breakdown across all sessions |
+| GET | `/api/usage/session/{id}` | Token usage + cost by model for one session |
+| GET | `/api/usage/summary` | Total usage across all sessions |
 
 ### System
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/health` | Liveness probe — returns `{"status":"ok","graph":"ready"}` |
+| GET | `/health` | Liveness probe — `{"status":"ok","graph":"ready"}` |
 
 ### SSE Event Types
 
 | Event | Payload | Description |
 |---|---|---|
 | `stage_start` | `{stage, label}` | Agent node started |
-| `token` | `{content}` | LLM text token (suppressed for researcher) |
+| `token` | `{content}` | LLM text token |
 | `stage_end` | `{stage}` | Agent node completed |
 | `document_ready` | `{version, session_id}` | Researcher produced a document |
 | `review_complete` | `{passed, feedback, critical_issues}` | Reviewer verdict |
 | `approval_complete` | `{status, comments, required_changes}` | Approver verdict |
-| `confirm_understanding` | `{content, session_id}` | Intake paused for user confirmation |
-| `question` | `{questions[], session_id}` | Discovery paused for user answers |
+| `confirm_understanding` | `{content, session_id}` | Intake paused for confirmation |
+| `question` | `{questions[], session_id}` | Discovery paused for answers |
 | `done` | `{status, document_version, revision_count}` | Graph completed or halted |
 | `error` | `{message}` | Unhandled exception |
 
 ---
 
-## 6. Database Schema
+## 7. Database Schema
 
 ### LangGraph tables (managed by LangGraph)
 
@@ -220,57 +290,79 @@ CREATE TABLE agent_sessions (
 
 CREATE TABLE app_settings (
     key_name        TEXT PRIMARY KEY,      -- "anthropic" | "perplexity" | "google"
-    encrypted_value TEXT NOT NULL,         -- Fernet-encrypted API key
+    encrypted_value TEXT NOT NULL,
     updated_at      TEXT NOT NULL
+);
+
+CREATE TABLE app_config (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 
 CREATE TABLE token_usage (
     thread_id     TEXT NOT NULL,
-    agent         TEXT NOT NULL,           -- "intake" | "discovery" | "researcher" | etc.
-    model         TEXT NOT NULL,           -- "claude-sonnet-4-6" | "sonar-pro" | etc.
+    agent         TEXT NOT NULL,
+    model         TEXT NOT NULL,
     input_tokens  INTEGER DEFAULT 0,
     output_tokens INTEGER DEFAULT 0,
     cost_usd      REAL DEFAULT 0,
     created_at    TEXT NOT NULL
 );
-```
 
-**Usage query pattern:** group by `model` to aggregate across all agents that used the same model.
+-- Per-agent versioned prompts
+CREATE TABLE agent_prompt_versions (
+    id           INTEGER PRIMARY KEY,   -- SERIAL on PostgreSQL
+    flow_id      TEXT NOT NULL,         -- "architect"
+    agent_key    TEXT NOT NULL,         -- "DISCOVERY_SYSTEM_PROMPT"
+    version      INTEGER NOT NULL,      -- 1, 2, 3 …
+    content      TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'draft',  -- 'draft' | 'published'
+    created_at   TEXT NOT NULL,
+    published_at TEXT
+);
+CREATE INDEX idx_apv_flow_key ON agent_prompt_versions(flow_id, agent_key);
+
+-- Auto-created on every publish; sessions lock to a snapshot
+CREATE TABLE flow_prompt_snapshots (
+    id               INTEGER PRIMARY KEY,  -- SERIAL on PostgreSQL
+    flow_id          TEXT NOT NULL,
+    snapshot_version INTEGER NOT NULL,
+    agent_versions   TEXT NOT NULL,        -- JSON: {"DISCOVERY_SYSTEM_PROMPT": 2, …}
+    created_at       TEXT NOT NULL,
+    triggered_by     TEXT NOT NULL         -- which agent_key triggered this snapshot
+);
+```
 
 ---
 
-## 7. API Key Security
+## 8. API Key Security
 
 ### Storage
 
 - API keys are **never stored in `.env`** and never committed to source control
-- Stored encrypted in `app_settings` table using **Fernet symmetric encryption** (AES-128-CBC + HMAC)
+- Stored encrypted in `app_settings` using **Fernet symmetric encryption** (AES-128-CBC + HMAC)
 - Encryption key (`SETTINGS_SECRET`) lives only in `.env` and never reaches the client
 
 ### Validation
 
-Before a key is saved, it is validated against its provider's API:
-- **Anthropic** — `anthropic.Anthropic(api_key=key).models.list()`
-- **Perplexity** — `openai.OpenAI(api_key=key, base_url=...).models.list()`
-- **Google** — `google.generativeai.list_models()`
-
-All three validations run in parallel via `ThreadPoolExecutor`. HTTP 422 is returned with per-key error messages if any key is rejected.
+Before a key is saved, it is validated against the provider's live API. All three run in parallel via `ThreadPoolExecutor`. HTTP 422 with per-key errors if any key is rejected.
 
 ### Runtime
 
-An in-memory cache holds decrypted keys after startup. Agents call `get_keys()` synchronously. If any key is missing, a `RuntimeError` with a user-friendly message propagates as an SSE `error` event.
+In-memory cache holds decrypted keys after startup. Missing key → `RuntimeError` propagates as an SSE `error` event.
 
 ---
 
-## 8. File Handling
+## 9. File Handling
 
 ### Upload flow
 
 1. Extension validated (415 if unsupported)
-2. Size checked against `MAX_FILE_SIZE_MB` (413 if exceeded) — both client and server
+2. Size checked (413 if exceeded) — both client and server
 3. Saved to `UPLOAD_DIR/{stem}_{uuid}{ext}`
-4. Documents: text extracted immediately; stored in `AgentState.raw_document_text`
-5. Images: saved to disk; Claude Vision reads from disk during intake
+4. Documents: text extracted immediately into `AgentState.raw_document_text`
+5. Images: saved to disk; Claude Vision reads during intake
 
 ### Supported formats
 
@@ -281,7 +373,7 @@ An in-memory cache holds decrypted keys after startup. Agents call `get_keys()` 
 
 ---
 
-## 9. Memory & Token Management
+## 10. Memory & Token Management
 
 ### Message windowing (Discovery agent)
 
@@ -289,16 +381,16 @@ Only the last 30 messages from `state.messages` are passed to the Discovery LLM.
 
 ### Selective context per agent
 
-| Agent | Messages passed | Context source |
+| Agent | Messages | Context source |
 |---|---|---|
-| Discovery | Last 30 messages | Conversational history needed |
-| Researcher (all 3 LLMs) | None | Uses structured `state.discovery_questions` |
-| Reviewer | None | Uses `state.document_draft` + `state.discovery_questions` |
-| Approver | None | Uses `state.project_brief` + `state.document_draft` + `state.review_result` |
+| Discovery | Last 30 messages | Conversational history |
+| Researcher (all 3) | None | `state.project_brief` + `state.discovery_questions` |
+| Reviewer | None | `state.document_draft` + `state.discovery_questions` |
+| Approver | None | `state.project_brief` + `state.document_draft` + `state.review_result` |
 
 ---
 
-## 10. Error Resilience
+## 11. Error Resilience
 
 ### LLM retry (all agents)
 
@@ -308,24 +400,24 @@ Only the last 30 messages from `state.messages` are passed to the Discovery LLM.
 
 ### Database backend switching
 
-The checkpointer factory reads `DB_BACKEND` at startup. Switch between SQLite and PostgreSQL via `.env` only — no code changes required.
+The checkpointer factory reads `DB_BACKEND` at startup. Switch between SQLite and PostgreSQL via `.env` — no code changes required.
 
 ---
 
-## 11. Security
+## 12. Security
 
 | Concern | Mitigation |
 |---|---|
-| API keys | Stored Fernet-encrypted in DB. Never in `.env`, never committed. Never returned to client. |
+| API keys | Fernet-encrypted in DB. Never in `.env`, never committed. Never returned to client. |
 | SETTINGS_SECRET | In `.env` only (gitignored). Protects all stored API keys. |
 | CORS | `ALLOWED_ORIGINS` env var; defaults to `*` for dev, must be restricted in prod |
 | File uploads | Extension allowlist + size limit enforced both client and server |
-| Session isolation | Sessions identified by UUID4 `thread_id`; no auth currently (add JWT/API key before production exposure) |
+| Session isolation | Sessions identified by UUID4 `thread_id` |
 | SQL injection | All queries use parameterised statements |
 
 ---
 
-## 12. Model Pricing (for cost estimation)
+## 13. Model Pricing (for cost estimation)
 
 Prices in USD per 1,000,000 tokens. Update `backend/utils/pricing.py` when rates change.
 
@@ -338,7 +430,7 @@ Prices in USD per 1,000,000 tokens. Update `backend/utils/pricing.py` when rates
 
 ---
 
-## 13. Performance Targets (10 concurrent sessions)
+## 14. Performance Targets (10 concurrent sessions)
 
 | Metric | Target |
 |---|---|
@@ -351,17 +443,7 @@ Prices in USD per 1,000,000 tokens. Update `backend/utils/pricing.py` when rates
 | Approver | < 15s |
 | Session list load | < 500ms |
 | Session title generation | < 1s (background, non-blocking) |
-| API key validation (Save Settings) | 2–5s (3 providers in parallel) |
-
----
-
-## 14. Observability
-
-- Structured logging via Python `logging` module
-- Startup validation: missing `SETTINGS_SECRET` or `POSTGRES_URI` cause immediate `sys.exit(1)`
-- `/health` endpoint for load balancer probes
-- Session cleanup logs count of expired sessions deleted
-- LangGraph pending deprecation warnings suppressed
+| API key validation | 2–5s (3 providers in parallel) |
 
 ---
 
@@ -371,9 +453,8 @@ Prices in USD per 1,000,000 tokens. Update `backend/utils/pricing.py` when rates
 |---|---|
 | Authentication | Add JWT or API key auth to all `/api/` routes before public deployment |
 | Rate limiting | Add `slowapi` to limit `/start` and `/upload` per IP |
-| Switch to Gemini Search | Replace Perplexity with Gemini 2.5 Pro + Search grounding when available; one function change in `backend/agents/researcher.py` |
-| RAG integration | Connect Salesforce Help documentation as a vector store for the research step |
-| Salesforce Metadata API | Validate architecture recommendations against real org limits via Tooling API |
+| Additional agent flows | Add `flows/<name>.py` + entry in `flows/registry.py` — no other code changes |
+| RAG integration | Connect official vendor documentation as a vector store per platform |
 | Export to Word | Add DOCX export alongside PDF and Markdown |
 | Multi-user / teams | Add workspace concept; share sessions between team members |
 | Per-user key isolation | If multi-user is added, scope API keys per user rather than globally |
