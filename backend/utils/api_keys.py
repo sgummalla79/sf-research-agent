@@ -18,6 +18,7 @@ KEY_NAMES: list[str] = PROVIDER_ORDER
 KEY_LABELS: dict[str, str] = {pid: PROVIDERS[pid]["key_label"] for pid in PROVIDER_ORDER}
 
 _cache: dict[str, str] = {}
+_config_cache: dict[str, str] = {}
 
 
 def _fernet() -> Fernet:
@@ -42,6 +43,16 @@ def populate_cache(decrypted: dict[str, str]) -> None:
     """Load plain-text keys into the in-memory cache. Called on startup and after every save."""
     _cache.clear()
     _cache.update({k: v for k, v in decrypted.items() if v})
+
+
+def populate_config_cache(config: dict[str, str]) -> None:
+    """Load plain-text config values into the in-memory config cache."""
+    _config_cache.update({k: v for k, v in config.items() if v is not None})
+
+
+def get_anthropic_mode() -> str:
+    """Return 'bedrock' or 'direct' (default) for the active Anthropic auth mode."""
+    return _config_cache.get("anthropic_mode", "direct")
 
 
 def get_keys() -> dict[str, str]:

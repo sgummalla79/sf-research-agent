@@ -25,6 +25,23 @@ PROVIDERS: dict[str, dict] = {
         "description": "Claude Opus, Sonnet, Haiku",
         "placeholder": "sk-ant-api03-…",
         "key_label":   "Anthropic API Key",
+        "auth_modes": [
+            {
+                "id":    "direct",
+                "label": "Direct API",
+                "fields": [
+                    {"key": "anthropic", "label": "API Key", "placeholder": "sk-ant-api03-…"},
+                ],
+            },
+            {
+                "id":    "bedrock",
+                "label": "AWS Bedrock",
+                "fields": [
+                    {"key": "anthropic_bedrock_url",   "label": "Bedrock Base URL", "placeholder": "https://…"},
+                    {"key": "anthropic_bedrock_token", "label": "Auth Token",       "placeholder": "…"},
+                ],
+            },
+        ],
     },
     "openai": {
         "name":        "OpenAI",
@@ -73,14 +90,22 @@ _OPENAI_EXCLUDE_PREFIXES = (
 )
 
 
-async def fetch_models(provider_id: str, api_key: str) -> list[str]:
+async def fetch_models(
+    provider_id: str,
+    api_key: str,
+    mode: str = "direct",
+    bedrock_url: str = "",
+    bedrock_token: str = "",
+) -> list[str]:
     """
     Fetch available models for the given provider using the supplied API key.
     Returns a sorted list of model ID strings.
     Raises on auth failure or network error so callers can surface the error to the user.
     """
+    if provider_id == "anthropic":
+        return await _fetch_anthropic(api_key, mode=mode, bedrock_url=bedrock_url, bedrock_token=bedrock_token)
+
     fetchers = {
-        "anthropic":  _fetch_anthropic,
         "openai":     _fetch_openai,
         "google":     _fetch_google,
         "perplexity": _fetch_perplexity,
@@ -95,11 +120,37 @@ async def fetch_models(provider_id: str, api_key: str) -> list[str]:
 
 # ── Per-provider fetch implementations ───────────────────────────────────────
 
-async def _fetch_anthropic(api_key: str) -> list[str]:
+# Curated Bedrock model IDs — Bedrock gateway has no /models endpoint
+_BEDROCK_MODELS = [
+    "us.anthropic.claude-opus-4-7",
+    "us.anthropic.claude-sonnet-4-6",
+    "us.anthropic.claude-haiku-4-5-20251001",
+]
+
+
+async def _fetch_anthropic(
+    api_key: str,
+    mode: str = "direct",
+    bedrock_url: str = "",
+    bedrock_token: str = "",
+) -> list[str]:
     import anthropic
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-    response = await client.models.list(limit=100)
-    return sorted(m.id for m in response.data)
+    if mode == "bedrock":
+        # Bedrock gateway has no /models endpoint — validate by sending a minimal test message
+        client = anthropic.AsyncAnthropicBedrock(
+            base_url=bedrock_url,
+            api_key=bedrock_token,
+        )
+        await client.messages.create(
+            model=_BEDROCK_MODELS[1],
+            max_tokens=1,
+            messages=[{"role": "user", "content": "hi"}],
+        )
+        return list(_BEDROCK_MODELS)
+    else:
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        response = await client.models.list(limit=100)
+        return sorted(m.id for m in response.data)
 
 
 async def _fetch_openai(api_key: str) -> list[str]:

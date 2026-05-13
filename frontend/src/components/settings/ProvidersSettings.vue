@@ -20,39 +20,94 @@
           </span>
         </div>
 
-        <!-- Key input row -->
-        <div class="ps-key-row">
-          <input
-            v-model="keyInputs[p.id]"
-            class="ps-input"
-            :class="{ 'ps-input-err': errors[p.id] }"
-            type="password"
-            :placeholder="p.connected ? 'Enter new key to update…' : p.placeholder"
-            autocomplete="off"
-            @keydown.enter="connect(p.id)"
-          />
+        <!-- Mode toggle (Anthropic only) -->
+        <div v-if="p.auth_modes" class="ps-mode-toggle">
           <button
-            class="ps-btn-connect"
-            :disabled="connecting[p.id] || !keyInputs[p.id]"
-            @click="connect(p.id)"
-          >
-            {{ connecting[p.id] ? 'Connecting…' : (p.connected ? 'Update' : 'Connect') }}
-          </button>
-          <button
-            v-if="p.connected"
-            class="ps-btn-refresh"
-            :disabled="refreshing[p.id]"
-            @click="refresh(p.id)"
-            title="Re-fetch model list"
-          >↻</button>
-          <button
-            v-if="p.connected"
-            class="ps-btn-disconnect"
-            :disabled="disconnecting[p.id]"
-            @click="disconnect(p.id)"
-            title="Disconnect"
-          >✕</button>
+            v-for="m in p.auth_modes"
+            :key="m.id"
+            class="ps-mode-btn"
+            :class="{ active: selectedMode[p.id] === m.id }"
+            @click="selectedMode[p.id] = m.id"
+          >{{ m.label }}</button>
         </div>
+
+        <!-- Key input row(s) -->
+        <template v-if="p.auth_modes">
+          <div
+            v-for="field in p.auth_modes.find(m => m.id === selectedMode[p.id])?.fields ?? []"
+            :key="field.key"
+            class="ps-field-group"
+          >
+            <span class="ps-field-label">{{ field.label }}</span>
+            <input
+              v-model="keyInputs[field.key]"
+              class="ps-input"
+              :class="{ 'ps-input-err': errors[p.id] }"
+              type="password"
+              :placeholder="field.placeholder"
+              :aria-label="field.label"
+              autocomplete="off"
+              @keydown.enter="connect(p.id)"
+            />
+          </div>
+          <div class="ps-key-row ps-key-row-actions">
+            <button
+              class="ps-btn-connect"
+              :disabled="connecting[p.id] || !modeFieldsFilled(p)"
+              @click="connect(p.id)"
+            >
+              {{ connecting[p.id] ? 'Connecting…' : (p.connected ? 'Update' : 'Connect') }}
+            </button>
+            <button
+              v-if="p.connected"
+              class="ps-btn-refresh"
+              :disabled="refreshing[p.id]"
+              @click="refresh(p.id)"
+              title="Re-fetch model list"
+            >↻</button>
+            <button
+              v-if="p.connected"
+              class="ps-btn-disconnect"
+              :disabled="disconnecting[p.id]"
+              @click="disconnect(p.id)"
+              title="Disconnect"
+            >✕</button>
+          </div>
+        </template>
+        <template v-else>
+          <div class="ps-key-row">
+            <input
+              v-model="keyInputs[p.id]"
+              class="ps-input"
+              :class="{ 'ps-input-err': errors[p.id] }"
+              type="password"
+              :placeholder="p.connected ? 'Enter new key to update…' : p.placeholder"
+              autocomplete="off"
+              @keydown.enter="connect(p.id)"
+            />
+            <button
+              class="ps-btn-connect"
+              :disabled="connecting[p.id] || !keyInputs[p.id]"
+              @click="connect(p.id)"
+            >
+              {{ connecting[p.id] ? 'Connecting…' : (p.connected ? 'Update' : 'Connect') }}
+            </button>
+            <button
+              v-if="p.connected"
+              class="ps-btn-refresh"
+              :disabled="refreshing[p.id]"
+              @click="refresh(p.id)"
+              title="Re-fetch model list"
+            >↻</button>
+            <button
+              v-if="p.connected"
+              class="ps-btn-disconnect"
+              :disabled="disconnecting[p.id]"
+              @click="disconnect(p.id)"
+              title="Disconnect"
+            >✕</button>
+          </div>
+        </template>
         <p v-if="errors[p.id]" class="ps-err">{{ errors[p.id] }}</p>
 
         <!-- Model chips -->
@@ -71,12 +126,13 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 
-const providers   = ref([])
-const loading     = ref(true)
-const keyInputs   = reactive({})
-const errors      = reactive({})
-const connecting  = reactive({})
-const refreshing  = reactive({})
+const providers     = ref([])
+const loading       = ref(true)
+const keyInputs     = reactive({})
+const selectedMode  = reactive({})
+const errors        = reactive({})
+const connecting    = reactive({})
+const refreshing    = reactive({})
 const disconnecting = reactive({})
 
 async function load() {
@@ -87,11 +143,23 @@ async function load() {
       const data = await res.json()
       providers.value = data.providers || []
       for (const p of providers.value) {
-        keyInputs[p.id]    = keyInputs[p.id] ?? ''
-        errors[p.id]       = ''
-        connecting[p.id]   = false
-        refreshing[p.id]   = false
+        errors[p.id]        = ''
+        connecting[p.id]    = false
+        refreshing[p.id]    = false
         disconnecting[p.id] = false
+
+        if (p.auth_modes) {
+          // Initialize mode from backend active_mode
+          selectedMode[p.id] = p.active_mode || p.auth_modes[0].id
+          // Initialize a keyInput slot for every possible field across all modes
+          for (const m of p.auth_modes) {
+            for (const f of m.fields) {
+              keyInputs[f.key] = keyInputs[f.key] ?? ''
+            }
+          }
+        } else {
+          keyInputs[p.id] = keyInputs[p.id] ?? ''
+        }
       }
     }
   } finally {
@@ -99,23 +167,53 @@ async function load() {
   }
 }
 
+function modeFieldsFilled(p) {
+  const mode = p.auth_modes.find(m => m.id === selectedMode[p.id])
+  if (!mode) return false
+  return mode.fields.every(f => (keyInputs[f.key] || '').trim())
+}
+
 async function connect(pid) {
-  const key = (keyInputs[pid] || '').trim()
-  if (!key) return
   errors[pid]     = ''
   connecting[pid] = true
   try {
+    const p = providers.value.find(x => x.id === pid)
+    let body
+
+    if (p?.auth_modes) {
+      const mode = selectedMode[pid]
+      const modeFields = p.auth_modes.find(m => m.id === mode)?.fields ?? []
+      if (mode === 'bedrock') {
+        body = {
+          mode,
+          bedrock_url:   (keyInputs['anthropic_bedrock_url']   || '').trim(),
+          bedrock_token: (keyInputs['anthropic_bedrock_token'] || '').trim(),
+        }
+      } else {
+        body = { mode, api_key: (keyInputs[modeFields[0]?.key] || '').trim() }
+      }
+    } else {
+      body = { api_key: (keyInputs[pid] || '').trim() }
+    }
+
     const res  = await fetch(`/api/providers/${pid}/connect`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ api_key: key }),
+      body:    JSON.stringify(body),
     })
     const data = await res.json()
     if (res.ok) {
-      keyInputs[pid] = ''
+      // Clear inputs for all fields of this provider
+      if (p?.auth_modes) {
+        for (const m of p.auth_modes) {
+          for (const f of m.fields) keyInputs[f.key] = ''
+        }
+      } else {
+        keyInputs[pid] = ''
+      }
       await load()
     } else {
-      errors[pid] = data.detail || 'Connection failed.'
+      errors[pid] = (typeof data.detail === 'string' ? data.detail : null) || 'Connection failed.'
     }
   } catch (_) {
     errors[pid] = 'Network error.'
@@ -176,6 +274,18 @@ onMounted(load)
 .ps-badge.ok  { background: #22c55e22; color: #4ade80; }
 .ps-badge.off { background: #6b728022; color: var(--muted); }
 
+.ps-mode-toggle { display: flex; gap: 6px; }
+.ps-mode-btn {
+  padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  border: 1.5px solid var(--bdr); background: var(--surf); color: var(--muted);
+  cursor: pointer; transition: all .15s;
+}
+.ps-mode-btn:hover  { color: var(--tx); background: var(--inp); }
+.ps-mode-btn.active { border-color: var(--pri); color: var(--pri); background: var(--inp); }
+
+.ps-field-group { display: flex; flex-direction: column; gap: 5px; }
+.ps-field-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.ps-key-row-actions { margin-top: 2px; }
 .ps-key-row { display: flex; gap: 8px; align-items: center; }
 .ps-input {
   flex: 1; min-width: 0; padding: 9px 12px; border-radius: 8px;

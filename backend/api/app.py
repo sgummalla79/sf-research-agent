@@ -29,7 +29,7 @@ from api.routes.usage import router as usage_router
 from api.routes.providers import router as providers_router
 from graph.builder import build_graph
 from persistence.checkpointer import get_async_checkpointer
-from utils.api_keys import decrypt, populate_cache
+from utils.api_keys import decrypt, populate_cache, populate_config_cache
 from utils.agent_config import populate_agent_config, DEFAULT_AGENT_CONFIG
 from config import DATABASE_URL, DB_BACKEND
 from utils.models_cache import populate_models_cache
@@ -40,10 +40,21 @@ logger = logging.getLogger(__name__)
 
 def _validate_env() -> None:
     missing = []
-    if not os.getenv("SETTINGS_SECRET"):
+    secret = os.getenv("SETTINGS_SECRET", "")
+    if not secret:
         missing.append("SETTINGS_SECRET")
+    else:
+        try:
+            from cryptography.fernet import Fernet
+            Fernet(secret.encode() if isinstance(secret, str) else secret)
+        except Exception:
+            logger.critical(
+                "SETTINGS_SECRET is set but is not a valid Fernet key.\n"
+                "Generate a valid key with:\n"
+                "  python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
+            sys.exit(1)
     if DB_BACKEND == "postgres" and not DATABASE_URL:
-        # Should not happen — DB_BACKEND is derived from DATABASE_URL — but guard anyway
         missing.append("DATABASE_URL")
     if missing:
         logger.critical(
@@ -71,6 +82,10 @@ async def lifespan(app: FastAPI):
             except Exception:
                 logger.warning("Could not decrypt stored API key: %s", k)
         populate_cache(decrypted)
+
+        # ── Load Anthropic auth mode ───────────────────────────────────────
+        anthropic_mode = await db.get_config("anthropic_mode") or "direct"
+        populate_config_cache({"anthropic_mode": anthropic_mode})
 
         # ── Load provider model lists ──────────────────────────────────────
         provider_models: dict[str, list[str]] = {}

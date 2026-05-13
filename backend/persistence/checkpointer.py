@@ -294,6 +294,24 @@ class DBContext:
         await self._exec(sql_key, (provider_id,))
         await self._exec(sql_cfg, (f"models_{provider_id}",))
 
+    async def delete_api_key(self, key_name: str) -> None:
+        """Remove a single row from app_settings by key_name."""
+        sql = (
+            "DELETE FROM app_settings WHERE key_name = ?"
+            if self._backend == "sqlite" else
+            "DELETE FROM app_settings WHERE key_name = %s"
+        )
+        await self._exec(sql, (key_name,))
+
+    async def delete_config(self, key: str) -> None:
+        """Remove a single row from app_config by key."""
+        sql = (
+            "DELETE FROM app_config WHERE key = ?"
+            if self._backend == "sqlite" else
+            "DELETE FROM app_config WHERE key = %s"
+        )
+        await self._exec(sql, (key,))
+
     async def save_config(self, key: str, value: str) -> None:
         """Persist a plain-text config value (not encrypted)."""
         now = datetime.now(timezone.utc).isoformat()

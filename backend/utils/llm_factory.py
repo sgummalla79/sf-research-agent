@@ -18,7 +18,14 @@ def build_llm(provider: str, model: str):
     """Return a configured LangChain chat model for the given provider and model."""
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
-        return ChatAnthropic(model=model, api_key=get_key("anthropic"))
+        from utils.api_keys import get_anthropic_mode
+        if get_anthropic_mode() == "bedrock":
+            return ChatAnthropic(
+                model=model,
+                anthropic_api_url=get_key("anthropic_bedrock_url"),
+                anthropic_api_key=get_key("anthropic_bedrock_token"),
+            )
+        return ChatAnthropic(model=model, anthropic_api_key=get_key("anthropic"))
 
     elif provider == "openai":
         from langchain_openai import ChatOpenAI

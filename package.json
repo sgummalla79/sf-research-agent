@@ -2,22 +2,22 @@
   "name": "sf-research-agent",
   "private": true,
   "scripts": {
-    "dev:mac":           "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"npm run dev:backend:mac\" \"npm run dev:frontend:mac\"",
-    "dev:win":           "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"npm run dev:backend:win\" \"npm run dev:frontend:win\"",
-    "dev:backend:mac":   "cd backend && ([ -d .venv ] || python3 -m venv .venv) && .venv/bin/pip install -r requirements.txt -q --disable-pip-version-check && (lsof -ti:8000 | xargs kill -9 2>/dev/null; true) && .venv/bin/uvicorn api.app:app --reload --port 8000",
-    "dev:backend:win":   "cd backend && (if not exist .venv python -m venv .venv) && .venv\\Scripts\\pip install -r requirements.txt -q --disable-pip-version-check && .venv\\Scripts\\uvicorn api.app:app --reload --port 8000",
-    "dev:frontend:mac":  "cd frontend && npm install --silent && npm run dev",
-    "dev:frontend:win":  "cd frontend && npm install --silent && npm run dev",
-    "build:mac":         "cd frontend && npm run build",
-    "build:win":         "cd frontend && npm run build",
-    "stop:mac":          "npm run stop:backend:mac && npm run stop:frontend:mac",
-    "stop:win":          "npm run stop:backend:win && npm run stop:frontend:win",
-    "stop:backend:mac":  "lsof -ti:8000 | xargs kill -9 2>/dev/null || true",
-    "stop:backend:win":  "powershell -Command \"Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
+    "dev:mac": "concurrently --names backend,frontend --prefix-colors blue.bold,green.bold --kill-others-on-fail \"npm run dev:backend:mac\" \"npm run dev:frontend:mac\"",
+    "dev:win": "node scripts/dev-win.js",
+    "dev:backend:mac": "node scripts/preflight-backend.js && cd backend && ([ -d .venv ] || python3 -m venv .venv) && .venv/bin/pip install -r requirements.txt -q --disable-pip-version-check && .venv/bin/uvicorn api.app:app --reload --port 8000",
+    "dev:backend:win": "node scripts/preflight-backend.js && cd backend && (if not exist .venv python -m venv .venv) && .venv\\Scripts\\pip install -r requirements.txt -q --disable-pip-version-check && .venv\\Scripts\\uvicorn api.app:app --reload --port 8000",
+    "dev:frontend:mac": "node scripts/preflight-frontend.js && cd frontend && npm install --silent && npm run dev",
+    "dev:frontend:win": "node scripts/preflight-frontend.js && cd frontend && npm install --silent && npm run dev",
+    "build:mac": "cd frontend && npm run build",
+    "build:win": "cd frontend && npm run build",
+    "stop:mac": "npm run stop:backend:mac && npm run stop:frontend:mac",
+    "stop:win": "npm run stop:backend:win && npm run stop:frontend:win",
+    "stop:backend:mac": "lsof -ti:8000 | xargs kill -9 2>/dev/null || true",
+    "stop:backend:win": "powershell -Command \"Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
     "stop:frontend:mac": "lsof -ti:5173 | xargs kill -9 2>/dev/null || true",
     "stop:frontend:win": "powershell -Command \"Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\""
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^9.2.1"
   }
 }
