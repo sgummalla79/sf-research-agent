@@ -119,12 +119,15 @@ async function loadTheme(isDark, el = null) {
 async function saveTheme(themeId, isDark, el = null) {
   applyTheme(themeId, isDark, el)
   try {
-    await apiFetch('/api/settings/theme', {
+    const res = await apiFetch('/api/settings/theme', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ theme: themeId }),
     })
-  } catch (_) {}
+    if (!res.ok) console.error('[theme] save failed:', res.status, await res.text().catch(() => ''))
+  } catch (e) {
+    console.error('[theme] save error:', e)
+  }
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────
