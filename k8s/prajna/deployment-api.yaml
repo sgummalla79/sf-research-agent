@@ -17,7 +17,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: prajna-api
-          image: ghcr.io/YOUR_GITHUB_USERNAME/prajna-api:latest
+          image: ghcr.io/sgummalla79/prajna-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
@@ -32,8 +32,7 @@ spec:
               memory: "512Mi"
               cpu: "500m"
           readinessProbe:
-            httpGet:
-              path: /auth/me
+            tcpSocket:
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 10
