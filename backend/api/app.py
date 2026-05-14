@@ -30,6 +30,7 @@ from fastapi.responses import JSONResponse
 
 from api.routes.auth import router as auth_router
 from api.routes.chat import router as chat_router
+from api.routes.health import router as health_router
 from api.routes.usage import router as usage_router
 from api.routes.providers import router as providers_router
 from api.routes.flows import router as flows_router
@@ -120,6 +121,7 @@ app.add_middleware(
     expose_headers=["X-Session-Id"],
 )
 
+app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(usage_router)
@@ -127,11 +129,3 @@ app.include_router(providers_router)
 app.include_router(flows_router)
 app.include_router(prompts_router)
 app.include_router(skills_router)
-
-
-@app.get("/health", tags=["ops"])
-async def health():
-    graphs_ready = hasattr(app.state, "graphs") and bool(app.state.graphs)
-    if not graphs_ready:
-        return JSONResponse(status_code=503, content={"status": "starting"})
-    return {"status": "ok", "graph": "ready", "skills": list(app.state.graphs.keys())}
