@@ -339,7 +339,22 @@
       </div>
 
       <!-- Banners -->
-      <div v-if="isResumable" class="banner warn">
+      <div v-if="providerConflict" class="banner provider-conflict">
+        <div class="pc-body">
+          <span class="pc-icon">⚠️</span>
+          <div class="pc-text">
+            <strong>Provider unavailable</strong>
+            <span>{{ providerConflict.detail }}</span>
+          </div>
+        </div>
+        <div class="pc-actions">
+          <button class="retry-btn" @click="appView = 'settings'">Configure Providers</button>
+          <button v-if="providerConflict.canSmartPick" class="retry-btn smart-pick-btn" @click="retryWithSmartPick">
+            Use Smart Config
+          </button>
+        </div>
+      </div>
+      <div v-else-if="isResumable" class="banner warn">
         <span>⚡ This session was interrupted mid-run.</span>
         <button class="retry-btn" @click="retrySession">↺ Resume Session</button>
       </div>
@@ -696,10 +711,11 @@ import SudarshanChakra from './SudarshanChakra.vue'
 const {
   sessionId, messages, currentStage, pendingQuestions, pendingConfirmation,
   isStreaming, isComplete, isHalted, isInvalidInput, isResumable, isRegularChat, error,
+  providerConflict,
   documentPanel, sidebar, sessionUsage,
   loadSessions, newChat, restoreSession,
   pinSession, unpinSession, deleteSession, renameSession,
-  startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
+  startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession, retryWithSmartPick,
   continueRegularChat, sendMessage, forkSession,
   openDocumentPanel, closeDocumentPanel, downloadMD,
 } = useAgentChat()
@@ -1848,6 +1864,15 @@ function doPDF() {
 .retry-btn:hover{opacity:1}
 .banner.ok{background:#dcfce7;color:#166534}.banner.warn{background:#fef3c7;color:#92400e}.banner.err{background:#fee2e2;color:#991b1b}
 .dark .banner.ok{background:#052e16;color:#86efac}.dark .banner.warn{background:#1c1400;color:#fcd34d}.dark .banner.err{background:#1f0000;color:#fca5a5}
+.banner.provider-conflict{background:#fff7ed;color:#7c2d12;flex-direction:column;align-items:stretch;gap:10px;padding:14px 24px}
+.dark .banner.provider-conflict{background:#1c0f00;color:#fdba74}
+.pc-body{display:flex;align-items:flex-start;gap:10px}
+.pc-icon{font-size:18px;line-height:1.3;flex-shrink:0}
+.pc-text{display:flex;flex-direction:column;gap:2px}
+.pc-text strong{font-size:13px;font-weight:700}
+.pc-text span{font-size:12px;opacity:.85;line-height:1.4}
+.pc-actions{display:flex;gap:8px;justify-content:flex-end}
+.smart-pick-btn{background:rgba(0,0,0,.06)}
 
 /* ── Document right panel ──────────────────────────────────────────────────── */
 .doc-panel {

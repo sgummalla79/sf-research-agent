@@ -16,6 +16,7 @@ export function useAgentChat() {
   const isResumable         = ref(false)   // restored session stuck mid-run
   const isRegularChat       = ref(false)   // session_type === 'chat'
   const error               = ref(null)
+  const providerConflict    = ref(null)    // { detail, canSmartPick } when resume fails due to missing provider
 
   // Document panel
   const documentPanel = reactive({ open: false, content: '', version: 0, loading: false })
@@ -351,17 +352,28 @@ export function useAgentChat() {
     await _readStream(response)
   }
 
-  async function retrySession() {
+  async function retrySession(forcedSmartPick = false) {
     if (!sessionId.value) return
-    error.value       = null
-    isResumable.value = false
-    const response = await apiFetch(`${API_BASE}/retry/${sessionId.value}`, { method: 'POST' })
+    error.value           = null
+    providerConflict.value = null
+    isResumable.value     = false
+    const url = `${API_BASE}/retry/${sessionId.value}${forcedSmartPick ? '?smart_pick=true' : ''}`
+    const response = await apiFetch(url, { method: 'POST' })
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
+      if (response.status === 409 && (data.error === 'provider_unavailable' || data.error === 'no_providers')) {
+        providerConflict.value = { detail: data.detail, canSmartPick: data.can_smart_pick }
+        isResumable.value = true   // keep session resumable so user can still act
+        return
+      }
       error.value = data.detail || 'Retry failed.'
       return
     }
     await _readStream(response)
+  }
+
+  async function retryWithSmartPick() {
+    await retrySession(true)
   }
 
   // ── Post-completion chat ───────────────────────────────────────────────────
@@ -472,12 +484,13 @@ export function useAgentChat() {
     sessionId, messages, currentStage,
     pendingQuestions, pendingConfirmation,
     isStreaming, isComplete, isHalted, isInvalidInput, isResumable, isRegularChat, error,
+    providerConflict,
     documentPanel, sidebar, sessionUsage,
     // session ops
     loadSessions, newChat, restoreSession,
     pinSession, unpinSession, deleteSession, renameSession,
     // chat ops
-    startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
+    startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession, retryWithSmartPick,
     continueRegularChat, sendMessage, forkSession,
     // doc panel
     openDocumentPanel, closeDocumentPanel, downloadMD, downloadPDF,

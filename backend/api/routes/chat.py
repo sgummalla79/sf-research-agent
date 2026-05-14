@@ -19,8 +19,8 @@ import json
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Depends
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Depends, Query
+from fastapi.responses import StreamingResponse, JSONResponse
 from langgraph.types import Command
 
 from pydantic import BaseModel
@@ -58,18 +58,27 @@ async def _resolve_agent_cfg(
     flow_id: str | None,
     snapshot_model_overrides: dict,  # {agent_key: {provider, model}}
     slot_map: dict,                  # {agent_key: slot}
+    *,
+    force_smart_pick: bool = False,  # ignore saved config, always smart-pick
 ) -> dict:
     """
     Resolve the per-slot LLM config for a session by smart-picking from
     the user's connected providers.  Snapshot overrides take precedence over
     the user's saved agent_config, which beats smart defaults.
+
+    When force_smart_pick=True the saved agent_config is ignored entirely —
+    every slot is filled by smart_pick() from connected providers.
     """
     user_keys = await db.get_all_api_keys(user_id)
     connected = available_providers(user_keys)
 
-    raw_user_cfg    = await db.get_config(user_id, "agent_config")
-    saved_user_cfg  = json.loads(raw_user_cfg) if raw_user_cfg else {}
-    user_cfg_explicit = set(saved_user_cfg.keys())
+    if force_smart_pick:
+        saved_user_cfg    = {}
+        user_cfg_explicit = set()
+    else:
+        raw_user_cfg      = await db.get_config(user_id, "agent_config")
+        saved_user_cfg    = json.loads(raw_user_cfg) if raw_user_cfg else {}
+        user_cfg_explicit = set(saved_user_cfg.keys())
 
     # Build per-slot snapshot overrides from per-agent-key overrides
     snapshot_slot_cfg: dict = {}
@@ -622,17 +631,27 @@ async def restore_session(session_id: str, request: Request, current_user: AuthU
 
 
 @router.post("/retry/{session_id}")
-async def retry_chat(session_id: str, request: Request, current_user: AuthUser = Depends(get_current_user)):
+async def retry_chat(
+    session_id: str,
+    request:     Request,
+    current_user: AuthUser = Depends(get_current_user),
+    smart_pick:  bool = Query(False, alias="smart_pick"),
+):
     """
     Re-stream the graph from its last LangGraph checkpoint.
-    Use this after a connection error or exhausted LLM retries.
-    Safe to call multiple times — LangGraph resumes from the last
-    completed node, so no work is duplicated or lost.
 
-    Before re-streaming, the session_agent_config in the checkpoint is patched
-    with a freshly resolved config (smart-pick from currently connected providers).
-    This fixes sessions that were created before smart-pick was introduced and had
-    Anthropic hardcoded even when the user never connected Anthropic.
+    The session_agent_config is always re-resolved before streaming so stale
+    sessions (created when providers were hardcoded) pick up the user's current
+    connected providers.
+
+    If the saved agent_config points to a provider that is no longer connected,
+    the endpoint returns HTTP 409 with error='provider_unavailable' so the
+    frontend can offer the user two options:
+      - Go to Settings → Providers to reconnect
+      - Retry with ?smart_pick=true to auto-pick from available providers
+
+    If no providers are connected at all, returns HTTP 409 with
+    error='no_providers' (smart_pick option hidden).
     """
     graphs         = request.app.state.graphs
     graph          = request.app.state.graph
@@ -648,9 +667,6 @@ async def retry_chat(session_id: str, request: Request, current_user: AuthUser =
     if current_stage in ("complete", "halted", "invalid_input"):
         raise HTTPException(status_code=400, detail="Session is already finished — nothing to retry.")
 
-    # Only block if there is an actual human-in-the-loop interrupt pending.
-    # state.next being non-empty is NOT enough — it is also truthy when a node
-    # errored mid-run and LangGraph still has the node queued for re-execution.
     has_interrupt = any(getattr(t, "interrupts", None) for t in (state.tasks or []))
     if has_interrupt:
         raise HTTPException(
@@ -658,8 +674,7 @@ async def retry_chat(session_id: str, request: Request, current_user: AuthUser =
             detail="Session is waiting for your input — answer the pending question instead of retrying.",
         )
 
-    # Patch session_agent_config with a freshly resolved config so stale sessions
-    # (created before smart-pick) pick up the user's currently connected providers.
+    # Gather snapshot overrides so they can be applied even when smart-picking
     flow_id = state.values.get("flow_id")
     snapshot_model_overrides: dict = {}
     slot_map_for_retry:       dict = {}
@@ -675,14 +690,38 @@ async def retry_chat(session_id: str, request: Request, current_user: AuthUser =
         except Exception:
             pass
 
-    fresh_agent_cfg = await _resolve_agent_cfg(
-        db, current_user.sub, skill_registry,
-        flow_id, snapshot_model_overrides, slot_map_for_retry,
-    )
+    try:
+        fresh_agent_cfg = await _resolve_agent_cfg(
+            db, current_user.sub, skill_registry,
+            flow_id, snapshot_model_overrides, slot_map_for_retry,
+            force_smart_pick=smart_pick,
+        )
+    except HTTPException as exc:
+        # Explicitly configured provider is not connected
+        if exc.status_code == 422:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error":         "provider_unavailable",
+                    "detail":        exc.detail,
+                    "can_smart_pick": True,
+                },
+            )
+        raise
+    except ValueError:
+        # No providers connected at all
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error":         "no_providers",
+                "detail":        "No LLM providers are configured. Go to Settings → Providers and connect at least one provider.",
+                "can_smart_pick": False,
+            },
+        )
+
     await graph.aupdate_state(config, {"session_agent_config": fresh_agent_cfg})
     await db.save_config(current_user.sub, f"session_agent_config_{session_id}", json.dumps(fresh_agent_cfg))
 
-    # Use the skill-specific compiled graph if this is an agent_flow session
     if flow_id:
         graph = graphs.get(flow_id, graph)
 

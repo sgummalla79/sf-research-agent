@@ -219,3 +219,28 @@ When the user sends the first post-completion message:
 - The session behaves as regular chat from this point forward
 
 **Status: ✓**
+
+---
+
+### SF-009 — Resume session with unavailable provider
+
+A session was created with a specific provider in `agent_config`.
+That provider is later removed from Settings → Providers (or was never
+connected for this user). User tries to resume the interrupted session.
+
+**Flow:**
+1. User clicks "↺ Resume Session"
+2. Backend `/retry/{session_id}` detects the configured provider is not
+   connected → returns HTTP 409 with `error: "provider_unavailable"`
+3. Banner replaces the resume banner:
+   > **Provider unavailable**
+   > *[detail message explaining which slot/provider is missing]*
+   - **"Configure Providers"** button → opens Settings → Providers
+   - **"Use Smart Config"** button → calls `/retry/{session_id}?smart_pick=true`
+     which ignores the saved config and picks the best available provider for
+     each slot from the user's currently connected providers
+
+If no providers at all are connected → HTTP 409 `error: "no_providers"`:
+- Only "Configure Providers" is shown (no smart-pick since nothing to pick from)
+
+**Status: ✓**
