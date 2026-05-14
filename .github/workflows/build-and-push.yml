@@ -164,13 +164,13 @@ jobs:
             kubectl get pods -n pragna
 
             echo "=== Probe check (waiting for healthy response) ==="
+            STATUS="000"
             for i in $(seq 1 12); do
-              BODY=$(curl -s -w "\n%{http_code}" https://pragna.sgummallaworks.com/health 2>/dev/null || true)
-              STATUS=$(echo "$BODY" | tail -1)
-              JSON=$(echo "$BODY" | head -n -1)
-              if [ "$STATUS" = "200" ] && [ -n "$JSON" ]; then
+              STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" \
+                https://pragna.sgummallaworks.com/health 2>/dev/null || echo "000")
+              if [ "$STATUS" = "200" ] && [ -s /tmp/health.json ]; then
                 echo "Health check passed on attempt $i"
-                echo "$JSON" | python3 -m json.tool
+                python3 -m json.tool /tmp/health.json
                 break
               fi
               echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
@@ -178,7 +178,7 @@ jobs:
             done
             if [ "$STATUS" != "200" ]; then
               echo "Health check failed after 12 attempts"
-              curl -s https://pragna.sgummallaworks.com/health
+              cat /tmp/health.json 2>/dev/null || true
               exit 1
             fi
 
