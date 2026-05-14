@@ -220,8 +220,10 @@ async def _migrate(conn, backend: str) -> None:
             "agent_prompt_versions", "flow_prompt_snapshots", "installed_skills",
             "token_usage", "agent_sessions", "app_settings", "app_config",
             "users",
-            # LangGraph internal tables
+            # LangGraph internal tables — include migrations table so setup()
+            # re-runs all CREATE TABLE statements after a wipe
             "checkpoint_writes", "checkpoint_blobs", "checkpoints",
+            "checkpoint_migrations",
         ]
         for table in to_drop:
             try:
@@ -1045,7 +1047,7 @@ async def _postgres_backend(url: str):
         url,
         min_size=1,
         max_size=DB_POOL_SIZE,
-        kwargs={"autocommit": True, "prepare_threshold": None},
+        kwargs={"prepare_threshold": None},
         open=False,
     ) as pool:
         await pool.open(wait=True)
