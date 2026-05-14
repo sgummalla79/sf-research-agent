@@ -366,7 +366,7 @@
         :flows="flows"
         :pending-flow="isComplete ? null : pendingFlow"
         :hint="isComplete ? 'Ask a question about your document, or use + to add a new skill…' : undefined"
-        :model-locked="!!sessionId"
+        :model-locked="!!sessionId && !isComplete && !isRegularChat"
         :no-providers="chatModels.length === 0"
         @submit="handleChatSubmit"
         @open-settings="openSettings()"
