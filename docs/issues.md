@@ -28,3 +28,22 @@ Skill picker updates reactively immediately after installation — no refresh re
 
 **Likely cause:**
 The installed skills list in the frontend is fetched once on mount and not re-fetched after a successful install action.
+
+---
+
+## UI-003 — Show app version in avatar menu via About
+
+**Page:** Avatar menu (bottom of sidebar)
+
+**Problem:**
+No way to see which version of Pragna is running without checking the server.
+
+**Expected:**
+- Add an **About** item to the avatar dropdown menu
+- About shows the current version number (read from the `VERSION` file baked into the image at build time)
+- Version should be surfaced via a backend endpoint (e.g. `GET /health` already returns it, or a dedicated `GET /api/about`) so the frontend can display it
+
+**Implementation notes:**
+- At Docker build time, copy `VERSION` file into the image or pass it as a build arg
+- Expose it via the API so the frontend doesn't need to bundle it separately
+- Display format: `Pragna v1.0.2`
