@@ -115,8 +115,8 @@
         <!-- Right controls -->
         <div class="cb-controls">
 
-          <!-- Model picker (hidden when an agent flow is armed) -->
-          <div v-if="!pendingFlow" class="cb-model-wrap">
+          <!-- Model picker (hidden when no models or an agent flow is armed) -->
+          <div v-if="!pendingFlow && chatModels.length" class="cb-model-wrap">
             <button class="cb-model-btn" @click.stop="modelPickerOpen = !modelPickerOpen">
               {{ selectedModel.display }}<span v-if="extendedThinking" class="cb-model-adaptive"> · Adaptive</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="10" height="10">
@@ -248,7 +248,7 @@ function onFileChange(e) { const f = e.target.files?.[0]; if (f) setFile(f) }
 function onDrop(e) { isDragging.value = false; const f = e.dataTransfer?.files?.[0]; if (f) setFile(f) }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
-const opts = () => ({ model: selectedModel.value.model, extendedThinking: extendedThinking.value })
+const opts = () => ({ model: selectedModel.value.model, provider: selectedModel.value.provider || 'anthropic', extendedThinking: extendedThinking.value })
 
 function handleSend() {
   if (selectedFile.value) {

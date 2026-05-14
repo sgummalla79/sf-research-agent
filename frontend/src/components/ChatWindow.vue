@@ -359,6 +359,16 @@
         </button>
       </div>
 
+      <!-- No providers banner — dismissible, sits above chat input -->
+      <div v-if="noProvidersBanner" class="no-providers-banner">
+        <span>
+          <strong>No LLM providers connected.</strong>
+          Go to <button class="np-link" @click="openSettings(); noProvidersBanner = false">Settings → Providers</button>
+          to connect your API keys before starting a conversation.
+        </span>
+        <button class="np-dismiss" @click="noProvidersBanner = false">✕</button>
+      </div>
+
       <!-- Chat input — shown for new sessions AND for follow-up chat on completed sessions -->
       <ChatInput
         v-if="(!sessionId || isComplete) && !isStreaming"
@@ -918,13 +928,16 @@ async function saveSettings() {
   }
 }
 
+const noProvidersBanner = ref(false)
+
 async function fetchFlows() {
   try {
     const res = await apiFetch('/api/flows')
     if (res.ok) {
       const data = await res.json()
-      flows.value = data.flows || []
+      flows.value      = data.flows       || []
       chatModels.value = data.chat_models || []
+      noProvidersBanner.value = chatModels.value.length === 0
     }
   } catch (_) {}
 }
@@ -1045,7 +1058,7 @@ function selectChat(threadId)  { restoreSession(threadId); currentView.value = '
 async function handleChatSubmit(text, opts) {
   if (isComplete.value) {
     // Post-completion follow-up chat — stay in same session
-    await sendMessage(text, opts.model)
+    await sendMessage(text, opts.model, opts.provider)
     return
   }
   if (pendingFlow.value) {
@@ -1770,6 +1783,11 @@ function doPDF() {
 
 /* Banners */
 .banner{flex-shrink:0;padding:12px 28px;font-size:13px;font-weight:500;text-align:center;display:flex;align-items:center;justify-content:center;gap:12px}
+.no-providers-banner{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 20px;margin:0 16px 8px;border-radius:10px;font-size:13px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+.dark .no-providers-banner{background:#1c1400;color:#fcd34d;border-color:#3d2e00}
+.np-link{background:none;border:none;cursor:pointer;font-size:13px;font-weight:600;color:inherit;text-decoration:underline;padding:0}
+.np-dismiss{background:none;border:none;cursor:pointer;font-size:14px;color:inherit;opacity:.6;padding:0;flex-shrink:0;line-height:1}
+.np-dismiss:hover{opacity:1}
 .retry-btn{padding:5px 14px;border-radius:7px;border:1.5px solid currentColor;background:transparent;color:inherit;font-size:13px;font-weight:600;cursor:pointer;opacity:0.85;transition:opacity .15s}
 .retry-btn:hover{opacity:1}
 .banner.ok{background:#dcfce7;color:#166534}.banner.warn{background:#fef3c7;color:#92400e}.banner.err{background:#fee2e2;color:#991b1b}

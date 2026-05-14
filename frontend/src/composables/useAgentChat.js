@@ -360,12 +360,12 @@ export function useAgentChat() {
 
   // ── Post-completion chat ───────────────────────────────────────────────────
 
-  async function sendMessage(text, model = 'claude-sonnet-4-6') {
+  async function sendMessage(text, model = 'claude-sonnet-4-6', provider = 'anthropic') {
     if (!sessionId.value) return
     _addMessage('user', text)
     const response = await apiFetch(`${API_BASE}/message/${sessionId.value}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, chat_model: model }),
+      body: JSON.stringify({ text, chat_model: model, chat_provider: provider }),
     })
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))

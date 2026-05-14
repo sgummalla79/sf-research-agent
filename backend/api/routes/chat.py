@@ -622,8 +622,9 @@ async def reply_chat(session_id: str, body: ReplyRequest, request: Request, curr
 # ── Post-completion chat ──────────────────────────────────────────────────────
 
 class MessageRequest(BaseModel):
-    text:       str
-    chat_model: str = "claude-sonnet-4-6"
+    text:          str
+    chat_model:    str = "claude-sonnet-4-6"
+    chat_provider: str = "anthropic"
 
 
 @router.post("/message/{session_id}")
@@ -633,9 +634,8 @@ async def post_completion_message(session_id: str, body: MessageRequest, request
     Streams a direct LLM response with the approved document as system context.
     No graph is invoked — the pipeline is done.
     """
-    from langchain_anthropic import ChatAnthropic
     from langchain_core.messages import SystemMessage, HumanMessage as HM
-    from utils.api_keys import get_key
+    from utils.llm_factory import build_llm
 
     graph  = request.app.state.graph
     config = {"configurable": {"thread_id": session_id}}
@@ -652,9 +652,7 @@ async def post_completion_message(session_id: str, body: MessageRequest, request
         f"Approved architecture document:\n\n{document}"
     )
 
-    llm = ChatAnthropic(
-        api_key=get_key("anthropic"),
-        model=body.chat_model,
+    llm = build_llm(body.chat_provider, body.chat_model).bind(
         max_tokens=4096,
         streaming=True,
     )
