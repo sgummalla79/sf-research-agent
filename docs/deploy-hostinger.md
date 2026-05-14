@@ -336,10 +336,18 @@ spec:
               cpu: "500m"
           readinessProbe:
             httpGet:
-              path: /auth/me
+              path: /health
               port: 8000
-            initialDelaySeconds: 10
-            periodSeconds: 10
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
 ```
 
 ---
@@ -674,6 +682,42 @@ kubectl get ingress -n pragna
 kubectl get certificate -n pragna
 ```
 
+### 5.7 — Verify the health endpoint
+
+Once pods are running, check that every dependency is healthy:
+
+```bash
+curl -s https://yourdomain.com/health | python3 -m json.tool
+```
+
+All checks should show `"ok": true`. Example of a healthy response:
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "env_vars":        { "ok": true, "present": ["SETTINGS_SECRET", "JWT_SECRET", ...], "missing": [] },
+    "settings_secret": { "ok": true },
+    "jwt_secret":      { "ok": true },
+    "auth0":           { "ok": true, "missing": [] },
+    "skills":          { "ok": true, "loaded": ["architect"] },
+    "database":        { "ok": true, "backend": "postgres", "reachable": true },
+    "tables":          { "ok": true, "total": 11, "missing": [] }
+  }
+}
+```
+
+If `status` is `"degraded"`, look at which check has `"ok": false` — that tells you exactly what is wrong.
+Common failures and fixes:
+
+| Failing check | Likely cause | Fix |
+|---|---|---|
+| `env_vars` | Secret missing a key | Re-apply the K8s secret with the missing value |
+| `settings_secret` | Invalid Fernet key | Regenerate and update the secret |
+| `database` | DB unreachable | Check `DATABASE_URL` in the secret, verify Neon is up |
+| `tables` | Missing tables | Restart the pod — startup runs migrations automatically |
+| `skills` | Pod still starting | Wait 15s and retry |
+
 ---
 
 ## Part 6 — Update Auth0 allowed URLs
@@ -747,6 +791,7 @@ The `cluster-issuer.yaml` is a **cluster-wide resource** — one instance serves
 | Problem | Command |
 |---|---|
 | Pod not starting | `kubectl describe pod -n pragna` |
+| See what's unhealthy | `curl -s https://yourdomain.com/health \| python3 -m json.tool` |
 | Backend logs | `kubectl logs deployment/pragna-api -n pragna` |
 | Frontend logs | `kubectl logs deployment/pragna-ui -n pragna` |
 | Certificate stuck | `kubectl describe certificate -n pragna` |
