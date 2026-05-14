@@ -163,9 +163,22 @@ jobs:
             echo "=== Pod status ==="
             kubectl get pods -n pragna
 
-            echo "=== Probe check ==="
-            sleep 15
-            curl -sf https://pragna.sgummallaworks.com/health | python3 -m json.tool
+            echo "=== Probe check (waiting for healthy response) ==="
+            for i in $(seq 1 12); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://pragna.sgummallaworks.com/health || echo "000")
+              if [ "$STATUS" = "200" ]; then
+                echo "Health check passed on attempt $i"
+                curl -s https://pragna.sgummallaworks.com/health | python3 -m json.tool
+                break
+              fi
+              echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
+              sleep 10
+            done
+            if [ "$STATUS" != "200" ]; then
+              echo "Health check failed after 12 attempts"
+              curl -s https://pragna.sgummallaworks.com/health
+              exit 1
+            fi
 
       # ── Summary ──────────────────────────────────────────────────────────────
 
