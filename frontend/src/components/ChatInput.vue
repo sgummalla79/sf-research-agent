@@ -117,52 +117,37 @@
 
           <!-- Model picker (hidden when no models or an agent flow is armed) -->
           <div v-if="!pendingFlow && chatModels.length" class="cb-model-wrap">
-            <!-- Locked: show model name + adaptive toggle only, no dropdown -->
-            <template v-if="modelLocked">
-              <button class="cb-model-btn cb-model-locked" disabled>
-                {{ selectedModel.display }}<span v-if="extendedThinking" class="cb-model-adaptive"> · Adaptive</span>
-              </button>
-            </template>
-            <!-- Unlocked: full picker with dropdown -->
-            <template v-else>
-              <button class="cb-model-btn" @click.stop="modelPickerOpen = !modelPickerOpen">
-                {{ selectedModel.display }}<span v-if="extendedThinking" class="cb-model-adaptive"> · Adaptive</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="10" height="10">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
-              <div v-if="modelPickerOpen" class="cb-model-dropdown" @click.stop>
-                <div v-for="m in chatModels" :key="m.model"
-                  class="cbd-option" :class="{ selected: selectedModel.model === m.model }"
-                  @click="selectedModel = m; modelPickerOpen = false">
-                  <div class="cbd-name">{{ m.display }}</div>
-                  <div class="cbd-desc">{{ m.description }}</div>
-                  <span v-if="selectedModel.model === m.model" class="cbd-check">✓</span>
-                </div>
-                <div class="cbd-divider" />
-                <!-- Adaptive Thinking toggle inside dropdown -->
-                <div class="cbd-adaptive-row" @click.stop="extendedThinking = !extendedThinking">
-                  <div class="cbd-adaptive-text">
-                    <span class="cbd-adaptive-title">Adaptive Thinking</span>
-                    <span class="cbd-adaptive-desc">Thinks deeper on complex tasks</span>
-                  </div>
-                  <div class="cbd-toggle" :class="{ on: extendedThinking }">
-                    <div class="cbd-toggle-knob" />
-                  </div>
-                </div>
+            <button class="cb-model-btn"
+              :class="{ 'cb-model-locked': modelLocked }"
+              :disabled="modelLocked"
+              @click.stop="modelPickerOpen = !modelPickerOpen">
+              {{ selectedModel.display }}
+              <svg v-if="!modelLocked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="10" height="10">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div v-if="modelPickerOpen && !modelLocked" class="cb-model-dropdown" @click.stop>
+              <div v-for="m in chatModels" :key="m.model"
+                class="cbd-option" :class="{ selected: selectedModel.model === m.model }"
+                @click="selectedModel = m; modelPickerOpen = false">
+                <div class="cbd-name">{{ m.display }}</div>
+                <div class="cbd-desc">{{ m.description }}</div>
+                <span v-if="selectedModel.model === m.model" class="cbd-check">✓</span>
               </div>
-            </template>
-          </div>
-
-          <!-- Adaptive Thinking toggle — always accessible when session is locked -->
-          <div v-if="modelLocked && !pendingFlow && chatModels.length"
-            class="cbd-adaptive-row cb-adaptive-inline"
-            @click.stop="extendedThinking = !extendedThinking">
-            <span class="cbd-adaptive-title">Adaptive</span>
-            <div class="cbd-toggle cbd-toggle-sm" :class="{ on: extendedThinking }">
-              <div class="cbd-toggle-knob" />
             </div>
           </div>
+
+          <!-- Adaptive Thinking — standalone toggle, Anthropic only -->
+          <button v-if="selectedModel.provider === 'anthropic' && chatModels.length"
+            class="cb-adaptive-btn"
+            :class="{ on: extendedThinking }"
+            title="Adaptive Thinking — Claude thinks deeper before responding"
+            @click.stop="extendedThinking = !extendedThinking">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15">
+              <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+            <span>Adaptive</span>
+          </button>
 
           <!-- Send button -->
           <button class="cb-send"
@@ -241,6 +226,11 @@ watch(() => props.chatModels, (models) => {
   const def = models.find(m => m.default) || models[0]
   if (def) selectedModel.value = def
 }, { immediate: true })
+
+// Reset Adaptive Thinking when switching to a non-Anthropic model
+watch(() => selectedModel.value.provider, (provider) => {
+  if (provider !== 'anthropic') extendedThinking.value = false
+})
 
 // ── File handling ─────────────────────────────────────────────────────────────
 const MAX_MB   = 10
@@ -460,19 +450,19 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 }
 .cb-model-btn:hover { background: var(--hover); }
 .cb-model-btn svg { color: var(--muted); flex-shrink: 0; }
-.cb-model-adaptive { font-weight: 500; }
 .cb-model-locked { cursor: default; opacity: 0.6; }
 .cb-model-locked:hover { background: none; }
-.cb-adaptive-inline {
-  display: flex; align-items: center; gap: 6px;
-  padding: 4px 8px; border-radius: 8px; cursor: pointer;
-  transition: background .13s;
+
+/* Standalone Adaptive Thinking button */
+.cb-adaptive-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 9px; border-radius: 8px; border: 1.5px solid var(--bdr);
+  background: transparent; color: var(--muted); cursor: pointer;
+  font-size: 12.5px; font-weight: 500;
+  transition: all .15s;
 }
-.cb-adaptive-inline:hover { background: var(--hover); }
-.cb-adaptive-inline .cbd-adaptive-title { font-size: 13px; font-weight: 500; color: var(--tx); }
-.cbd-toggle-sm { width: 28px; height: 16px; border-radius: 8px; }
-.cbd-toggle-sm .cbd-toggle-knob { width: 10px; height: 10px; top: 3px; left: 3px; }
-.cbd-toggle-sm.on .cbd-toggle-knob { transform: translateX(12px); }
+.cb-adaptive-btn:hover { color: var(--tx); background: var(--hover); border-color: var(--ifocus); }
+.cb-adaptive-btn.on  { color: var(--pri); border-color: var(--pri); background: var(--sbg); }
 
 /* Model dropdown */
 .cb-model-dropdown {
@@ -498,15 +488,6 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 .cbd-divider { height: 1px; background: var(--bdr); margin: 2px 0; }
 
 /* Adaptive Thinking toggle row */
-.cbd-adaptive-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; cursor: pointer;
-  transition: background .13s;
-}
-.cbd-adaptive-row:hover { background: var(--hover); }
-.cbd-adaptive-text { display: flex; flex-direction: column; gap: 2px; }
-.cbd-adaptive-title { font-size: 13px; font-weight: 600; color: var(--tx); }
-.cbd-adaptive-desc  { font-size: 11.5px; color: var(--muted); }
 .cbd-toggle {
   width: 38px; height: 22px; border-radius: 11px;
   background: var(--bdr); flex-shrink: 0;
