@@ -73,8 +73,8 @@
         <!-- Fallback when connections couldn't be fetched -->
         <button v-else class="login-btn social" @click="loginWithSocial('')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
-            <circle cx="12" cy="12" r="10" stroke="#6366f1" stroke-width="2"/>
-            <path d="M8 12h8M12 8l4 4-4 4" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="10" stroke="var(--pri, #c97040)" stroke-width="2"/>
+            <path d="M8 12h8M12 8l4 4-4 4" stroke="var(--pri, #c97040)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
           Continue with Auth0
         </button>

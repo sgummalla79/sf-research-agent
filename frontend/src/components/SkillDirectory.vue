@@ -118,7 +118,7 @@ onMounted(load)
   background: transparent; color: var(--muted); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
-.sd-close:hover { background: rgba(100,116,139,.13); color: var(--tx); }
+.sd-close:hover { background: var(--hover); color: var(--tx); }
 
 /* Search */
 .sd-search-wrap {
