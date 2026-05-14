@@ -47,3 +47,33 @@ No way to see which version of Pragna is running without checking the server.
 - At Docker build time, copy `VERSION` file into the image or pass it as a build arg
 - Expose it via the API so the frontend doesn't need to bundle it separately
 - Display format: `Pragna v1.0.2`
+
+---
+
+## UI-004 — Stale session shows completion banner instead of "data unavailable"
+
+**Page:** Chat — clicking a session in Recent Chats
+
+**Problem:**
+Sessions that exist in the sidebar but have no checkpoint data (e.g. after a DB
+migration wipe) load and show the "Document approved and finalised" banner with no
+messages. This is confusing — the user thinks a session completed but there is
+actually no content.
+
+**Expected:**
+When a session is opened and no checkpoint/message data is found, show a clear
+message: "This session's data is no longer available. Start a new session." with
+a button to open a new chat.
+
+**Likely cause:**
+The frontend receives an empty or null state from the backend when checkpoint data
+is missing, and the chat window falls through to the "complete" stage banner as a
+default.
+
+**Implementation notes:**
+- Backend: when GET session state returns empty/null messages, return a specific
+  indicator (e.g. `{ "empty": true }`) so the frontend can distinguish "no data"
+  from "completed session"
+- Frontend: check for empty state before rendering the completion banner
+- Also: on startup, clean up `agent_sessions` rows that have no corresponding
+  `checkpoints` row (orphaned sessions) so they never appear in the sidebar
