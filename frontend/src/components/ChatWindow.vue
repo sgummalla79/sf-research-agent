@@ -1427,7 +1427,7 @@ function doPDF() {
   box-shadow: 0 20px 60px rgba(0,0,0,0.4);
 }
 .del-title { font-size: 16px; font-weight: 700; color: var(--tx); margin: 0 0 8px; }
-.del-body  { font-size: 14px; color: var(--tx); margin: 0 0 6px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.del-body  { font-size: 14px; color: var(--tx); margin: 0 0 6px; line-height: 1.5; }
 .del-warn  { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
 .del-btns  { display: flex; gap: 10px; justify-content: flex-end; }
 .del-cancel {
