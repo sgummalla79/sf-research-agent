@@ -50,7 +50,7 @@ class AgentState(BaseModel):
     # ── Stage tracking ────────────────────────────────────────────────────────
     current_stage: Literal[
         "intake", "discovery", "research", "review", "approval",
-        "complete", "halted", "invalid_input"
+        "complete", "halted", "invalid_input", "chat"
     ] = "intake"
     revision_count: int = 0   # increments each time Approver rejects
 
@@ -93,7 +93,8 @@ class AgentState(BaseModel):
     flow_config: dict = Field(default_factory=dict)
 
     # ── Chat fields (used when session_type == "chat") ────────────────────────
-    chat_model: str = "claude-sonnet-4-6"
+    chat_model:        str  = "claude-sonnet-4-6"
+    chat_provider:     str  = "anthropic"
     extended_thinking: bool = False
 
     # ── Prompt snapshot — frozen at session start ────────────────────────────

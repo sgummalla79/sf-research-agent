@@ -5,11 +5,12 @@ from pydantic import BaseModel
 class StartRequest(BaseModel):
     brief: str
     # "chat" = free-form LLM conversation; "agent_flow" = structured pipeline
-    session_type: Literal["chat", "agent_flow"] = "agent_flow"
+    session_type: Literal["chat", "agent_flow"] = "chat"
     # Required when session_type == "agent_flow"
     flow_id: str = "architect"
     # Required when session_type == "chat"
-    chat_model: str = "claude-sonnet-4-6"
+    chat_model:        str  = "claude-sonnet-4-6"
+    chat_provider:     str  = "anthropic"
     extended_thinking: bool = False
 
 

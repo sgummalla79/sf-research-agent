@@ -21,8 +21,10 @@ THINKING_BUDGET = 10_000
 
 def run_chat(state: AgentState) -> dict:
     """Single-node free-form chat. Reads conversation history from state.messages."""
-    model   = state.chat_model or "claude-sonnet-4-6"
-    thinking = state.extended_thinking
+    model    = state.chat_model    or "claude-sonnet-4-6"
+    provider = state.chat_provider or "anthropic"
+    # Extended thinking is Anthropic-only — fall back to standard for other providers
+    thinking = state.extended_thinking and provider == "anthropic"
 
     if thinking:
         return _run_with_thinking(state, model)
@@ -34,8 +36,11 @@ def _run_standard(state: AgentState, model: str) -> dict:
     from utils.llm_factory import build_llm
     from utils.llm_retry import invoke_with_retry
 
-    llm      = build_llm("anthropic", model)
-    response = invoke_with_retry(llm, list(state.messages))
+    from langchain_core.messages import HumanMessage as _HM
+    provider = state.chat_provider or "anthropic"
+    llm      = build_llm(provider, model)
+    messages = list(state.messages) or [_HM(content="Hello")]
+    response = invoke_with_retry(llm, messages)
     urec     = usage_record("chat", model, getattr(response, "usage_metadata", None))
 
     return {
@@ -60,6 +65,9 @@ def _run_with_thinking(state: AgentState, model: str) -> dict:
         content = msg.content if isinstance(msg.content, str) else str(msg.content)
         if content.strip():
             api_messages.append({"role": role, "content": content})
+
+    if not api_messages:
+        api_messages = [{"role": "user", "content": "Hello"}]
 
     response = client.messages.create(
         model=model,

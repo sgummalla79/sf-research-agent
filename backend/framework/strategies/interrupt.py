@@ -73,13 +73,14 @@ class InterruptStrategy(ExecutionStrategy):
         def node(state: "AgentState") -> dict:
             from config import MAX_DISCOVERY_QUESTIONS
 
-            # Windowed message history — Claude requires ending with HumanMessage
+            # Windowed message history — Anthropic requires at least one
+            # non-system message; always ensure list ends with HumanMessage
             windowed = list(
                 state.messages[-_WINDOW:]
                 if len(state.messages) > _WINDOW
                 else state.messages
             )
-            if windowed and isinstance(windowed[-1], AIMessage):
+            if not windowed or isinstance(windowed[-1], AIMessage):
                 windowed.append(
                     HumanMessage(content="Please begin the discovery session.")
                 )

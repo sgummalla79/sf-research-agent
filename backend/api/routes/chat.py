@@ -263,7 +263,13 @@ async def start_chat(body: StartRequest, request: Request, current_user: AuthUse
     config     = {"configurable": {"thread_id": session_id}}
 
     # Save raw snippet immediately; replace with smart title in background
-    await db.record_session(session_id, current_user.sub, body.brief[:80].replace('\n', ' '))
+    await db.record_session(
+        session_id, current_user.sub,
+        brief_snippet=body.brief[:80].replace('\n', ' '),
+        session_type=body.session_type,
+        chat_model=body.chat_model or CHAT_DEFAULT_MODEL,
+        chat_provider=body.chat_provider,
+    )
     asyncio.create_task(_save_title(db, session_id, body.brief, current_user.sub))
 
     agent_cfg = get_agent_config()
@@ -314,6 +320,11 @@ async def start_chat(body: StartRequest, request: Request, current_user: AuthUse
         else request.app.state.graph
     )
 
+    # For free-form chat sessions seed the brief as the first HumanMessage
+    # so run_chat always receives a non-empty messages list
+    from langchain_core.messages import HumanMessage as _HM
+    seed_messages = [_HM(content=body.brief)] if body.session_type == "chat" else []
+
     initial_state = AgentState(
         session_id=session_id,
         project_brief=body.brief,
@@ -324,7 +335,9 @@ async def start_chat(body: StartRequest, request: Request, current_user: AuthUse
         flow_snapshot_id=flow_snapshot_id,
         flow_snapshot_version=flow_snapshot_version,
         chat_model=body.chat_model or CHAT_DEFAULT_MODEL,
+        chat_provider=body.chat_provider,
         extended_thinking=body.extended_thinking,
+        messages=seed_messages,
     )
 
     return StreamingResponse(
@@ -541,16 +554,28 @@ async def restore_session(session_id: str, request: Request, current_user: AuthU
                 break
 
     raw_stage = values.get("current_stage") or ""
+    # Read session metadata from agent_sessions (source of truth for immutable fields)
+    db          = request.app.state.db
+    session_row = await db._fetchone(
+        f"SELECT session_type, chat_model, chat_provider FROM agent_sessions WHERE thread_id = {db._p()}",
+        (session_id,),
+    )
+    session_type  = (session_row[0] if session_row else None) or "chat"
+    session_model = session_row[1] if session_row else None
+    session_prov  = (session_row[2] if session_row else None) or "anthropic"
     if not state.next:
-        # Graph has fully terminated — normalise missing/empty stage to "complete"
-        # so the frontend doesn't treat it as a mid-run resumable session.
-        terminal_stages = {"complete", "halted", "invalid_input"}
+        # Graph terminated — keep 'chat' and known terminal stages as-is;
+        # anything else (e.g. mid-pipeline crash) normalises to 'complete'.
+        terminal_stages = {"complete", "halted", "invalid_input", "chat"}
         resolved_stage  = raw_stage if raw_stage in terminal_stages else "complete"
     else:
         resolved_stage = raw_stage
 
     return {
         "session_id":           session_id,
+        "session_type":         session_type,
+        "chat_model":           session_model,
+        "chat_provider":        session_prov,
         "current_stage":        resolved_stage,
         "document_version":     values.get("document_version", 0),
         "project_brief":        (values.get("project_brief") or "")[:200],
@@ -622,8 +647,9 @@ async def reply_chat(session_id: str, body: ReplyRequest, request: Request, curr
 # ── Post-completion chat ──────────────────────────────────────────────────────
 
 class MessageRequest(BaseModel):
-    text:       str
-    chat_model: str = "claude-sonnet-4-6"
+    text:          str
+    chat_model:    str = "claude-sonnet-4-6"
+    chat_provider: str = "anthropic"
 
 
 @router.post("/message/{session_id}")
@@ -633,9 +659,8 @@ async def post_completion_message(session_id: str, body: MessageRequest, request
     Streams a direct LLM response with the approved document as system context.
     No graph is invoked — the pipeline is done.
     """
-    from langchain_anthropic import ChatAnthropic
     from langchain_core.messages import SystemMessage, HumanMessage as HM
-    from utils.api_keys import get_key
+    from utils.llm_factory import build_llm
 
     graph  = request.app.state.graph
     config = {"configurable": {"thread_id": session_id}}
@@ -652,9 +677,7 @@ async def post_completion_message(session_id: str, body: MessageRequest, request
         f"Approved architecture document:\n\n{document}"
     )
 
-    llm = ChatAnthropic(
-        api_key=get_key("anthropic"),
-        model=body.chat_model,
+    llm = build_llm(body.chat_provider, body.chat_model).bind(
         max_tokens=4096,
         streaming=True,
     )
@@ -679,11 +702,41 @@ async def post_completion_message(session_id: str, body: MessageRequest, request
     )
 
 
+# ── Regular chat continuation ─────────────────────────────────────────────────
+
+@router.post("/continue/{session_id}")
+async def continue_chat(session_id: str, body: MessageRequest, request: Request, current_user: AuthUser = Depends(get_current_user)):
+    """
+    Continue a regular chat session — adds the user message to the graph
+    state and re-invokes the graph so conversation history is preserved.
+    """
+    from langchain_core.messages import HumanMessage as _HM
+
+    graph  = request.app.state.graph
+    db     = request.app.state.db
+    config = {"configurable": {"thread_id": session_id}}
+
+    await db.update_last_modified(session_id)
+
+    return StreamingResponse(
+        _stream_graph(
+            graph,
+            {"messages": [_HM(content=body.text)]},
+            config,
+            db,
+            user_id=current_user.sub,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 # ── Session fork ──────────────────────────────────────────────────────────────
 
 class ForkRequest(BaseModel):
     flow_id:           str
     chat_model:        str  = "claude-sonnet-4-6"
+    chat_provider:     str  = "anthropic"
     extended_thinking: bool = False
 
 
@@ -710,7 +763,13 @@ async def fork_session(session_id: str, body: ForkRequest, request: Request, cur
     new_session_id = str(uuid.uuid4())
     new_config     = {"configurable": {"thread_id": new_session_id}}
 
-    await db.record_session(new_session_id, current_user.sub, f"↳ {orig_brief[:70]}")
+    await db.record_session(
+        new_session_id, current_user.sub,
+        brief_snippet=f"↳ {orig_brief[:70]}",
+        session_type="agent_flow",
+        chat_model=body.chat_model,
+        chat_provider=body.chat_provider,
+    )
     asyncio.create_task(_save_title(db, new_session_id, f"Follow-up: {orig_brief[:200]}", current_user.sub))
 
     agent_cfg = get_agent_config()
@@ -774,6 +833,7 @@ async def fork_session(session_id: str, body: ForkRequest, request: Request, cur
         flow_snapshot_id      = flow_snapshot_id,
         flow_snapshot_version = flow_snapshot_version,
         chat_model            = body.chat_model,
+        chat_provider         = body.chat_provider,
         extended_thinking     = body.extended_thinking,
     )
 

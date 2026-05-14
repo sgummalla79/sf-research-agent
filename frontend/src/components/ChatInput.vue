@@ -5,6 +5,13 @@
       @dragleave.prevent="isDragging = false"
       @drop.prevent="onDrop">
 
+      <!-- No providers banner — attached to top of chat box -->
+      <div v-if="noProviders" class="cb-no-providers">
+        No LLM providers connected. Go to
+        <button class="cb-np-link" @click="$emit('open-settings')">Settings → Providers</button>
+        to connect your API keys.
+      </div>
+
       <!-- File chip -->
       <div v-if="selectedFile" class="cb-file-row">
         <div class="cb-file-chip">
@@ -34,7 +41,8 @@
 
       <!-- Textarea -->
       <textarea v-model="text" class="cb-ta"
-        :placeholder="pendingFlow ? `Describe your project for ${pendingFlow.name}…` : (hint || 'How can I help you today?')"
+        :placeholder="noProviders ? '' : (pendingFlow ? `Describe your project for ${pendingFlow.name}…` : (hint || 'How can I help you today?'))"
+        :disabled="noProviders"
         rows="2"
         @input="handleInput"
         @keydown.enter.exact.prevent="handleSend"
@@ -115,15 +123,18 @@
         <!-- Right controls -->
         <div class="cb-controls">
 
-          <!-- Model picker (hidden when an agent flow is armed) -->
-          <div v-if="!pendingFlow" class="cb-model-wrap">
-            <button class="cb-model-btn" @click.stop="modelPickerOpen = !modelPickerOpen">
-              {{ selectedModel.display }}<span v-if="extendedThinking" class="cb-model-adaptive"> · Adaptive</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="10" height="10">
+          <!-- Model picker (hidden when no models or an agent flow is armed) -->
+          <div v-if="!pendingFlow && chatModels.length" class="cb-model-wrap">
+            <button class="cb-model-btn"
+              :class="{ 'cb-model-locked': modelLocked }"
+              :disabled="modelLocked"
+              @click.stop="modelPickerOpen = !modelPickerOpen">
+              {{ selectedModel.display }}
+              <svg v-if="!modelLocked" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="10" height="10">
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
             </button>
-            <div v-if="modelPickerOpen" class="cb-model-dropdown" @click.stop>
+            <div v-if="modelPickerOpen && !modelLocked" class="cb-model-dropdown" @click.stop>
               <div v-for="m in chatModels" :key="m.model"
                 class="cbd-option" :class="{ selected: selectedModel.model === m.model }"
                 @click="selectedModel = m; modelPickerOpen = false">
@@ -131,19 +142,23 @@
                 <div class="cbd-desc">{{ m.description }}</div>
                 <span v-if="selectedModel.model === m.model" class="cbd-check">✓</span>
               </div>
-              <div class="cbd-divider" />
-              <!-- Adaptive Thinking toggle inside dropdown -->
-              <div class="cbd-adaptive-row" @click.stop="extendedThinking = !extendedThinking">
-                <div class="cbd-adaptive-text">
-                  <span class="cbd-adaptive-title">Adaptive Thinking</span>
-                  <span class="cbd-adaptive-desc">Thinks deeper on complex tasks</span>
-                </div>
-                <div class="cbd-toggle" :class="{ on: extendedThinking }">
-                  <div class="cbd-toggle-knob" />
-                </div>
-              </div>
             </div>
           </div>
+
+          <!-- Adaptive Thinking — always visible, disabled for non-Anthropic -->
+          <button v-if="chatModels.length"
+            class="cb-adaptive-btn"
+            :class="{ on: extendedThinking, 'cb-adaptive-off': selectedModel.provider !== 'anthropic' }"
+            :disabled="selectedModel.provider !== 'anthropic'"
+            :title="selectedModel.provider === 'anthropic'
+              ? 'Adaptive Thinking — Claude thinks deeper before responding'
+              : 'Adaptive Thinking is only available for Anthropic Claude models'"
+            @click.stop="extendedThinking = !extendedThinking">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15">
+              <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+            <span>Adaptive</span>
+          </button>
 
           <!-- Send button -->
           <button class="cb-send"
@@ -163,13 +178,15 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
-  chatModels:  { type: Array,  default: () => [] },
-  flows:       { type: Array,  default: () => [] },
-  pendingFlow: { type: Object, default: null },
-  hint:        { type: String, default: null },   // overrides default placeholder
+  chatModels:   { type: Array,   default: () => [] },
+  flows:        { type: Array,   default: () => [] },
+  pendingFlow:  { type: Object,  default: null },
+  hint:         { type: String,  default: null },
+  modelLocked:  { type: Boolean, default: false },
+  noProviders:  { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['submit', 'upload', 'flow-select', 'cancel-flow', 'manage-skills'])
+const emit = defineEmits(['submit', 'upload', 'flow-select', 'cancel-flow', 'manage-skills', 'open-settings'])
 
 // ── Internal state ────────────────────────────────────────────────────────────
 const text             = ref('')
@@ -222,6 +239,11 @@ watch(() => props.chatModels, (models) => {
   if (def) selectedModel.value = def
 }, { immediate: true })
 
+// Sync Adaptive Thinking with provider — on for Anthropic, off + disabled for others
+watch(() => selectedModel.value.provider, (provider) => {
+  extendedThinking.value = provider === 'anthropic'
+}, { immediate: true })
+
 // ── File handling ─────────────────────────────────────────────────────────────
 const MAX_MB   = 10
 const IMG_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp'])
@@ -248,7 +270,7 @@ function onFileChange(e) { const f = e.target.files?.[0]; if (f) setFile(f) }
 function onDrop(e) { isDragging.value = false; const f = e.dataTransfer?.files?.[0]; if (f) setFile(f) }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
-const opts = () => ({ model: selectedModel.value.model, extendedThinking: extendedThinking.value })
+const opts = () => ({ model: selectedModel.value.model, provider: selectedModel.value.provider || 'anthropic', extendedThinking: extendedThinking.value })
 
 function handleSend() {
   if (selectedFile.value) {
@@ -328,6 +350,21 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 .cb-file-rm:hover { color: var(--tx); }
 
 /* Textarea */
+/* No-providers banner inside the chat box */
+.cb-no-providers {
+  padding: 8px 10px;
+  font-size: 12.5px; font-weight: 500;
+  color: #fff;
+  background: #7f1d1d;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.cb-np-link {
+  background: none; border: none; cursor: pointer;
+  font-size: 12.5px; font-weight: 700; color: #fff;
+  padding: 0; text-decoration: underline; text-underline-offset: 2px;
+}
+
 .cb-ta {
   width: 100%; box-sizing: border-box;
   background: transparent; border: none; outline: none; resize: none;
@@ -335,6 +372,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   padding: 2px 2px; min-height: 44px; max-height: 220px;
 }
 .cb-ta::placeholder { color: var(--muted); }
+.cb-ta:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Bottom bar */
 .cb-bar { display: flex; align-items: center; gap: 6px; }
@@ -440,7 +478,21 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 }
 .cb-model-btn:hover { background: var(--hover); }
 .cb-model-btn svg { color: var(--muted); flex-shrink: 0; }
-.cb-model-adaptive { font-weight: 500; }
+.cb-model-locked { cursor: default; opacity: 0.6; }
+.cb-model-locked:hover { background: none; }
+
+/* Standalone Adaptive Thinking button */
+.cb-adaptive-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 9px; border-radius: 8px; border: 1.5px solid var(--bdr);
+  background: transparent; color: var(--muted); cursor: pointer;
+  font-size: 12.5px; font-weight: 500;
+  transition: all .15s;
+}
+.cb-adaptive-btn:hover { color: var(--tx); background: var(--hover); border-color: var(--ifocus); }
+.cb-adaptive-btn.on      { color: var(--pri); border-color: var(--pri); background: var(--sbg); }
+.cb-adaptive-btn.cb-adaptive-off { opacity: 0.35; cursor: not-allowed; }
+.cb-adaptive-btn.cb-adaptive-off:hover { color: var(--muted); background: transparent; border-color: var(--bdr); }
 
 /* Model dropdown */
 .cb-model-dropdown {
@@ -466,15 +518,6 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 .cbd-divider { height: 1px; background: var(--bdr); margin: 2px 0; }
 
 /* Adaptive Thinking toggle row */
-.cbd-adaptive-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 14px; cursor: pointer;
-  transition: background .13s;
-}
-.cbd-adaptive-row:hover { background: var(--hover); }
-.cbd-adaptive-text { display: flex; flex-direction: column; gap: 2px; }
-.cbd-adaptive-title { font-size: 13px; font-weight: 600; color: var(--tx); }
-.cbd-adaptive-desc  { font-size: 11.5px; color: var(--muted); }
 .cbd-toggle {
   width: 38px; height: 22px; border-radius: 11px;
   background: var(--bdr); flex-shrink: 0;
