@@ -61,6 +61,9 @@ def _run_with_thinking(state: AgentState, model: str) -> dict:
         if content.strip():
             api_messages.append({"role": role, "content": content})
 
+    if not api_messages:
+        api_messages = [{"role": "user", "content": "Hello"}]
+
     response = client.messages.create(
         model=model,
         max_tokens=16_000,
