@@ -16,6 +16,7 @@ export function useAgentChat() {
   const isResumable         = ref(false)   // restored session stuck mid-run
   const isRegularChat       = ref(false)   // session_type === 'chat'
   const error               = ref(null)
+  const providerConflict    = ref(null)    // { detail, canSmartPick } when resume fails due to missing provider
 
   // Document panel
   const documentPanel = reactive({ open: false, content: '', version: 0, loading: false })
@@ -47,7 +48,8 @@ export function useAgentChat() {
     let   buffer  = ''
     let   currentMsg = null
 
-    isStreaming.value = true
+    isStreaming.value      = true
+    providerConflict.value = null   // clear on each new stream attempt
     try {
       while (true) {
         const { done, value } = await reader.read()
@@ -179,6 +181,18 @@ export function useAgentChat() {
         error.value = event.message
         break
       }
+
+      case 'provider_error': {
+        // Intentionally leave currentMsg.isStreaming = true so retrySession's
+        // cleanup filter removes the incomplete card on the next retry attempt.
+        setCurrentMsg(null)
+        providerConflict.value = {
+          detail:       event.message,
+          canSmartPick: event.can_smart_pick,
+        }
+        isResumable.value = true
+        break
+      }
     }
   }
 
@@ -211,6 +225,7 @@ export function useAgentChat() {
     isResumable.value         = false
     isRegularChat.value       = false
     error.value               = null
+    providerConflict.value    = null
     documentPanel.open        = false
     documentPanel.content     = ''
     documentPanel.version     = 0
@@ -351,17 +366,30 @@ export function useAgentChat() {
     await _readStream(response)
   }
 
-  async function retrySession() {
-    if (!sessionId.value) return
-    error.value       = null
-    isResumable.value = false
-    const response = await apiFetch(`${API_BASE}/retry/${sessionId.value}`, { method: 'POST' })
+  async function retrySession(forcedSmartPick = false) {
+    if (!sessionId.value || isStreaming.value) return
+    error.value           = null
+    providerConflict.value = null
+    isResumable.value     = false
+    // Remove any messages that are still mid-stream from a previous failed attempt
+    messages.value = messages.value.filter(m => !m.isStreaming)
+    const url = `${API_BASE}/retry/${sessionId.value}${forcedSmartPick ? '?smart_pick=true' : ''}`
+    const response = await apiFetch(url, { method: 'POST' })
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
+      if (response.status === 409 && (data.error === 'provider_unavailable' || data.error === 'no_providers')) {
+        providerConflict.value = { detail: data.detail, canSmartPick: data.can_smart_pick }
+        isResumable.value = true   // keep session resumable so user can still act
+        return
+      }
       error.value = data.detail || 'Retry failed.'
       return
     }
     await _readStream(response)
+  }
+
+  async function retryWithSmartPick() {
+    await retrySession(true)
   }
 
   // ── Post-completion chat ───────────────────────────────────────────────────
@@ -472,12 +500,13 @@ export function useAgentChat() {
     sessionId, messages, currentStage,
     pendingQuestions, pendingConfirmation,
     isStreaming, isComplete, isHalted, isInvalidInput, isResumable, isRegularChat, error,
+    providerConflict,
     documentPanel, sidebar, sessionUsage,
     // session ops
     loadSessions, newChat, restoreSession,
     pinSession, unpinSession, deleteSession, renameSession,
     // chat ops
-    startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
+    startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession, retryWithSmartPick,
     continueRegularChat, sendMessage, forkSession,
     // doc panel
     openDocumentPanel, closeDocumentPanel, downloadMD, downloadPDF,

@@ -5,6 +5,38 @@ for expected behaviour across all chat and skill session flows.
 
 ---
 
+## Provider / Model Selection Rules
+
+### Smart Provider Selection (Agent Flow)
+
+When a skill session starts, the backend resolves the LLM for each pipeline slot
+(`intake`, `discovery`, `researcher_search`, `researcher_reasoning`,
+`researcher_writer`, `reviewer`, `approver`) using this priority:
+
+| Priority | Condition | Result |
+|---|---|---|
+| 1 | Snapshot per-agent override set AND provider connected | Use snapshot override |
+| 2 | User saved an agent_config for this slot AND provider connected | Use user config |
+| 3 | Neither above — or configured provider not connected | smart_pick from connected providers |
+| Error | User explicitly set a slot to a provider that is NOT connected | HTTP 422 — shown to user |
+
+**Smart-pick preference per slot:**
+
+| Slot | Provider preference order |
+|---|---|
+| `researcher_search` | Perplexity → Google → Anthropic → OpenAI |
+| `researcher_reasoning` | Google → Anthropic → OpenAI → Perplexity |
+| `approver` | Anthropic → Google → OpenAI → Perplexity |
+| All others | Anthropic → Google → OpenAI → Perplexity |
+
+A user with only one provider configured will always get that provider across
+all slots — no "API key not configured for X" errors unless they explicitly
+locked a slot to an unavailable provider.
+
+**Status: ✓**
+
+---
+
 ## Model Locking Rules
 
 | State | Model picker | Adaptive toggle |
@@ -185,5 +217,41 @@ When the user sends the first post-completion message:
 - On any future restore (including after logout/login), `session_type='chat'`
   is the source of truth → `isRegularChat=true` → NO completion banner shown
 - The session behaves as regular chat from this point forward
+
+**Status: ✓**
+
+---
+
+### SF-009 — Provider unavailable banner (resume or mid-pipeline failure)
+
+Triggered whenever a session cannot proceed because a configured provider
+is missing or its API key cannot be decrypted. Covers two paths:
+
+**Path A — Pre-stream check (retry endpoint)**
+1. User clicks "↺ Resume Session"
+2. `/retry/{session_id}` resolves the agent config from the user's
+   currently connected providers (decrypted ContextVar, not raw DB names)
+3. If the saved `agent_config` explicitly points to a provider that is not
+   connected → HTTP 409 `error: "provider_unavailable"`
+4. If no providers are connected at all → HTTP 409 `error: "no_providers"`
+
+**Path B — Mid-pipeline failure (any phase)**
+A pipeline stage (intake, research, review, etc.) tries to call an LLM
+whose key is unavailable. The node throws `RuntimeError("API key not
+configured for …")`. `_stream_graph` catches this and emits a
+`provider_error` SSE event instead of a generic error.
+
+**Both paths show the same banner:**
+> **Provider unavailable**
+> *[detail message]*
+- **"Configure Providers"** → opens Settings → Providers
+- **"Use Smart Config"** → retries with `?smart_pick=true`, ignoring the
+  saved config and selecting from currently available providers
+  *(hidden when no providers are connected at all)*
+
+**Key implementation note:**
+Provider detection uses the **decrypted** ContextVar set at request time,
+not raw DB key names. A key name present in the DB but failing decryption
+is NOT counted as connected, so smart-pick never selects it.
 
 **Status: ✓**

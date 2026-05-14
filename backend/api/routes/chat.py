@@ -16,20 +16,22 @@ SSE event format (newline-delimited JSON after "data: "):
 
 import asyncio
 import json
+import logging
 import uuid
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Depends
-from fastapi.responses import StreamingResponse
+log = logging.getLogger(__name__)
+
+from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Depends, Query
+from fastapi.responses import StreamingResponse, JSONResponse
 from langgraph.types import Command
 
 from pydantic import BaseModel
 from api.schemas import ReplyRequest, StartRequest
 from config import MAX_FILE_SIZE_MB
 from state import AgentState
-from utils.agent_config import get_agent_config
 from chat_models import CHAT_DEFAULT_MODEL
-from framework.defaults import SMART_SLOT_DEFAULTS
+from framework.defaults import SMART_SLOT_DEFAULTS, available_providers, resolve_agent_config
 from framework.registry import SkillNotFoundError
 from utils.file_parser import extract_text, SUPPORTED_EXTENSIONS
 from utils.file_storage import save_upload
@@ -50,6 +52,63 @@ def _get(obj, key, default=None):
     if isinstance(obj, dict):
         return obj.get(key, default)
     return default
+
+
+async def _resolve_agent_cfg(
+    db,
+    user_id: str,
+    skill_registry,
+    flow_id: str | None,
+    snapshot_model_overrides: dict,  # {agent_key: {provider, model}}
+    slot_map: dict,                  # {agent_key: slot}
+    *,
+    force_smart_pick: bool = False,  # ignore saved config, always smart-pick
+) -> dict:
+    """
+    Resolve the per-slot LLM config for a session by smart-picking from
+    the user's connected providers.  Snapshot overrides take precedence over
+    the user's saved agent_config, which beats smart defaults.
+
+    When force_smart_pick=True the saved agent_config is ignored entirely —
+    every slot is filled by smart_pick() from connected providers.
+    """
+    # Use the already-decrypted ContextVar so we only count providers whose
+    # keys actually decrypted successfully — not just names present in the DB.
+    from utils.user_context import connected_providers
+    connected = connected_providers()
+
+    if force_smart_pick:
+        saved_user_cfg    = {}
+        user_cfg_explicit = set()
+    else:
+        raw_user_cfg      = await db.get_config(user_id, "agent_config")
+        saved_user_cfg    = json.loads(raw_user_cfg) if raw_user_cfg else {}
+        user_cfg_explicit = set(saved_user_cfg.keys())
+
+    # Build per-slot snapshot overrides from per-agent-key overrides
+    snapshot_slot_cfg: dict = {}
+    for agent_key, model_cfg in snapshot_model_overrides.items():
+        slot = slot_map.get(agent_key)
+        if slot and model_cfg:
+            snapshot_slot_cfg[slot] = model_cfg
+
+    # Determine which slots this skill uses; fall back to all known slots
+    if flow_id and skill_registry:
+        try:
+            skill = skill_registry.get(flow_id)
+            slots = list(set(skill.manifest.agent_slot_map.values()))
+        except Exception:
+            slots = list(SMART_SLOT_DEFAULTS.keys())
+    else:
+        slots = list(SMART_SLOT_DEFAULTS.keys())
+
+    return resolve_agent_config(
+        slots=slots,
+        user_cfg=saved_user_cfg,
+        snapshot_cfg=snapshot_slot_cfg,
+        connected=connected,
+        user_cfg_explicit=user_cfg_explicit,
+    )
 
 
 async def _generate_title(text: str) -> str:
@@ -131,6 +190,22 @@ async def _stream_graph(graph, input_, config, db=None, user_id: str = "") -> As
     Run the graph with astream_events and translate LangGraph events into SSE messages.
     After the stream ends, inspect state to detect interrupt vs completion.
     """
+    # LangGraph runs synchronous node functions via run_in_executor inside tasks
+    # created with an internal context that does NOT include our _user_keys ContextVar.
+    # Store keys in a session-scoped dict (keyed by thread_id) so node threads can
+    # look them up directly — no context propagation needed.
+    from utils.user_context import _user_keys, get_anthropic_mode, register_session_keys, unregister_session_keys
+    live_keys  = _user_keys.get()
+    session_id = config.get("configurable", {}).get("thread_id", "")
+    if live_keys and session_id:
+        register_session_keys(session_id, live_keys, get_anthropic_mode())
+        log.info("stream  registered keys  session=%s  providers=%s",
+                 session_id, list(live_keys.keys()))
+
+    # Default LangGraph limit is 25 — too low for a 5-stage pipeline with up to
+    # 5 revision cycles (intake + discovery Q&A + research/review/approval × N).
+    config = {**config, "recursion_limit": 100}
+
     try:
         async for event in graph.astream_events(input_, config, version="v2"):
             name = event.get("name", "")
@@ -251,7 +326,24 @@ async def _stream_graph(graph, input_, config, db=None, user_id: str = "") -> As
             })
 
     except Exception as exc:
-        yield _sse("error", {"message": str(exc)})
+        import traceback
+        msg = str(exc)
+        log.error("_stream_graph exception: %s\n%s", msg, traceback.format_exc())
+        # Detect provider/API-key errors thrown from get_user_key() inside nodes.
+        # These are RuntimeErrors with a well-known message prefix.  Surface them
+        # as a dedicated event so the frontend can offer the two-option banner
+        # (Configure Providers / Use Smart Config) instead of a plain error.
+        if "API key not configured for" in msg or "No LLM providers are configured" in msg:
+            from utils.user_context import connected_providers
+            yield _sse("provider_error", {
+                "message":     msg,
+                "can_smart_pick": bool(connected_providers()),
+            })
+        else:
+            yield _sse("error", {"message": msg})
+    finally:
+        if session_id:
+            unregister_session_keys(session_id)
 
 
 @router.post("/start")
@@ -272,46 +364,36 @@ async def start_chat(body: StartRequest, request: Request, current_user: AuthUse
     )
     asyncio.create_task(_save_title(db, session_id, body.brief, current_user.sub))
 
-    agent_cfg = get_agent_config()
-
     # ── Resolve graph + flow_config from skill registry ──────────────────────
     flow_config:           dict     = {}
     flow_snapshot_id:      int|None = None
     flow_snapshot_version: int|None = None
+    model_overrides: dict = {}
+    slot_map:        dict = {}
 
     if body.session_type == "agent_flow":
         try:
             skill    = skill_registry.get(body.flow_id)
             snapshot = await db.get_latest_snapshot(current_user.sub, body.flow_id)
+            slot_map = skill.manifest.agent_slot_map
             if snapshot:
                 db_prompts            = await db.get_prompt_content_for_snapshot(current_user.sub, body.flow_id, snapshot)
                 flow_config           = {**skill.all_agent_prompts, **db_prompts}
                 flow_snapshot_id      = snapshot["id"]
                 flow_snapshot_version = snapshot["snapshot_version"]
-                # Merge per-agent model overrides into agent_cfg (trump global defaults)
-                model_overrides = await db.get_model_config_for_snapshot(current_user.sub, body.flow_id, snapshot)
-                slot_map        = skill.manifest.agent_slot_map
-                for agent_key, model_cfg in model_overrides.items():
-                    slot = slot_map.get(agent_key)
-                    if slot and model_cfg:
-                        agent_cfg[slot] = model_cfg
+                model_overrides       = await db.get_model_config_for_snapshot(current_user.sub, body.flow_id, snapshot)
             else:
                 flow_config = dict(skill.all_agent_prompts)
         except SkillNotFoundError:
-            pass  # unknown skill → empty flow_config, agents use defaults
+            pass  # unknown skill → empty flow_config, agents use smart defaults
 
-    # Fill any slots used by this skill that are missing from agent_cfg with smart defaults
-    if body.session_type == "agent_flow":
-        try:
-            _skill = skill_registry.get(body.flow_id)
-            for slot in set(_skill.manifest.agent_slot_map.values()):
-                if slot not in agent_cfg and slot in SMART_SLOT_DEFAULTS:
-                    agent_cfg[slot] = SMART_SLOT_DEFAULTS[slot]
-        except Exception:
-            pass
+    agent_cfg = await _resolve_agent_cfg(
+        db, current_user.sub, skill_registry,
+        body.flow_id if body.session_type == "agent_flow" else None,
+        model_overrides, slot_map,
+    )
 
-    # Save merged agent_cfg (global defaults + per-agent overrides + smart defaults)
-    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
+    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", json.dumps(agent_cfg))
 
     # Pick the compiled graph: skill-specific for agent flows, fallback for chat
     graph = (
@@ -408,8 +490,8 @@ async def upload_document(request: Request, file: UploadFile = File(...), curren
     await db.record_session(session_id, current_user.sub, f"{'🖼' if is_image else '📄'} {file.filename}"[:80])
     asyncio.create_task(_save_title(db, session_id, title_source, current_user.sub))
 
-    agent_cfg = get_agent_config()
-    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
+    agent_cfg = await _resolve_agent_cfg(db, current_user.sub, None, None, {}, {})
+    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", json.dumps(agent_cfg))
 
     initial_state = AgentState(
         session_id=session_id,
@@ -587,16 +669,33 @@ async def restore_session(session_id: str, request: Request, current_user: AuthU
 
 
 @router.post("/retry/{session_id}")
-async def retry_chat(session_id: str, request: Request, current_user: AuthUser = Depends(get_current_user)):
+async def retry_chat(
+    session_id: str,
+    request:     Request,
+    current_user: AuthUser = Depends(get_current_user),
+    smart_pick:  bool = Query(False, alias="smart_pick"),
+):
     """
     Re-stream the graph from its last LangGraph checkpoint.
-    Use this after a connection error or exhausted LLM retries.
-    Safe to call multiple times — LangGraph resumes from the last
-    completed node, so no work is duplicated or lost.
+
+    The session_agent_config is always re-resolved before streaming so stale
+    sessions (created when providers were hardcoded) pick up the user's current
+    connected providers.
+
+    If the saved agent_config points to a provider that is no longer connected,
+    the endpoint returns HTTP 409 with error='provider_unavailable' so the
+    frontend can offer the user two options:
+      - Go to Settings → Providers to reconnect
+      - Retry with ?smart_pick=true to auto-pick from available providers
+
+    If no providers are connected at all, returns HTTP 409 with
+    error='no_providers' (smart_pick option hidden).
     """
-    graph  = request.app.state.graph
-    db     = request.app.state.db
-    config = {"configurable": {"thread_id": session_id}}
+    graphs         = request.app.state.graphs
+    graph          = request.app.state.graph
+    db             = request.app.state.db
+    skill_registry = request.app.state.skill_registry
+    config         = {"configurable": {"thread_id": session_id}}
 
     state = await graph.aget_state(config)
     if not state or not state.values:
@@ -606,15 +705,76 @@ async def retry_chat(session_id: str, request: Request, current_user: AuthUser =
     if current_stage in ("complete", "halted", "invalid_input"):
         raise HTTPException(status_code=400, detail="Session is already finished — nothing to retry.")
 
-    # Only block if there is an actual human-in-the-loop interrupt pending.
-    # state.next being non-empty is NOT enough — it is also truthy when a node
-    # errored mid-run and LangGraph still has the node queued for re-execution.
     has_interrupt = any(getattr(t, "interrupts", None) for t in (state.tasks or []))
     if has_interrupt:
         raise HTTPException(
             status_code=400,
             detail="Session is waiting for your input — answer the pending question instead of retrying.",
         )
+
+    # Gather snapshot overrides so they can be applied even when smart-picking
+    flow_id = state.values.get("flow_id")
+    snapshot_model_overrides: dict = {}
+    slot_map_for_retry:       dict = {}
+    if flow_id:
+        try:
+            _s = skill_registry.get(flow_id)
+            snapshot = await db.get_latest_snapshot(current_user.sub, flow_id)
+            slot_map_for_retry = _s.manifest.agent_slot_map
+            if snapshot:
+                snapshot_model_overrides = await db.get_model_config_for_snapshot(
+                    current_user.sub, flow_id, snapshot
+                )
+        except Exception:
+            pass
+
+    from utils.user_context import connected_providers
+    log.info("retry  session=%s  smart_pick=%s  flow_id=%s  connected=%s",
+             session_id, smart_pick, flow_id, connected_providers())
+
+    try:
+        fresh_agent_cfg = await _resolve_agent_cfg(
+            db, current_user.sub, skill_registry,
+            flow_id, snapshot_model_overrides, slot_map_for_retry,
+            force_smart_pick=smart_pick,
+        )
+    except HTTPException as exc:
+        # Explicitly configured provider is not connected
+        if exc.status_code == 422:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "error":         "provider_unavailable",
+                    "detail":        exc.detail,
+                    "can_smart_pick": True,
+                },
+            )
+        raise
+    except ValueError:
+        # No providers connected at all
+        return JSONResponse(
+            status_code=409,
+            content={
+                "error":         "no_providers",
+                "detail":        "No LLM providers are configured. Go to Settings → Providers and connect at least one provider.",
+                "can_smart_pick": False,
+            },
+        )
+
+    log.info("retry  resolved_cfg=%s", {k: v.get("provider") for k, v in fresh_agent_cfg.items()})
+
+    # Use the skill-specific compiled graph for both state patch and streaming
+    if flow_id:
+        graph = graphs.get(flow_id, graph)
+
+    await graph.aupdate_state(config, {"session_agent_config": fresh_agent_cfg})
+
+    # Verify the patch was applied
+    patched = await graph.aget_state(config)
+    patched_cfg = (patched.values or {}).get("session_agent_config", {})
+    log.info("retry  checkpoint_after_patch=%s", {k: v.get("provider") for k, v in patched_cfg.items()})
+
+    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", json.dumps(fresh_agent_cfg))
 
     asyncio.create_task(db.update_last_modified(session_id))
 
@@ -776,43 +936,36 @@ async def fork_session(session_id: str, body: ForkRequest, request: Request, cur
     )
     asyncio.create_task(_save_title(db, new_session_id, f"Follow-up: {orig_brief[:200]}", current_user.sub))
 
-    agent_cfg = get_agent_config()
-
     flow_config           = {}
     flow_snapshot_id      = None
     flow_snapshot_version = None
+    model_overrides: dict = {}
+    slot_map:        dict = {}
 
     try:
         skill    = skill_registry.get(body.flow_id)
         snapshot = await db.get_latest_snapshot(current_user.sub, body.flow_id)
+        slot_map = skill.manifest.agent_slot_map
         if snapshot:
             db_prompts            = await db.get_prompt_content_for_snapshot(current_user.sub, body.flow_id, snapshot)
             flow_config           = {**skill.all_agent_prompts, **db_prompts}
             flow_snapshot_id      = snapshot["id"]
             flow_snapshot_version = snapshot["snapshot_version"]
             model_overrides       = await db.get_model_config_for_snapshot(current_user.sub, body.flow_id, snapshot)
-            slot_map              = skill.manifest.agent_slot_map
-            for agent_key, model_cfg in model_overrides.items():
-                slot = slot_map.get(agent_key)
-                if slot and model_cfg:
-                    agent_cfg[slot] = model_cfg
         else:
             flow_config = dict(skill.all_agent_prompts)
     except SkillNotFoundError:
         pass
 
-    try:
-        _skill = skill_registry.get(body.flow_id)
-        for slot in set(_skill.manifest.agent_slot_map.values()):
-            if slot not in agent_cfg and slot in SMART_SLOT_DEFAULTS:
-                agent_cfg[slot] = SMART_SLOT_DEFAULTS[slot]
-    except Exception:
-        pass
+    agent_cfg = await _resolve_agent_cfg(
+        db, current_user.sub, skill_registry,
+        body.flow_id, model_overrides, slot_map,
+    )
 
     await db.save_config(
         current_user.sub,
         f"session_agent_config_{new_session_id}",
-        __import__("json").dumps(agent_cfg),
+        json.dumps(agent_cfg),
     )
 
     graph_to_use = graphs.get(body.flow_id, graph)
