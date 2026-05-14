@@ -27,9 +27,8 @@ from pydantic import BaseModel
 from api.schemas import ReplyRequest, StartRequest
 from config import MAX_FILE_SIZE_MB
 from state import AgentState
-from utils.agent_config import get_agent_config
 from chat_models import CHAT_DEFAULT_MODEL
-from framework.defaults import SMART_SLOT_DEFAULTS
+from framework.defaults import SMART_SLOT_DEFAULTS, available_providers, resolve_agent_config
 from framework.registry import SkillNotFoundError
 from utils.file_parser import extract_text, SUPPORTED_EXTENSIONS
 from utils.file_storage import save_upload
@@ -50,6 +49,52 @@ def _get(obj, key, default=None):
     if isinstance(obj, dict):
         return obj.get(key, default)
     return default
+
+
+async def _resolve_agent_cfg(
+    db,
+    user_id: str,
+    skill_registry,
+    flow_id: str | None,
+    snapshot_model_overrides: dict,  # {agent_key: {provider, model}}
+    slot_map: dict,                  # {agent_key: slot}
+) -> dict:
+    """
+    Resolve the per-slot LLM config for a session by smart-picking from
+    the user's connected providers.  Snapshot overrides take precedence over
+    the user's saved agent_config, which beats smart defaults.
+    """
+    user_keys = await db.get_all_api_keys(user_id)
+    connected = available_providers(user_keys)
+
+    raw_user_cfg    = await db.get_config(user_id, "agent_config")
+    saved_user_cfg  = json.loads(raw_user_cfg) if raw_user_cfg else {}
+    user_cfg_explicit = set(saved_user_cfg.keys())
+
+    # Build per-slot snapshot overrides from per-agent-key overrides
+    snapshot_slot_cfg: dict = {}
+    for agent_key, model_cfg in snapshot_model_overrides.items():
+        slot = slot_map.get(agent_key)
+        if slot and model_cfg:
+            snapshot_slot_cfg[slot] = model_cfg
+
+    # Determine which slots this skill uses; fall back to all known slots
+    if flow_id and skill_registry:
+        try:
+            skill = skill_registry.get(flow_id)
+            slots = list(set(skill.manifest.agent_slot_map.values()))
+        except Exception:
+            slots = list(SMART_SLOT_DEFAULTS.keys())
+    else:
+        slots = list(SMART_SLOT_DEFAULTS.keys())
+
+    return resolve_agent_config(
+        slots=slots,
+        user_cfg=saved_user_cfg,
+        snapshot_cfg=snapshot_slot_cfg,
+        connected=connected,
+        user_cfg_explicit=user_cfg_explicit,
+    )
 
 
 async def _generate_title(text: str) -> str:
@@ -272,46 +317,36 @@ async def start_chat(body: StartRequest, request: Request, current_user: AuthUse
     )
     asyncio.create_task(_save_title(db, session_id, body.brief, current_user.sub))
 
-    agent_cfg = get_agent_config()
-
     # ── Resolve graph + flow_config from skill registry ──────────────────────
     flow_config:           dict     = {}
     flow_snapshot_id:      int|None = None
     flow_snapshot_version: int|None = None
+    model_overrides: dict = {}
+    slot_map:        dict = {}
 
     if body.session_type == "agent_flow":
         try:
             skill    = skill_registry.get(body.flow_id)
             snapshot = await db.get_latest_snapshot(current_user.sub, body.flow_id)
+            slot_map = skill.manifest.agent_slot_map
             if snapshot:
                 db_prompts            = await db.get_prompt_content_for_snapshot(current_user.sub, body.flow_id, snapshot)
                 flow_config           = {**skill.all_agent_prompts, **db_prompts}
                 flow_snapshot_id      = snapshot["id"]
                 flow_snapshot_version = snapshot["snapshot_version"]
-                # Merge per-agent model overrides into agent_cfg (trump global defaults)
-                model_overrides = await db.get_model_config_for_snapshot(current_user.sub, body.flow_id, snapshot)
-                slot_map        = skill.manifest.agent_slot_map
-                for agent_key, model_cfg in model_overrides.items():
-                    slot = slot_map.get(agent_key)
-                    if slot and model_cfg:
-                        agent_cfg[slot] = model_cfg
+                model_overrides       = await db.get_model_config_for_snapshot(current_user.sub, body.flow_id, snapshot)
             else:
                 flow_config = dict(skill.all_agent_prompts)
         except SkillNotFoundError:
-            pass  # unknown skill → empty flow_config, agents use defaults
+            pass  # unknown skill → empty flow_config, agents use smart defaults
 
-    # Fill any slots used by this skill that are missing from agent_cfg with smart defaults
-    if body.session_type == "agent_flow":
-        try:
-            _skill = skill_registry.get(body.flow_id)
-            for slot in set(_skill.manifest.agent_slot_map.values()):
-                if slot not in agent_cfg and slot in SMART_SLOT_DEFAULTS:
-                    agent_cfg[slot] = SMART_SLOT_DEFAULTS[slot]
-        except Exception:
-            pass
+    agent_cfg = await _resolve_agent_cfg(
+        db, current_user.sub, skill_registry,
+        body.flow_id if body.session_type == "agent_flow" else None,
+        model_overrides, slot_map,
+    )
 
-    # Save merged agent_cfg (global defaults + per-agent overrides + smart defaults)
-    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
+    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", json.dumps(agent_cfg))
 
     # Pick the compiled graph: skill-specific for agent flows, fallback for chat
     graph = (
@@ -408,8 +443,8 @@ async def upload_document(request: Request, file: UploadFile = File(...), curren
     await db.record_session(session_id, current_user.sub, f"{'🖼' if is_image else '📄'} {file.filename}"[:80])
     asyncio.create_task(_save_title(db, session_id, title_source, current_user.sub))
 
-    agent_cfg = get_agent_config()
-    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", __import__("json").dumps(agent_cfg))
+    agent_cfg = await _resolve_agent_cfg(db, current_user.sub, None, None, {}, {})
+    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", json.dumps(agent_cfg))
 
     initial_state = AgentState(
         session_id=session_id,
@@ -776,43 +811,36 @@ async def fork_session(session_id: str, body: ForkRequest, request: Request, cur
     )
     asyncio.create_task(_save_title(db, new_session_id, f"Follow-up: {orig_brief[:200]}", current_user.sub))
 
-    agent_cfg = get_agent_config()
-
     flow_config           = {}
     flow_snapshot_id      = None
     flow_snapshot_version = None
+    model_overrides: dict = {}
+    slot_map:        dict = {}
 
     try:
         skill    = skill_registry.get(body.flow_id)
         snapshot = await db.get_latest_snapshot(current_user.sub, body.flow_id)
+        slot_map = skill.manifest.agent_slot_map
         if snapshot:
             db_prompts            = await db.get_prompt_content_for_snapshot(current_user.sub, body.flow_id, snapshot)
             flow_config           = {**skill.all_agent_prompts, **db_prompts}
             flow_snapshot_id      = snapshot["id"]
             flow_snapshot_version = snapshot["snapshot_version"]
             model_overrides       = await db.get_model_config_for_snapshot(current_user.sub, body.flow_id, snapshot)
-            slot_map              = skill.manifest.agent_slot_map
-            for agent_key, model_cfg in model_overrides.items():
-                slot = slot_map.get(agent_key)
-                if slot and model_cfg:
-                    agent_cfg[slot] = model_cfg
         else:
             flow_config = dict(skill.all_agent_prompts)
     except SkillNotFoundError:
         pass
 
-    try:
-        _skill = skill_registry.get(body.flow_id)
-        for slot in set(_skill.manifest.agent_slot_map.values()):
-            if slot not in agent_cfg and slot in SMART_SLOT_DEFAULTS:
-                agent_cfg[slot] = SMART_SLOT_DEFAULTS[slot]
-    except Exception:
-        pass
+    agent_cfg = await _resolve_agent_cfg(
+        db, current_user.sub, skill_registry,
+        body.flow_id, model_overrides, slot_map,
+    )
 
     await db.save_config(
         current_user.sub,
         f"session_agent_config_{new_session_id}",
-        __import__("json").dumps(agent_cfg),
+        json.dumps(agent_cfg),
     )
 
     graph_to_use = graphs.get(body.flow_id, graph)
