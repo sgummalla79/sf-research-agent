@@ -45,9 +45,9 @@
         :disabled="noProviders"
         rows="2"
         @input="handleInput"
-        @keydown.enter.exact.prevent="handleSend"
-        @keydown.meta.enter.prevent="handleSend"
-        @keydown.ctrl.enter.prevent="handleSend"
+        @keydown.enter.exact.prevent="!streaming && handleSend()"
+        @keydown.meta.enter.prevent="!streaming && handleSend()"
+        @keydown.ctrl.enter.prevent="!streaming && handleSend()"
         @keydown.esc="showSlashMenu = false"
         @keydown.arrow-down.prevent="slashMenuFocusNext"
         @keydown.arrow-up.prevent="slashMenuFocusPrev" />
@@ -160,9 +160,9 @@
             <span>Adaptive</span>
           </button>
 
-          <!-- Send button -->
+          <!-- Send button — disabled while LLM is responding -->
           <button class="cb-send"
-            :disabled="!selectedFile && !text.trim()"
+            :disabled="streaming || (!selectedFile && !text.trim())"
             @click="handleSend">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
               <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
@@ -184,6 +184,7 @@ const props = defineProps({
   hint:         { type: String,  default: null },
   modelLocked:  { type: Boolean, default: false },
   noProviders:  { type: Boolean, default: false },
+  streaming:    { type: Boolean, default: false },  // LLM responding — block send, allow typing
 })
 
 const emit = defineEmits(['submit', 'upload', 'flow-select', 'cancel-flow', 'manage-skills', 'open-settings'])

@@ -362,13 +362,14 @@
 
       <!-- Chat input — shown for new sessions AND for follow-up chat on completed sessions -->
       <ChatInput
-        v-if="(!sessionId || isComplete || isRegularChat) && !isStreaming"
+        v-if="!sessionId || isComplete || isRegularChat"
         :chat-models="chatModels"
         :flows="flows"
         :pending-flow="isComplete ? null : pendingFlow"
         :hint="isComplete ? 'Ask a question about your document, or use + to add a new skill…' : undefined"
         :model-locked="!!sessionId && !isComplete"
         :no-providers="flowsLoaded && chatModels.length === 0"
+        :streaming="isStreaming"
         @submit="handleChatSubmit"
         @open-settings="openSettings()"
         @upload="handleChatUpload"
