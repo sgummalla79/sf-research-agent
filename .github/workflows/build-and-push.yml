@@ -3,25 +3,58 @@ name: Build and Push
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version tag  (e.g.  1.0.0)'
+      bump:
+        description: 'Version bump type'
         required: true
-        type: string
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
 
 env:
-  REGISTRY: ghcr.io
   OWNER: ${{ github.repository_owner }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump version
+        id: version
+        run: |
+          current=$(cat VERSION | tr -d '[:space:]')
+          major=$(echo $current | cut -d. -f1)
+          minor=$(echo $current | cut -d. -f2)
+          patch=$(echo $current | cut -d. -f3)
+
+          case "${{ inputs.bump }}" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+
+          new="$major.$minor.$patch"
+          echo "$new" > VERSION
+          echo "new=$new" >> $GITHUB_OUTPUT
+          echo "Bumped $current → $new"
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new }}"
+          git push
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -40,7 +73,7 @@ jobs:
           file: docker/Dockerfile.ui
           push: true
           tags: |
-            ghcr.io/${{ env.OWNER }}/pragna-ui:${{ inputs.version }}
+            ghcr.io/${{ env.OWNER }}/pragna-ui:${{ steps.version.outputs.new }}
             ghcr.io/${{ env.OWNER }}/pragna-ui:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -52,13 +85,13 @@ jobs:
           file: docker/Dockerfile.api
           push: true
           tags: |
-            ghcr.io/${{ env.OWNER }}/pragna-api:${{ inputs.version }}
+            ghcr.io/${{ env.OWNER }}/pragna-api:${{ steps.version.outputs.new }}
             ghcr.io/${{ env.OWNER }}/pragna-api:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Summary
         run: |
-          echo "### Images published" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-ui:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-api:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "### Version ${{ steps.version.outputs.new }} published" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-ui:${{ steps.version.outputs.new }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-api:${{ steps.version.outputs.new }}\`" >> $GITHUB_STEP_SUMMARY
