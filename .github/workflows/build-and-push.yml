@@ -119,11 +119,10 @@ jobs:
           context: .
           file: docker/Dockerfile.ui
           push: true
+          no-cache: true
           tags: |
             ghcr.io/${{ env.OWNER }}/pragna-ui:${{ steps.version.outputs.new }}
             ghcr.io/${{ env.OWNER }}/pragna-ui:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build and push pragna-api
         uses: docker/build-push-action@v5
