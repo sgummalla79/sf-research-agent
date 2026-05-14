@@ -368,7 +368,7 @@
         :pending-flow="isComplete ? null : pendingFlow"
         :hint="isComplete ? 'Ask a question about your document, or use + to add a new skill…' : undefined"
         :model-locked="!!sessionId && !isComplete"
-        :no-providers="chatModels.length === 0"
+        :no-providers="flowsLoaded && chatModels.length === 0"
         @submit="handleChatSubmit"
         @open-settings="openSettings()"
         @upload="handleChatUpload"
@@ -835,6 +835,7 @@ const messagesEl      = ref(null)
 
 // Chat model + flow state (passed to ChatInput as props)
 const chatModels  = ref([])
+const flowsLoaded = ref(false)
 const flows       = ref([])
 const pendingFlow = ref(null)   // flow selected, session not yet started (cancellable)
 const sessionFlow = ref(null)   // flow locked for the active session
@@ -938,6 +939,9 @@ async function fetchFlows() {
       chatModels.value = data.chat_models || []
     }
   } catch (_) {}
+  finally {
+    flowsLoaded.value = true
+  }
 }
 
 function startWithFlow(flow) {
