@@ -34,7 +34,8 @@ def _run_standard(state: AgentState, model: str) -> dict:
     from utils.llm_factory import build_llm
     from utils.llm_retry import invoke_with_retry
 
-    llm      = build_llm("anthropic", model)
+    provider = state.chat_provider or "anthropic"
+    llm      = build_llm(provider, model)
     response = invoke_with_retry(llm, list(state.messages))
     urec     = usage_record("chat", model, getattr(response, "usage_metadata", None))
 

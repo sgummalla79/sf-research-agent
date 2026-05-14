@@ -1060,6 +1060,7 @@ async function handleChatSubmit(text, opts) {
     await startSession(text, {
       sessionType:      'chat',
       chatModel:        opts.model,
+      chatProvider:     opts.provider,
       extendedThinking: opts.extendedThinking,
     })
   }

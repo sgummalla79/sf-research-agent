@@ -93,7 +93,8 @@ class AgentState(BaseModel):
     flow_config: dict = Field(default_factory=dict)
 
     # ── Chat fields (used when session_type == "chat") ────────────────────────
-    chat_model: str = "claude-sonnet-4-6"
+    chat_model:        str  = "claude-sonnet-4-6"
+    chat_provider:     str  = "anthropic"
     extended_thinking: bool = False
 
     # ── Prompt snapshot — frozen at session start ────────────────────────────

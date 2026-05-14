@@ -9,7 +9,8 @@ class StartRequest(BaseModel):
     # Required when session_type == "agent_flow"
     flow_id: str = "architect"
     # Required when session_type == "chat"
-    chat_model: str = "claude-sonnet-4-6"
+    chat_model:        str  = "claude-sonnet-4-6"
+    chat_provider:     str  = "anthropic"
     extended_thinking: bool = False
 
 

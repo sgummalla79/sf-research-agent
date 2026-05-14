@@ -324,6 +324,7 @@ async def start_chat(body: StartRequest, request: Request, current_user: AuthUse
         flow_snapshot_id=flow_snapshot_id,
         flow_snapshot_version=flow_snapshot_version,
         chat_model=body.chat_model or CHAT_DEFAULT_MODEL,
+        chat_provider=body.chat_provider,
         extended_thinking=body.extended_thinking,
     )
 

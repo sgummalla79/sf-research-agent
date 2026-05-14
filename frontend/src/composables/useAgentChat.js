@@ -298,7 +298,7 @@ export function useAgentChat() {
 
   // ── Sessions API ──────────────────────────────────────────────────────────
 
-  // opts: { sessionType, flowId, chatModel, extendedThinking }
+  // opts: { sessionType, flowId, chatModel, chatProvider, extendedThinking }
   async function startSession(brief, opts = {}) {
     _resetChat()
     _addMessage('user', brief)
@@ -309,6 +309,7 @@ export function useAgentChat() {
         session_type:      opts.sessionType      ?? 'agent_flow',
         flow_id:           opts.flowId           ?? 'architect',
         chat_model:        opts.chatModel        ?? 'claude-sonnet-4-6',
+        chat_provider:     opts.chatProvider     ?? 'anthropic',
         extended_thinking: opts.extendedThinking ?? false,
       }),
     })
