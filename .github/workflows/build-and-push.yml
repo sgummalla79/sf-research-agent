@@ -165,10 +165,12 @@ jobs:
 
             echo "=== Probe check (waiting for healthy response) ==="
             for i in $(seq 1 12); do
-              STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://pragna.sgummallaworks.com/health || echo "000")
-              if [ "$STATUS" = "200" ]; then
+              BODY=$(curl -s -w "\n%{http_code}" https://pragna.sgummallaworks.com/health 2>/dev/null || true)
+              STATUS=$(echo "$BODY" | tail -1)
+              JSON=$(echo "$BODY" | head -n -1)
+              if [ "$STATUS" = "200" ] && [ -n "$JSON" ]; then
                 echo "Health check passed on attempt $i"
-                curl -s https://pragna.sgummallaworks.com/health | python3 -m json.tool
+                echo "$JSON" | python3 -m json.tool
                 break
               fi
               echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
