@@ -62,10 +62,21 @@ class FanoutStrategy(ExecutionStrategy):
         def node(state: "AgentState") -> dict:
             research_context = build_context(_RESEARCH_CONTEXT, state)
 
+            # Capture the user keys here (in node()'s thread, where var_child_runnable_config
+            # is set by LangChain's run_in_executor) so we can re-inject them into each
+            # run_branch thread.  ThreadPoolExecutor threads do NOT reliably inherit our
+            # _user_keys ContextVar through LangGraph's internal asyncio.create_task context.
+            from utils.user_context import _resolve_keys, get_anthropic_mode, set_user_context
+            _captured_keys = _resolve_keys()
+            _captured_mode = get_anthropic_mode()
+
             # ── Step 1: run all branches in parallel ──────────────────────────
             branch_outputs: list[tuple[str, str, dict]] = []  # (label, text, urec)
 
             def run_branch(branch: "FanoutBranch") -> tuple[str, str, dict]:
+                # Re-establish user context in this thread using the closure-captured keys
+                if _captured_keys:
+                    set_user_context(_captured_keys, _captured_mode)
                 llm      = get_llm_for_slot(branch.llm_slot, state.session_agent_config)
                 prompt   = state.flow_config.get(branch.agent, "")
                 response = invoke_with_retry(llm, [

@@ -32,8 +32,12 @@ def _lc_configurable() -> dict:
     try:
         from langchain_core.runnables.config import var_child_runnable_config
         cfg = var_child_runnable_config.get({})
-        return cfg.get("configurable") or {}
-    except Exception:
+        c = cfg.get("configurable") or {}
+        log.debug("_lc_configurable  lc_cfg_keys=%s  has_pragna_keys=%s",
+                  list(c.keys()), "_pragna_user_keys" in c)
+        return c
+    except Exception as exc:
+        log.debug("_lc_configurable  error=%s", exc)
         return {}
 
 
