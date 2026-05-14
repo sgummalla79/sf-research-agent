@@ -201,6 +201,11 @@ async def _stream_graph(graph, input_, config, db=None, user_id: str = "") -> As
         register_session_keys(session_id, live_keys, get_anthropic_mode())
         log.info("stream  registered keys  session=%s  providers=%s",
                  session_id, list(live_keys.keys()))
+
+    # Default LangGraph limit is 25 — too low for a 5-stage pipeline with up to
+    # 5 revision cycles (intake + discovery Q&A + research/review/approval × N).
+    config = {**config, "recursion_limit": 100}
+
     try:
         async for event in graph.astream_events(input_, config, version="v2"):
             name = event.get("name", "")
