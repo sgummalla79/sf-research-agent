@@ -1087,7 +1087,7 @@ async function handleChatSubmit(text, opts) {
     return
   }
   if (isComplete.value) {
-    // Post-completion follow-up on an agent_flow session
+    completionBannerDismissed.value = true   // hide banner once user starts chatting
     await sendMessage(text, opts.model, opts.provider)
     return
   }
