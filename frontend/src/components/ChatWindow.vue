@@ -1384,7 +1384,7 @@ function doPDF() {
 /* ── Session usage bar ───────────────────────────────────────────────────── */
 .usage-bar {
   flex: 1; display: flex; align-items: stretch;
-  background: var(--surf2);
+  background: var(--bg);
   font-size: 11px;
 }
 .ub-cell {
@@ -1392,8 +1392,7 @@ function doPDF() {
   align-items: center; justify-content: center;
   padding: 5px 6px; gap: 1px; min-width: 0;
 }
-.ub-total { background: rgba(184,92,42,0.06); }
-.dark .ub-total { background: rgba(201,112,64,0.08); }
+.ub-total { background: transparent; }
 .ub-sep   { width: 1px; background: var(--bdr); flex-shrink: 0; margin: 5px 0; }
 .ub-name  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); white-space: nowrap; }
 .ub-tokens{ color: var(--tx); font-weight: 500; white-space: nowrap; }
