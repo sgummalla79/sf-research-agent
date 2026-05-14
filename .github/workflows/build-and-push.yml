@@ -28,6 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0   # full history needed to find previous release commit
 
       - name: Bump version
         id: version
@@ -46,13 +47,74 @@ jobs:
           new="$major.$minor.$patch"
           echo "$new" > VERSION
           echo "new=$new" >> $GITHUB_OUTPUT
+          echo "previous=$current" >> $GITHUB_OUTPUT
           echo "Bumped $current → $new"
 
-      - name: Commit version bump
+      - name: Generate release notes
+        run: |
+          version="${{ steps.version.outputs.new }}"
+          previous="${{ steps.version.outputs.previous }}"
+          date=$(date -u +"%Y-%m-%d")
+
+          # Find the commit where the previous version was bumped
+          last_bump=$(git log --oneline | grep -m1 "chore: bump version to ${previous}" | awk '{print $1}')
+
+          if [ -z "$last_bump" ]; then
+            # No previous bump found — use last 100 commits
+            commits=$(git log --no-merges --format="%s" -100)
+          else
+            commits=$(git log --no-merges --format="%s" "${last_bump}..HEAD")
+          fi
+
+          # Categorise by conventional commit prefix
+          features=$(echo "$commits"  | grep -E "^feat:"     | sed 's/^feat: /- /'     || true)
+          fixes=$(echo "$commits"     | grep -E "^(fix|hotfix):" | sed 's/^\(fix\|hotfix\): /- /' || true)
+          docs=$(echo "$commits"      | grep -E "^docs:"     | sed 's/^docs: /- /'     || true)
+          refactor=$(echo "$commits"  | grep -E "^refactor:" | sed 's/^refactor: /- /' || true)
+
+          # Build markdown
+          {
+            echo "# v${version} — ${date}"
+            echo ""
+
+            if [ -n "$features" ]; then
+              echo "## Features"
+              echo "$features"
+              echo ""
+            fi
+
+            if [ -n "$fixes" ]; then
+              echo "## Bug Fixes"
+              echo "$fixes"
+              echo ""
+            fi
+
+            if [ -n "$refactor" ]; then
+              echo "## Refactoring"
+              echo "$refactor"
+              echo ""
+            fi
+
+            if [ -n "$docs" ]; then
+              echo "## Documentation"
+              echo "$docs"
+              echo ""
+            fi
+
+            if [ -z "$features" ] && [ -z "$fixes" ] && [ -z "$refactor" ] && [ -z "$docs" ]; then
+              echo "No notable changes."
+              echo ""
+            fi
+          } > "release-notes/v${version}.md"
+
+          echo "Generated release-notes/v${version}.md"
+          cat "release-notes/v${version}.md"
+
+      - name: Commit version bump and release notes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION
+          git add VERSION release-notes/
           git commit -m "chore: bump version to ${{ steps.version.outputs.new }}"
           git push
 
@@ -93,5 +155,7 @@ jobs:
       - name: Summary
         run: |
           echo "### Version ${{ steps.version.outputs.new }} published" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-ui:${{ steps.version.outputs.new }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-api:${{ steps.version.outputs.new }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          cat "release-notes/v${{ steps.version.outputs.new }}.md" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
