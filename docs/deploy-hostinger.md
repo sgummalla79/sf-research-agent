@@ -1,4 +1,4 @@
-# Deploying Prajna to Hostinger KVM 2 — Docker + K3s
+# Deploying Pragna to Hostinger KVM 2 — Docker + K3s
 
 ## Architecture
 
@@ -6,20 +6,20 @@
 Your Mac
   └── git push → GitHub repo
                     └── Actions (manual trigger, version input)
-                          ├── Build ghcr.io/you/prajna-ui:1.0.0
-                          └── Build ghcr.io/you/prajna-api:1.0.0
+                          ├── Build ghcr.io/you/pragna-ui:1.0.0
+                          └── Build ghcr.io/you/pragna-api:1.0.0
                                         ↓
                               GitHub Container Registry (GHCR)
 
 Browser → Traefik (443, TLS)  ← runs inside K3s on KVM 2
-              ├── /api/*   →  prajna-api pod  (FastAPI, has all secrets)
-              ├── /auth/*  →  prajna-api pod
-              └── /*       →  prajna-ui pod   (Caddy static files, zero secrets)
+              ├── /api/*   →  pragna-api pod  (FastAPI, has all secrets)
+              ├── /auth/*  →  pragna-api pod
+              └── /*       →  pragna-ui pod   (Caddy static files, zero secrets)
 ```
 
 **Why two containers:**
-- `prajna-ui` holds only the built HTML/CSS/JS — no secrets, no DB access
-- `prajna-api` holds all secrets (DB, Auth0, JWT) and is never directly reachable from the internet
+- `pragna-ui` holds only the built HTML/CSS/JS — no secrets, no DB access
+- `pragna-api` holds all secrets (DB, Auth0, JWT) and is never directly reachable from the internet
 - Compromising the frontend container gives an attacker nothing useful
 
 **Stack:**
@@ -45,14 +45,14 @@ Browser → Traefik (443, TLS)  ← runs inside K3s on KVM 2
 ## Files this guide creates in your repo
 
 ```
-prajna/
+pragna/
 ├── docker/
 │   ├── Dockerfile.ui          ← builds the Vue frontend image
 │   ├── Dockerfile.api         ← builds the FastAPI backend image
 │   ├── Caddyfile.ui           ← Caddy config for static file serving
 │   └── .dockerignore          ← excludes node_modules, .env etc from build
 ├── k8s/
-│   └── prajna/
+│   └── pragna/
 │       ├── namespace.yaml
 │       ├── secret.template.yaml   ← template only, real secret never committed
 │       ├── deployment-ui.yaml
@@ -186,35 +186,35 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push prajna-ui
+      - name: Build and push pragna-ui
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.ui
           push: true
           tags: |
-            ghcr.io/${{ env.OWNER }}/prajna-ui:${{ inputs.version }}
-            ghcr.io/${{ env.OWNER }}/prajna-ui:latest
+            ghcr.io/${{ env.OWNER }}/pragna-ui:${{ inputs.version }}
+            ghcr.io/${{ env.OWNER }}/pragna-ui:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push prajna-api
+      - name: Build and push pragna-api
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.api
           push: true
           tags: |
-            ghcr.io/${{ env.OWNER }}/prajna-api:${{ inputs.version }}
-            ghcr.io/${{ env.OWNER }}/prajna-api:latest
+            ghcr.io/${{ env.OWNER }}/pragna-api:${{ inputs.version }}
+            ghcr.io/${{ env.OWNER }}/pragna-api:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Summary
         run: |
           echo "### Images published" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ env.OWNER }}/prajna-ui:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ env.OWNER }}/prajna-api:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-ui:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-api:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
 ```
 
 > **`GITHUB_TOKEN` is automatic** — GitHub injects it into every Actions run.
@@ -222,14 +222,14 @@ jobs:
 
 ### 1.6 — Kubernetes manifests
 
-Create each file below inside `k8s/prajna/`.
+Create each file below inside `k8s/pragna/`.
 
 **`namespace.yaml`**
 ```yaml
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: prajna
+  name: pragna
 ```
 
 ---
@@ -239,13 +239,13 @@ metadata:
 ```yaml
 # TEMPLATE ONLY — do not commit with real values
 # Create the real secret on the cluster with:
-#   kubectl apply -f k8s/prajna/secret.yaml -n prajna
+#   kubectl apply -f k8s/pragna/secret.yaml -n pragna
 #
 apiVersion: v1
 kind: Secret
 metadata:
-  name: prajna-secrets
-  namespace: prajna
+  name: pragna-secrets
+  namespace: pragna
 type: Opaque
 stringData:
   SETTINGS_SECRET: "REPLACE"
@@ -267,23 +267,23 @@ stringData:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prajna-ui
-  namespace: prajna
+  name: pragna-ui
+  namespace: pragna
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: prajna-ui
+      app: pragna-ui
   template:
     metadata:
       labels:
-        app: prajna-ui
+        app: pragna-ui
     spec:
       imagePullSecrets:
         - name: ghcr-pull-secret
       containers:
-        - name: prajna-ui
-          image: ghcr.io/YOUR_GITHUB_USERNAME/prajna-ui:latest
+        - name: pragna-ui
+          image: ghcr.io/YOUR_GITHUB_USERNAME/pragna-ui:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80
@@ -304,29 +304,29 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prajna-api
-  namespace: prajna
+  name: pragna-api
+  namespace: pragna
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: prajna-api
+      app: pragna-api
   template:
     metadata:
       labels:
-        app: prajna-api
+        app: pragna-api
     spec:
       imagePullSecrets:
         - name: ghcr-pull-secret
       containers:
-        - name: prajna-api
-          image: ghcr.io/YOUR_GITHUB_USERNAME/prajna-api:latest
+        - name: pragna-api
+          image: ghcr.io/YOUR_GITHUB_USERNAME/pragna-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
           envFrom:
             - secretRef:
-                name: prajna-secrets
+                name: pragna-secrets
           resources:
             requests:
               memory: "256Mi"
@@ -350,11 +350,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: prajna-ui
-  namespace: prajna
+  name: pragna-ui
+  namespace: pragna
 spec:
   selector:
-    app: prajna-ui
+    app: pragna-ui
   ports:
     - port: 80
       targetPort: 80
@@ -368,11 +368,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: prajna-api
-  namespace: prajna
+  name: pragna-api
+  namespace: pragna
 spec:
   selector:
-    app: prajna-api
+    app: pragna-api
   ports:
     - port: 8000
       targetPort: 8000
@@ -386,8 +386,8 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: prajna
-  namespace: prajna
+  name: pragna
+  namespace: pragna
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
@@ -396,7 +396,7 @@ spec:
   tls:
     - hosts:
         - yourdomain.com
-      secretName: prajna-tls
+      secretName: pragna-tls
   rules:
     - host: yourdomain.com
       http:
@@ -405,21 +405,21 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: prajna-api
+                name: pragna-api
                 port:
                   number: 8000
           - path: /auth
             pathType: Prefix
             backend:
               service:
-                name: prajna-api
+                name: pragna-api
                 port:
                   number: 8000
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: prajna-ui
+                name: pragna-ui
                 port:
                   number: 80
 ```
@@ -524,8 +524,13 @@ mkdir -p ~/.kube
 nano ~/.kube/config-hostinger
 # Paste the content, save
 
-# Change the server IP from 127.0.0.1 to your VPS IP
-sed -i '' 's/127.0.0.1/YOUR_VPS_IP/g' ~/.kube/config-hostinger
+# Replace 127.0.0.1 with your actual VPS IP — e.g. if your IP is 1.2.3.4:
+#   sed -i '' 's/127.0.0.1/1.2.3.4/g' ~/.kube/config-hostinger
+sed -i '' "s/127.0.0.1/$(echo YOUR_ACTUAL_VPS_IP)/g" ~/.kube/config-hostinger
+
+# Verify the file now contains your real IP
+grep server ~/.kube/config-hostinger
+# Expected output: server: https://1.2.3.4:6443
 
 # Add to your shell profile
 echo 'export KUBECONFIG=~/.kube/config:~/.kube/config-hostinger' >> ~/.zshrc
@@ -561,14 +566,14 @@ kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: prajna
+  name: pragna
 EOF
 
 kubectl create secret docker-registry ghcr-pull-secret \
   --docker-server=ghcr.io \
   --docker-username=YOUR_GITHUB_USERNAME \
   --docker-password=YOUR_PAT \
-  --namespace=prajna
+  --namespace=pragna
 ```
 
 > When you add more apps later, create the same secret in their namespace too.
@@ -596,7 +601,7 @@ Run these from the server (or your Mac if you set up kubeconfig):
 ### 5.1 — Apply the namespace
 
 ```bash
-kubectl apply -f k8s/prajna/namespace.yaml
+kubectl apply -f k8s/pragna/namespace.yaml
 ```
 
 ### 5.2 — Create the secret with real values
@@ -606,20 +611,20 @@ then apply it. **Never commit `secret.yaml` to git.**
 
 ```bash
 # On the server — create the file
-nano /tmp/prajna-secret.yaml
+nano /tmp/pragna-secret.yaml
 ```
 
 Paste your filled-in secret YAML, save. Then:
 
 ```bash
-kubectl apply -f /tmp/prajna-secret.yaml
-rm /tmp/prajna-secret.yaml   # delete after applying
+kubectl apply -f /tmp/pragna-secret.yaml
+rm /tmp/pragna-secret.yaml   # delete after applying
 ```
 
 Verify it was created:
 
 ```bash
-kubectl get secret prajna-secrets -n prajna
+kubectl get secret pragna-secrets -n pragna
 ```
 
 ### 5.3 — Apply the cert-manager ClusterIssuer
@@ -627,7 +632,7 @@ kubectl get secret prajna-secrets -n prajna
 This is one per cluster — not per app:
 
 ```bash
-kubectl apply -f k8s/prajna/cluster-issuer.yaml
+kubectl apply -f k8s/pragna/cluster-issuer.yaml
 
 # Verify it becomes Ready
 kubectl describe clusterissuer letsencrypt-prod
@@ -649,24 +654,24 @@ Wait until it returns your VPS IP (5–60 minutes).
 ### 5.5 — Apply all remaining manifests
 
 ```bash
-kubectl apply -f k8s/prajna/deployment-ui.yaml
-kubectl apply -f k8s/prajna/deployment-api.yaml
-kubectl apply -f k8s/prajna/service-ui.yaml
-kubectl apply -f k8s/prajna/service-api.yaml
-kubectl apply -f k8s/prajna/ingress.yaml
+kubectl apply -f k8s/pragna/deployment-ui.yaml
+kubectl apply -f k8s/pragna/deployment-api.yaml
+kubectl apply -f k8s/pragna/service-ui.yaml
+kubectl apply -f k8s/pragna/service-api.yaml
+kubectl apply -f k8s/pragna/ingress.yaml
 ```
 
 ### 5.6 — Verify everything is running
 
 ```bash
 # Pods should show Running
-kubectl get pods -n prajna
+kubectl get pods -n pragna
 
 # Ingress should show your domain
-kubectl get ingress -n prajna
+kubectl get ingress -n pragna
 
 # Certificate should become Ready within 2 minutes
-kubectl get certificate -n prajna
+kubectl get certificate -n pragna
 ```
 
 ---
@@ -683,7 +688,7 @@ Go to [manage.auth0.com](https://manage.auth0.com) → Applications → your app
 
 Click **Save Changes**.
 
-Open `https://yourdomain.com` — you should see the Prajna login page with a padlock.
+Open `https://yourdomain.com` — you should see the Pragna login page with a padlock.
 
 ---
 
@@ -697,17 +702,17 @@ Open `https://yourdomain.com` — you should see the Prajna login page with a pa
 
 ```bash
 # Update both deployments to the new version
-kubectl set image deployment/prajna-ui \
-  prajna-ui=ghcr.io/YOUR_GITHUB_USERNAME/prajna-ui:1.1.0 \
-  -n prajna
+kubectl set image deployment/pragna-ui \
+  pragna-ui=ghcr.io/YOUR_GITHUB_USERNAME/pragna-ui:1.1.0 \
+  -n pragna
 
-kubectl set image deployment/prajna-api \
-  prajna-api=ghcr.io/YOUR_GITHUB_USERNAME/prajna-api:1.1.0 \
-  -n prajna
+kubectl set image deployment/pragna-api \
+  pragna-api=ghcr.io/YOUR_GITHUB_USERNAME/pragna-api:1.1.0 \
+  -n pragna
 
 # Watch the rollout
-kubectl rollout status deployment/prajna-ui -n prajna
-kubectl rollout status deployment/prajna-api -n prajna
+kubectl rollout status deployment/pragna-ui -n pragna
+kubectl rollout status deployment/pragna-api -n pragna
 ```
 
 K3s pulls the new image and replaces pods one by one — zero downtime.
@@ -715,8 +720,8 @@ K3s pulls the new image and replaces pods one by one — zero downtime.
 To roll back if something goes wrong:
 
 ```bash
-kubectl rollout undo deployment/prajna-api -n prajna
-kubectl rollout undo deployment/prajna-ui -n prajna
+kubectl rollout undo deployment/pragna-api -n pragna
+kubectl rollout undo deployment/pragna-ui -n pragna
 ```
 
 ---
@@ -741,15 +746,15 @@ The `cluster-issuer.yaml` is a **cluster-wide resource** — one instance serves
 
 | Problem | Command |
 |---|---|
-| Pod not starting | `kubectl describe pod -n prajna` |
-| Backend logs | `kubectl logs deployment/prajna-api -n prajna` |
-| Frontend logs | `kubectl logs deployment/prajna-ui -n prajna` |
-| Certificate stuck | `kubectl describe certificate -n prajna` |
-| Certificate challenge | `kubectl describe challenge -n prajna` |
-| Image pull error | `kubectl describe pod -n prajna \| grep -A5 Events` |
-| Ingress not routing | `kubectl describe ingress -n prajna` |
-| Restart a pod | `kubectl rollout restart deployment/prajna-api -n prajna` |
-| Watch all pods | `kubectl get pods -n prajna -w` |
+| Pod not starting | `kubectl describe pod -n pragna` |
+| Backend logs | `kubectl logs deployment/pragna-api -n pragna` |
+| Frontend logs | `kubectl logs deployment/pragna-ui -n pragna` |
+| Certificate stuck | `kubectl describe certificate -n pragna` |
+| Certificate challenge | `kubectl describe challenge -n pragna` |
+| Image pull error | `kubectl describe pod -n pragna \| grep -A5 Events` |
+| Ingress not routing | `kubectl describe ingress -n pragna` |
+| Restart a pod | `kubectl rollout restart deployment/pragna-api -n pragna` |
+| Watch all pods | `kubectl get pods -n pragna -w` |
 
 ---
 
@@ -759,10 +764,94 @@ The `cluster-issuer.yaml` is a **cluster-wide resource** — one instance serves
 |---|---|
 | K3s + Traefik | ~512MB |
 | cert-manager | ~128MB |
-| prajna-api | 256–512MB |
-| prajna-ui | 64–128MB |
+| pragna-api | 256–512MB |
+| pragna-ui | 64–128MB |
 | OS overhead | ~400MB |
 | **Total (1 app)** | **~1.4–1.7GB** |
 | **Headroom for 4 more apps** | **~6GB remaining** |
 
 You have comfortable room for 4–5 apps on this node.
+
+---
+
+## Migrating a live cluster from `prajna` to `pragna`
+
+If you already have the app deployed under the old `prajna` namespace,
+follow these steps to migrate to the corrected name.
+
+### Step 1 — Build new images with corrected names
+
+Run GitHub Actions → **Build and Push** → version `1.0.1` (or any new version).
+This pushes `pragna-ui` and `pragna-api` to GHCR (separate from the old `prajna-*` images).
+
+### Step 2 — Create the new `pragna-pull-secret` on the cluster
+
+SSH into the server:
+
+```bash
+ssh root@YOUR_VPS_IP
+```
+
+```bash
+kubectl create namespace pragna
+
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=YOUR_GITHUB_USERNAME \
+  --docker-password=YOUR_PAT \
+  --namespace=pragna
+```
+
+### Step 3 — Re-create the app secret in the new namespace
+
+```bash
+nano /tmp/pragna-secret.yaml
+```
+
+Fill in all values (same as before), with `namespace: pragna` and `name: pragna-secrets`. Apply:
+
+```bash
+kubectl apply -f /tmp/pragna-secret.yaml
+rm /tmp/pragna-secret.yaml
+```
+
+### Step 4 — Apply the new manifests
+
+```bash
+cd /path/to/repo   # wherever you cloned the repo on the server
+
+kubectl apply -f k8s/pragna/namespace.yaml
+kubectl apply -f k8s/pragna/deployment-ui.yaml
+kubectl apply -f k8s/pragna/deployment-api.yaml
+kubectl apply -f k8s/pragna/service-ui.yaml
+kubectl apply -f k8s/pragna/service-api.yaml
+kubectl apply -f k8s/pragna/ingress.yaml
+
+# cluster-issuer is cluster-wide — skip if already applied
+# kubectl apply -f k8s/pragna/cluster-issuer.yaml
+```
+
+### Step 5 — Verify new pods are running
+
+```bash
+kubectl get pods -n pragna
+kubectl get certificate -n pragna
+```
+
+Wait for the certificate to show `READY = True`.
+
+### Step 6 — Delete the old namespace
+
+Once the new deployment is confirmed working:
+
+```bash
+kubectl delete namespace prajna
+```
+
+This removes all old pods, services, secrets, and the old TLS certificate in one command.
+
+### Step 7 — Re-enter API keys
+
+Because the encryption salt was updated (`prajna-api-keys-v1` → `pragna-api-keys-v1`),
+any API keys saved in Settings before this rename are no longer decryptable.
+Log in and go to **Settings → Providers** to re-enter them.

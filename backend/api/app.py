@@ -103,13 +103,13 @@ async def lifespan(app: FastAPI):
         app.state.graphs = graphs
         app.state.graph  = next(iter(graphs.values())) if graphs else None
 
-        logger.info("Prajna started — graph ready.")
+        logger.info("Pragna started — graph ready.")
         yield
 
-    logger.info("Prajna shutting down.")
+    logger.info("Pragna shutting down.")
 
 
-app = FastAPI(title="Prajna", lifespan=lifespan)
+app = FastAPI(title="Pragna", lifespan=lifespan)
 
 _ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(

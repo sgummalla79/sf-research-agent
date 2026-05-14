@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: prajna
-  namespace: prajna
+  name: pragna
+  namespace: pragna
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
@@ -10,30 +10,30 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - yourdomain.com
-      secretName: prajna-tls
+        - pragna.sgummallaworks.com
+      secretName: pragna-tls
   rules:
-    - host: yourdomain.com
+    - host: pragna.sgummallaworks.com
       http:
         paths:
           - path: /api
             pathType: Prefix
             backend:
               service:
-                name: prajna-api
+                name: pragna-api
                 port:
                   number: 8000
           - path: /auth
             pathType: Prefix
             backend:
               service:
-                name: prajna-api
+                name: pragna-api
                 port:
                   number: 8000
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: prajna-ui
+                name: pragna-ui
                 port:
                   number: 80

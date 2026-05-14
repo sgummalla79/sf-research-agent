@@ -50,3 +50,4 @@ Desktop.ini
 # ── Logs ──────────────────────────────────────────────────
 *.log
 logs/
+k8s/prajna/secret.yaml

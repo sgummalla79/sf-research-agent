@@ -19,7 +19,7 @@
         <!-- Brand header -->
         <div class="sb-header">
           <SudarshanChakra :size="22" color="var(--pri)" />
-          <span class="sb-app-name">Prajna</span>
+          <span class="sb-app-name">Pragna</span>
           <button class="sb-collapse-btn" title="Collapse sidebar" @click="sidebar.open = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
               <rect x="2" y="2" width="20" height="20" rx="5"/>
@@ -132,7 +132,7 @@
 
       <!-- ── COLLAPSED ────────────────────────────────────── -->
       <template v-else>
-        <button class="col-icon-btn brand" title="Prajna" @click="sidebar.open = true">
+        <button class="col-icon-btn brand" title="Pragna" @click="sidebar.open = true">
           <div class="sf-logo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
               stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
@@ -1631,7 +1631,7 @@ function doPDF() {
 }
 
 /* Track tint — per agent, very subtle */
-/* All stages use Prajna brand gold */
+/* All stages use Pragna brand gold */
 .progress-strip.intake,
 .progress-strip.discovery,
 .progress-strip.research,

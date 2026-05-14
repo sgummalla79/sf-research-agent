@@ -26,7 +26,7 @@
           <circle cx="50" cy="50" r="8" stroke="#c97040" stroke-width="3.5" fill="#c97040" fill-opacity="0.2"/>
           <circle cx="50" cy="50" r="4" fill="#c97040"/>
         </svg>
-        <span class="login-app-name">Prajna</span>
+        <span class="login-app-name">Pragna</span>
       </div>
 
       <!-- Error -->

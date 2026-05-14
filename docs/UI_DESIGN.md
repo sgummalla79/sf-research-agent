@@ -1,4 +1,4 @@
-# UI Design Document — Prajna
+# UI Design Document — Pragna
 
 ## 1. Layout Architecture
 
@@ -110,7 +110,7 @@ A permanent slim banner at the very top of the shell, above all content:
 ### Expanded state (240px)
 
 ```
-Prajna    [⊟]   ← collapse icon
+Pragna    [⊟]   ← collapse icon
 [+]  New Chat
 [💬] Chats
 

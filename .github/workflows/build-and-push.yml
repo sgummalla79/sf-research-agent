@@ -33,32 +33,32 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push prajna-ui
+      - name: Build and push pragna-ui
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.ui
           push: true
           tags: |
-            ghcr.io/${{ env.OWNER }}/prajna-ui:${{ inputs.version }}
-            ghcr.io/${{ env.OWNER }}/prajna-ui:latest
+            ghcr.io/${{ env.OWNER }}/pragna-ui:${{ inputs.version }}
+            ghcr.io/${{ env.OWNER }}/pragna-ui:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push prajna-api
+      - name: Build and push pragna-api
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/Dockerfile.api
           push: true
           tags: |
-            ghcr.io/${{ env.OWNER }}/prajna-api:${{ inputs.version }}
-            ghcr.io/${{ env.OWNER }}/prajna-api:latest
+            ghcr.io/${{ env.OWNER }}/pragna-api:${{ inputs.version }}
+            ghcr.io/${{ env.OWNER }}/pragna-api:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Summary
         run: |
           echo "### Images published" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ env.OWNER }}/prajna-ui:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ env.OWNER }}/prajna-api:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-ui:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-api:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY

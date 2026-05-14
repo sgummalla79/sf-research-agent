@@ -20,7 +20,7 @@ from utils.provider_registry import PROVIDER_ORDER, PROVIDERS
 KEY_NAMES:  list[str]       = PROVIDER_ORDER
 KEY_LABELS: dict[str, str]  = {pid: PROVIDERS[pid]["key_label"] for pid in PROVIDER_ORDER}
 
-_APP_SALT = b"prajna-api-keys-v1"
+_APP_SALT = b"pragna-api-keys-v1"
 
 
 def _master_bytes() -> bytes:

@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prajna-ui
-  namespace: prajna
+  name: pragna-ui
+  namespace: pragna
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: prajna-ui
+      app: pragna-ui
   template:
     metadata:
       labels:
-        app: prajna-ui
+        app: pragna-ui
     spec:
       imagePullSecrets:
         - name: ghcr-pull-secret
       containers:
-        - name: prajna-ui
-          image: ghcr.io/YOUR_GITHUB_USERNAME/prajna-ui:latest
+        - name: pragna-ui
+          image: ghcr.io/sgummalla79/pragna-ui:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80

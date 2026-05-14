@@ -77,7 +77,7 @@ async def run(brief: str = "", session_id: str = "", reply: str = ""):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Prajna CLI")
+    parser = argparse.ArgumentParser(description="Pragna CLI")
     parser.add_argument("--brief",      default="", help="Initial project brief (new session)")
     parser.add_argument("--session-id", default="", help="Resume an existing session")
     parser.add_argument("--reply",      default="", help="Your answer to the agent's question")

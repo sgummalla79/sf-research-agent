@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: prajna-api
-  namespace: prajna
+  name: pragna-api
+  namespace: pragna
 spec:
   selector:
-    app: prajna-api
+    app: pragna-api
   ports:
     - port: 8000
       targetPort: 8000

@@ -1,4 +1,4 @@
-# Technical Requirements — Prajna
+# Technical Requirements — Pragna
 
 ## 1. System Architecture
 
