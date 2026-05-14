@@ -7,10 +7,9 @@
 
       <!-- No providers banner — attached to top of chat box -->
       <div v-if="noProviders" class="cb-no-providers">
-        <span>No LLM providers connected —
-          <button class="cb-np-link" @click="$emit('open-settings')">open Settings → Providers</button>
-          to connect your API keys.
-        </span>
+        No LLM providers connected. Go to
+        <button class="cb-np-link" @click="$emit('open-settings')">Settings → Providers</button>
+        to connect your API keys.
       </div>
 
       <!-- File chip -->
@@ -353,16 +352,17 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 /* Textarea */
 /* No-providers banner inside the chat box */
 .cb-no-providers {
-  padding: 8px 4px 6px;
-  font-size: 12.5px;
-  color: var(--muted);
-  border-bottom: 1px solid var(--bdr);
-  margin-bottom: 4px;
+  padding: 8px 10px;
+  font-size: 12.5px; font-weight: 500;
+  color: #fff;
+  background: #dc2626;
+  border-radius: 8px;
+  margin-bottom: 6px;
 }
 .cb-np-link {
   background: none; border: none; cursor: pointer;
-  font-size: 12.5px; font-weight: 600; color: var(--pri);
-  padding: 0; text-decoration: underline;
+  font-size: 12.5px; font-weight: 700; color: #fff;
+  padding: 0; text-decoration: underline; text-underline-offset: 2px;
 }
 
 .cb-ta {
