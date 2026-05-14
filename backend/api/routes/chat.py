@@ -190,21 +190,17 @@ async def _stream_graph(graph, input_, config, db=None, user_id: str = "") -> As
     Run the graph with astream_events and translate LangGraph events into SSE messages.
     After the stream ends, inspect state to detect interrupt vs completion.
     """
-    # LangGraph internally uses asyncio.create_task(context=<captured_context>) which
-    # does NOT include our _user_keys ContextVar — so node threads see an empty dict.
-    # We inject the keys into config["configurable"] instead; LangChain propagates the
-    # configurable dict through run_in_executor into every synchronous node thread.
-    from utils.user_context import _user_keys, get_anthropic_mode
-    live_keys = _user_keys.get()
-    if live_keys:
-        config = {
-            **config,
-            "configurable": {
-                **config.get("configurable", {}),
-                "_pragna_user_keys":      live_keys,
-                "_pragna_anthropic_mode": get_anthropic_mode(),
-            },
-        }
+    # LangGraph runs synchronous node functions via run_in_executor inside tasks
+    # created with an internal context that does NOT include our _user_keys ContextVar.
+    # Store keys in a session-scoped dict (keyed by thread_id) so node threads can
+    # look them up directly — no context propagation needed.
+    from utils.user_context import _user_keys, get_anthropic_mode, register_session_keys, unregister_session_keys
+    live_keys  = _user_keys.get()
+    session_id = config.get("configurable", {}).get("thread_id", "")
+    if live_keys and session_id:
+        register_session_keys(session_id, live_keys, get_anthropic_mode())
+        log.info("stream  registered keys  session=%s  providers=%s",
+                 session_id, list(live_keys.keys()))
     try:
         async for event in graph.astream_events(input_, config, version="v2"):
             name = event.get("name", "")
@@ -340,6 +336,9 @@ async def _stream_graph(graph, input_, config, db=None, user_id: str = "") -> As
             })
         else:
             yield _sse("error", {"message": msg})
+    finally:
+        if session_id:
+            unregister_session_keys(session_id)
 
 
 @router.post("/start")
