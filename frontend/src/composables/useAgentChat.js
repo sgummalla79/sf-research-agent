@@ -386,6 +386,7 @@ export function useAgentChat() {
       body: JSON.stringify({
         flow_id:           flow.id,
         chat_model:        opts.chatModel        ?? 'claude-sonnet-4-6',
+        chat_provider:     opts.chatProvider     ?? 'anthropic',
         extended_thinking: opts.extendedThinking ?? false,
       }),
     })

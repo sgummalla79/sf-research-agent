@@ -21,8 +21,10 @@ THINKING_BUDGET = 10_000
 
 def run_chat(state: AgentState) -> dict:
     """Single-node free-form chat. Reads conversation history from state.messages."""
-    model   = state.chat_model or "claude-sonnet-4-6"
-    thinking = state.extended_thinking
+    model    = state.chat_model    or "claude-sonnet-4-6"
+    provider = state.chat_provider or "anthropic"
+    # Extended thinking is Anthropic-only — fall back to standard for other providers
+    thinking = state.extended_thinking and provider == "anthropic"
 
     if thinking:
         return _run_with_thinking(state, model)

@@ -689,6 +689,7 @@ async def post_completion_message(session_id: str, body: MessageRequest, request
 class ForkRequest(BaseModel):
     flow_id:           str
     chat_model:        str  = "claude-sonnet-4-6"
+    chat_provider:     str  = "anthropic"
     extended_thinking: bool = False
 
 
@@ -779,6 +780,7 @@ async def fork_session(session_id: str, body: ForkRequest, request: Request, cur
         flow_snapshot_id      = flow_snapshot_id,
         flow_snapshot_version = flow_snapshot_version,
         chat_model            = body.chat_model,
+        chat_provider         = body.chat_provider,
         extended_thinking     = body.extended_thinking,
     )
 
