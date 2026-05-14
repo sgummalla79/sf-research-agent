@@ -1641,7 +1641,7 @@ function doPDF() {
 .user-menu {
   position: absolute; bottom: calc(100% + 6px); left: 8px;
   width: calc(100% - 16px);
-  background: var(--sb-hover); border: 1px solid rgba(255,255,255,0.1);
+  background: var(--surf); border: 1px solid var(--bdr);
   border-radius: 10px; padding: 6px;
   box-shadow: 0 8px 28px rgba(0,0,0,0.4);
   z-index: 200;
@@ -1659,9 +1659,9 @@ function doPDF() {
   cursor: pointer; text-align: left;
   transition: background .12s;
 }
-.um-item:hover { background: var(--sb-hover); }
-.um-signout { color: #f87171; }
-.um-signout:hover { background: rgba(239,68,68,.15); }
+.um-item:hover { background: var(--hover); }
+.um-signout { color: var(--sb-tx); }
+.um-signout:hover { background: var(--pri); color: var(--pri-fg); }
 .um-theme-row {
   display: flex; gap: 8px; padding: 6px 10px 8px;
   justify-content: center;
