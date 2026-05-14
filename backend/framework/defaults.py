@@ -59,9 +59,13 @@ SMART_SLOT_DEFAULTS: dict[str, dict] = {
 
 
 def available_providers(user_keys: dict) -> set[str]:
-    """Return the set of provider IDs the user has connected API keys for."""
+    """Return the set of provider IDs the user has connected API keys for.
+    Both the key name AND the value must be non-empty — a key name present
+    in the DB with a failed/empty decryption must not count as connected."""
     providers: set[str] = set()
-    for key_name in user_keys:
+    for key_name, key_value in user_keys.items():
+        if not key_value:          # empty string or None → decryption failed
+            continue
         if key_name.startswith("anthropic"):
             providers.add("anthropic")
         elif key_name.startswith("google"):

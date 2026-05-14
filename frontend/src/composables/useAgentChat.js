@@ -369,6 +369,8 @@ export function useAgentChat() {
     error.value           = null
     providerConflict.value = null
     isResumable.value     = false
+    // Remove any messages that are still mid-stream from a previous failed attempt
+    messages.value = messages.value.filter(m => !m.isStreaming)
     const url = `${API_BASE}/retry/${sessionId.value}${forcedSmartPick ? '?smart_pick=true' : ''}`
     const response = await apiFetch(url, { method: 'POST' })
     if (!response.ok) {
