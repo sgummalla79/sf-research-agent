@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prajna-api
+  namespace: prajna
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prajna-api
+  template:
+    metadata:
+      labels:
+        app: prajna-api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: prajna-api
+          image: ghcr.io/YOUR_GITHUB_USERNAME/prajna-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: prajna-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /auth/me
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
