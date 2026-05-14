@@ -30,6 +30,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0   # full history needed to find previous release commit
 
+      # ── Version ─────────────────────────────────────────────────────────────
+
       - name: Bump version
         id: version
         run: |
@@ -56,54 +58,28 @@ jobs:
           previous="${{ steps.version.outputs.previous }}"
           date=$(date -u +"%Y-%m-%d")
 
-          # Find the commit where the previous version was bumped
           last_bump=$(git log --oneline | grep -m1 "chore: bump version to ${previous}" | awk '{print $1}')
 
           if [ -z "$last_bump" ]; then
-            # No previous bump found — use last 100 commits
             commits=$(git log --no-merges --format="%s" -100)
           else
             commits=$(git log --no-merges --format="%s" "${last_bump}..HEAD")
           fi
 
-          # Categorise by conventional commit prefix
-          features=$(echo "$commits"  | grep -E "^feat:"     | sed 's/^feat: /- /'     || true)
-          fixes=$(echo "$commits"     | grep -E "^(fix|hotfix):" | sed 's/^\(fix\|hotfix\): /- /' || true)
-          docs=$(echo "$commits"      | grep -E "^docs:"     | sed 's/^docs: /- /'     || true)
-          refactor=$(echo "$commits"  | grep -E "^refactor:" | sed 's/^refactor: /- /' || true)
+          features=$(echo "$commits" | grep -E "^feat:"          | sed 's/^feat: /- /'     || true)
+          fixes=$(echo "$commits"    | grep -E "^(fix|hotfix):"  | sed 's/^\(fix\|hotfix\): /- /' || true)
+          docs=$(echo "$commits"     | grep -E "^docs:"          | sed 's/^docs: /- /'     || true)
+          refactor=$(echo "$commits" | grep -E "^refactor:"      | sed 's/^refactor: /- /' || true)
 
-          # Build markdown
           {
             echo "# v${version} — ${date}"
             echo ""
-
-            if [ -n "$features" ]; then
-              echo "## Features"
-              echo "$features"
-              echo ""
-            fi
-
-            if [ -n "$fixes" ]; then
-              echo "## Bug Fixes"
-              echo "$fixes"
-              echo ""
-            fi
-
-            if [ -n "$refactor" ]; then
-              echo "## Refactoring"
-              echo "$refactor"
-              echo ""
-            fi
-
-            if [ -n "$docs" ]; then
-              echo "## Documentation"
-              echo "$docs"
-              echo ""
-            fi
-
+            if [ -n "$features" ];  then echo "## Features";      echo "$features";  echo ""; fi
+            if [ -n "$fixes" ];     then echo "## Bug Fixes";     echo "$fixes";     echo ""; fi
+            if [ -n "$refactor" ];  then echo "## Refactoring";   echo "$refactor";  echo ""; fi
+            if [ -n "$docs" ];      then echo "## Documentation"; echo "$docs";      echo ""; fi
             if [ -z "$features" ] && [ -z "$fixes" ] && [ -z "$refactor" ] && [ -z "$docs" ]; then
-              echo "No notable changes."
-              echo ""
+              echo "No notable changes."; echo ""
             fi
           } > "release-notes/v${version}.md"
 
@@ -117,6 +93,8 @@ jobs:
           git add VERSION release-notes/
           git commit -m "chore: bump version to ${{ steps.version.outputs.new }}"
           git push
+
+      # ── Build & push images ──────────────────────────────────────────────────
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -152,9 +130,49 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # ── Deploy to cluster ────────────────────────────────────────────────────
+
+      - name: Deploy to cluster
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -e
+            VERSION="${{ steps.version.outputs.new }}"
+
+            echo "=== Pulling latest code ==="
+            cd ${{ secrets.VPS_REPO_PATH }}
+            git pull
+
+            echo "=== Updating pod images to v${VERSION} ==="
+            kubectl set image deployment/pragna-api \
+              pragna-api=ghcr.io/${{ github.repository_owner }}/pragna-api:${VERSION} \
+              -n pragna
+
+            kubectl set image deployment/pragna-ui \
+              pragna-ui=ghcr.io/${{ github.repository_owner }}/pragna-ui:${VERSION} \
+              -n pragna
+
+            echo "=== Waiting for rollout ==="
+            kubectl rollout status deployment/pragna-api -n pragna --timeout=120s
+            kubectl rollout status deployment/pragna-ui  -n pragna --timeout=120s
+
+            echo "=== Pod status ==="
+            kubectl get pods -n pragna
+
+            echo "=== Probe check ==="
+            sleep 15
+            curl -sf https://pragna.sgummallaworks.com/health | python3 -m json.tool
+
+      # ── Summary ──────────────────────────────────────────────────────────────
+
       - name: Summary
+        if: always()
         run: |
-          echo "### Version ${{ steps.version.outputs.new }} published" >> $GITHUB_STEP_SUMMARY
+          echo "### Version ${{ steps.version.outputs.new }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           cat "release-notes/v${{ steps.version.outputs.new }}.md" >> $GITHUB_STEP_SUMMARY
