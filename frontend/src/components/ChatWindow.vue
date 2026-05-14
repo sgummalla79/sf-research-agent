@@ -235,7 +235,7 @@
       <div class="messages" ref="messagesEl">
         <div v-if="!messages.length && !isStreaming" class="empty-state">
           <div class="greeting-row">
-            <SudarshanChakra :size="48" />
+            <SudarshanChakra :size="48" color="var(--pri)" />
             <h1 class="greeting-text">{{ greeting }}{{ firstName ? ', ' + firstName : '' }}</h1>
           </div>
         </div>
@@ -1760,11 +1760,11 @@ function doPDF() {
 }
 
 /* Dot + label */
-.p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite;background:#ffd080; }
+.p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite;background:var(--pri); }
 @keyframes p-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
 
 .p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap;color:var(--pri); }
-.dark .p-text { color: #ffd080; }
+.p-text { color: var(--pri); }
 
 /* Messages */
 .messages { flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px;min-height:0; }

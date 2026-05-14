@@ -51,16 +51,55 @@ function applyTheme(themeId, isDark, el = null) {
 
   // Set as inline CSS variables on the target element so they override
   // any scoped component styles regardless of specificity
+  const fg = bright ? '#111111' : '#ffffff'
+
   target.style.setProperty('--pri',       color)
-  target.style.setProperty('--pri-fg',    bright ? '#111111' : '#ffffff')
-  target.style.setProperty('--pri-h',     a(isDark ? 0.06 : 0.06))
+  target.style.setProperty('--pri-fg',    fg)
+  target.style.setProperty('--pri-h',     a(0.06))
   target.style.setProperty('--ifocus',    color)
   target.style.setProperty('--sbg',       a(isDark ? 0.12 : 0.08))
   target.style.setProperty('--stx',       color)
   target.style.setProperty('--sbdr',      a(isDark ? 0.28 : 0.25))
   target.style.setProperty('--sb-active', a(isDark ? 0.15 : 0.10))
+  // User message bubble uses --ub (background) and --uf (text)
+  target.style.setProperty('--ub',        color)
+  target.style.setProperty('--uf',        fg)
 
+  _updateFavicon(color)
   activeThemeId.value = themeId
+}
+
+function _updateFavicon(color) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <g stroke="${color}" stroke-width="3.5">
+    <polygon fill="none" stroke-linejoin="round"
+      points="50,3 60.4,13.2 73.2,9.7 77.5,23 90.3,27.2 87,40.9 97,50 87,59.1 90.3,72.8 77.5,77 73.2,90.3 60.4,86.8 50,97 39.6,86.8 26.8,90.3 22.5,77 9.7,72.8 13,59.1 3,50 13,40.9 9.7,27.2 22.5,23 26.8,9.7 39.6,13.2"/>
+    <circle cx="50" cy="50" r="33"/>
+    <line x1="50" y1="17" x2="50" y2="41"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(30,50,50)"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(60,50,50)"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(90,50,50)"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(120,50,50)"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(150,50,50)"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(180,50,50)"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(210,50,50)"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(240,50,50)"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(270,50,50)"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(300,50,50)"/>
+    <line x1="50" y1="17" x2="50" y2="41" transform="rotate(330,50,50)"/>
+    <circle cx="50" cy="50" r="16"/>
+    <circle cx="50" cy="50" r="8" fill="${color}" fill-opacity="0.2" stroke-width="3.8"/>
+  </g>
+  <circle cx="50" cy="50" r="4" fill="${color}"/>
+</svg>`
+  const url = `data:image/svg+xml,${encodeURIComponent(svg)}`
+  let link = document.querySelector("link[rel~='icon']")
+  if (!link) {
+    link = document.createElement('link')
+    link.rel = 'icon'
+    document.head.appendChild(link)
+  }
+  link.href = url
 }
 
 // ── Persistence ───────────────────────────────────────────────────────────────
