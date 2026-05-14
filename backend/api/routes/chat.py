@@ -263,7 +263,13 @@ async def start_chat(body: StartRequest, request: Request, current_user: AuthUse
     config     = {"configurable": {"thread_id": session_id}}
 
     # Save raw snippet immediately; replace with smart title in background
-    await db.record_session(session_id, current_user.sub, body.brief[:80].replace('\n', ' '))
+    await db.record_session(
+        session_id, current_user.sub,
+        brief_snippet=body.brief[:80].replace('\n', ' '),
+        session_type=body.session_type,
+        chat_model=body.chat_model or CHAT_DEFAULT_MODEL,
+        chat_provider=body.chat_provider,
+    )
     asyncio.create_task(_save_title(db, session_id, body.brief, current_user.sub))
 
     agent_cfg = get_agent_config()
@@ -547,8 +553,16 @@ async def restore_session(session_id: str, request: Request, current_user: AuthU
                     pending_questions = [val]
                 break
 
-    raw_stage    = values.get("current_stage") or ""
-    session_type = values.get("session_type", "agent_flow")
+    raw_stage = values.get("current_stage") or ""
+    # Read session metadata from agent_sessions (source of truth for immutable fields)
+    db          = request.app.state.db
+    session_row = await db._fetchone(
+        f"SELECT session_type, chat_model, chat_provider FROM agent_sessions WHERE thread_id = {db._p()}",
+        (session_id,),
+    )
+    session_type  = (session_row[0] if session_row else None) or "agent_flow"
+    session_model = session_row[1] if session_row else None
+    session_prov  = (session_row[2] if session_row else None) or "anthropic"
     if not state.next:
         # Graph terminated — keep 'chat' and known terminal stages as-is;
         # anything else (e.g. mid-pipeline crash) normalises to 'complete'.
@@ -560,6 +574,8 @@ async def restore_session(session_id: str, request: Request, current_user: AuthU
     return {
         "session_id":           session_id,
         "session_type":         session_type,
+        "chat_model":           session_model,
+        "chat_provider":        session_prov,
         "current_stage":        resolved_stage,
         "document_version":     values.get("document_version", 0),
         "project_brief":        (values.get("project_brief") or "")[:200],
@@ -747,7 +763,13 @@ async def fork_session(session_id: str, body: ForkRequest, request: Request, cur
     new_session_id = str(uuid.uuid4())
     new_config     = {"configurable": {"thread_id": new_session_id}}
 
-    await db.record_session(new_session_id, current_user.sub, f"↳ {orig_brief[:70]}")
+    await db.record_session(
+        new_session_id, current_user.sub,
+        brief_snippet=f"↳ {orig_brief[:70]}",
+        session_type="agent_flow",
+        chat_model=body.chat_model,
+        chat_provider=body.chat_provider,
+    )
     asyncio.create_task(_save_title(db, new_session_id, f"Follow-up: {orig_brief[:200]}", current_user.sub))
 
     agent_cfg = get_agent_config()

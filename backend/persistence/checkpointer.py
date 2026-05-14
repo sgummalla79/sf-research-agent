@@ -51,10 +51,26 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     brief_snippet  TEXT,
     last_modified  TEXT,
     pinned         INTEGER DEFAULT 0,
-    pinned_at      TEXT
+    pinned_at      TEXT,
+    session_type   TEXT DEFAULT 'agent_flow',
+    chat_model     TEXT,
+    chat_provider  TEXT DEFAULT 'anthropic'
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON agent_sessions(user_id);
 """
+
+# Additive migration — safely adds new columns to existing installs without wiping data.
+# These are idempotent: PostgreSQL uses IF NOT EXISTS; SQLite errors are caught below.
+_ADD_SESSION_COLUMNS_PG = [
+    "ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS session_type  TEXT DEFAULT 'agent_flow'",
+    "ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS chat_model    TEXT",
+    "ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS chat_provider TEXT DEFAULT 'anthropic'",
+]
+_ADD_SESSION_COLUMNS_SL = [
+    "ALTER TABLE agent_sessions ADD COLUMN session_type  TEXT DEFAULT 'agent_flow'",
+    "ALTER TABLE agent_sessions ADD COLUMN chat_model    TEXT",
+    "ALTER TABLE agent_sessions ADD COLUMN chat_provider TEXT DEFAULT 'anthropic'",
+]
 
 _CREATE_SETTINGS_TABLE = """
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -299,22 +315,34 @@ class DBContext:
                 (user_id, email, name, picture, now, now),
             )
 
-    async def record_session(self, thread_id: str, user_id: str, brief_snippet: str = "") -> None:
+    async def record_session(
+        self,
+        thread_id:    str,
+        user_id:      str,
+        brief_snippet: str = "",
+        session_type:  str = "agent_flow",
+        chat_model:    str | None = None,
+        chat_provider: str | None = None,
+    ) -> None:
         now = datetime.now(timezone.utc).isoformat()
         if self._backend == "sqlite":
             await self._exec(
                 "INSERT OR REPLACE INTO agent_sessions"
-                " (thread_id, user_id, created_at, brief_snippet, last_modified)"
-                " VALUES (?, ?, ?, ?, ?)",
-                (thread_id, user_id, now, brief_snippet[:120], now),
+                " (thread_id, user_id, created_at, brief_snippet, last_modified,"
+                "  session_type, chat_model, chat_provider)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (thread_id, user_id, now, brief_snippet[:120], now,
+                 session_type, chat_model, chat_provider),
             )
         else:
             await self._exec(
                 "INSERT INTO agent_sessions"
-                " (thread_id, user_id, created_at, brief_snippet, last_modified)"
-                " VALUES (%s, %s, %s, %s, %s)"
+                " (thread_id, user_id, created_at, brief_snippet, last_modified,"
+                "  session_type, chat_model, chat_provider)"
+                " VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
                 " ON CONFLICT (thread_id) DO NOTHING",
-                (thread_id, user_id, now, brief_snippet[:120], now),
+                (thread_id, user_id, now, brief_snippet[:120], now,
+                 session_type, chat_model, chat_provider),
             )
 
     async def update_session_title(self, thread_id: str, title: str) -> None:
@@ -388,7 +416,8 @@ class DBContext:
     async def list_sessions(self, user_id: str) -> dict:
         p = self._p()
         rows = await self._fetchall(
-            f"SELECT thread_id, created_at, brief_snippet, last_modified, pinned, pinned_at"
+            f"SELECT thread_id, created_at, brief_snippet, last_modified, pinned, pinned_at,"
+            f"       session_type, chat_model, chat_provider"
             f" FROM agent_sessions WHERE user_id = {p}",
             (user_id,),
         )
@@ -400,6 +429,9 @@ class DBContext:
                 "last_modified": r[3],
                 "pinned":        bool(r[4]),
                 "pinned_at":     r[5],
+                "session_type":  r[6] or "agent_flow",
+                "chat_model":    r[7],
+                "chat_provider": r[8] or "anthropic",
             }
             for r in rows
         ]
@@ -1014,6 +1046,11 @@ async def _sqlite_backend():
         await _migrate(conn, "sqlite")
         await conn.execute(_CREATE_USERS)
         await conn.execute(_CREATE_SESSIONS_TABLE)
+        for sql in _ADD_SESSION_COLUMNS_SL:
+            try:
+                await conn.execute(sql)
+            except Exception:
+                pass  # column already exists
         await conn.execute(_CREATE_SETTINGS_TABLE)
         await conn.execute(_CREATE_USAGE_TABLE_SL)
         await conn.execute(_CREATE_CONFIG_TABLE)
@@ -1055,6 +1092,8 @@ async def _postgres_backend(url: str):
             await _migrate(conn, "postgres")
             await conn.execute(_CREATE_USERS)
             await conn.execute(_CREATE_SESSIONS_TABLE)
+            for sql in _ADD_SESSION_COLUMNS_PG:
+                await conn.execute(sql)
             await conn.execute(_CREATE_SETTINGS_TABLE)
             await conn.execute(_CREATE_USAGE_TABLE_PG)
             await conn.execute(_CREATE_CONFIG_TABLE)
