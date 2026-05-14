@@ -12,9 +12,9 @@ for expected behaviour across all chat and skill session flows.
 | No session | Unlocked — pick freely | Shown if Anthropic selected |
 | Skill pipeline running | **Locked** (read-only) | Hidden (n/a during pipeline) |
 | Skill pipeline complete | Unlocked | Shown if Anthropic selected |
-| Regular chat active | Unlocked | Shown if Anthropic, disabled otherwise |
+| Regular chat active | **Locked** | Shown if Anthropic, disabled otherwise |
 
-`modelLocked = !!sessionId && !isComplete && !isRegularChat`
+`modelLocked = !!sessionId && !isComplete`
 
 ---
 
