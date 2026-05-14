@@ -1665,13 +1665,13 @@ function doPDF() {
   display: flex; gap: 8px; padding: 6px 10px 8px;
 }
 .um-swatch {
-  width: 26px; height: 26px; border-radius: 50%;
-  border: 2.5px solid transparent;
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid transparent;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: transform .15s, border-color .15s;
   flex-shrink: 0;
 }
-.um-swatch:hover  { transform: scale(1.15); }
+.um-swatch:hover  { transform: scale(1.2); }
 .um-swatch.active { border-color: var(--sb-tx); }
 .um-swatch svg    { stroke: rgba(255,255,255,0.9); }
 
