@@ -41,29 +41,37 @@ function luminance({ r, g, b }) {
 
 // ── Core apply ────────────────────────────────────────────────────────────────
 
-function applyTheme(themeId, isDark, el = null) {
-  const theme = THEMES.find(t => t.id === themeId) ?? THEMES[0]
-  const color = isDark ? theme.dark : theme.light
+function applyTheme(themeId, isDark, _el = null) {
+  const theme  = THEMES.find(t => t.id === themeId) ?? THEMES[0]
+  const color  = isDark ? theme.dark : theme.light
   const { r, g, b } = hexToRgb(color)
   const bright = luminance({ r, g, b }) > 160
-  const target = el ?? document.documentElement
-  const a = (alpha) => `rgba(${r},${g},${b},${alpha})`
+  const fg     = bright ? '#111111' : '#ffffff'
+  const a      = (alpha) => `rgba(${r},${g},${b},${alpha})`
 
-  // Set as inline CSS variables on the target element so they override
-  // any scoped component styles regardless of specificity
-  const fg = bright ? '#111111' : '#ffffff'
+  // Inject a <style> tag into <head> — wins over Vue scoped styles
+  // and any class-based specificity regardless of the DOM structure.
+  const STYLE_ID = 'pragna-theme-vars'
+  const existing = document.getElementById(STYLE_ID)
+  if (existing) existing.remove()
 
-  target.style.setProperty('--pri',       color)
-  target.style.setProperty('--pri-fg',    fg)
-  target.style.setProperty('--pri-h',     a(0.06))
-  target.style.setProperty('--ifocus',    color)
-  target.style.setProperty('--sbg',       a(isDark ? 0.12 : 0.08))
-  target.style.setProperty('--stx',       color)
-  target.style.setProperty('--sbdr',      a(isDark ? 0.28 : 0.25))
-  target.style.setProperty('--sb-active', a(isDark ? 0.15 : 0.10))
-  // User message bubble uses --ub (background) and --uf (text)
-  target.style.setProperty('--ub',        color)
-  target.style.setProperty('--uf',        fg)
+  const tag = document.createElement('style')
+  tag.id = STYLE_ID
+  tag.textContent = `
+    .shell {
+      --pri:       ${color}                      !important;
+      --pri-fg:    ${fg}                         !important;
+      --pri-h:     ${a(0.06)}                    !important;
+      --ifocus:    ${color}                      !important;
+      --sbg:       ${a(isDark ? 0.12 : 0.08)}   !important;
+      --stx:       ${color}                      !important;
+      --sbdr:      ${a(isDark ? 0.28 : 0.25)}   !important;
+      --sb-active: ${a(isDark ? 0.15 : 0.10)}   !important;
+      --ub:        ${color}                      !important;
+      --uf:        ${fg}                         !important;
+    }
+  `
+  document.head.appendChild(tag)
 
   _updateFavicon(color)
   activeThemeId.value = themeId
