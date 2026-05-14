@@ -183,8 +183,9 @@ export function useAgentChat() {
       }
 
       case 'provider_error': {
-        if (currentMsg) { currentMsg.isStreaming = false; setCurrentMsg(null) }
-        // Show the two-option banner instead of a plain error message
+        // Intentionally leave currentMsg.isStreaming = true so retrySession's
+        // cleanup filter removes the incomplete card on the next retry attempt.
+        setCurrentMsg(null)
         providerConflict.value = {
           detail:       event.message,
           canSmartPick: event.can_smart_pick,
@@ -224,6 +225,7 @@ export function useAgentChat() {
     isResumable.value         = false
     isRegularChat.value       = false
     error.value               = null
+    providerConflict.value    = null
     documentPanel.open        = false
     documentPanel.content     = ''
     documentPanel.version     = 0

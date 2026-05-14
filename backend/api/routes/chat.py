@@ -733,11 +733,12 @@ async def retry_chat(
             },
         )
 
-    await graph.aupdate_state(config, {"session_agent_config": fresh_agent_cfg})
-    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", json.dumps(fresh_agent_cfg))
-
+    # Use the skill-specific compiled graph for both state patch and streaming
     if flow_id:
         graph = graphs.get(flow_id, graph)
+
+    await graph.aupdate_state(config, {"session_agent_config": fresh_agent_cfg})
+    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", json.dumps(fresh_agent_cfg))
 
     asyncio.create_task(db.update_last_modified(session_id))
 
