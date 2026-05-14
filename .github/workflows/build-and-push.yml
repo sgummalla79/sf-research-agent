@@ -30,13 +30,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      # Pull latest commits — ensures image has code pushed after workflow started
-      - name: Pull latest main
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main
-
       # ── Version ─────────────────────────────────────────────────────────────
 
       - name: Bump version
@@ -130,11 +123,10 @@ jobs:
           context: .
           file: docker/Dockerfile.api
           push: true
+          no-cache: true
           tags: |
             ghcr.io/${{ env.OWNER }}/pragna-api:${{ steps.version.outputs.new }}
             ghcr.io/${{ env.OWNER }}/pragna-api:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       # ── Deploy to cluster ────────────────────────────────────────────────────
 
