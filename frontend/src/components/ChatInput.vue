@@ -37,6 +37,7 @@
         :placeholder="pendingFlow ? `Describe your project for ${pendingFlow.name}…` : (hint || 'How can I help you today?')"
         rows="2"
         @input="handleInput"
+        @keydown.enter.exact.prevent="handleSend"
         @keydown.meta.enter.prevent="handleSend"
         @keydown.ctrl.enter.prevent="handleSend"
         @keydown.esc="showSlashMenu = false"
