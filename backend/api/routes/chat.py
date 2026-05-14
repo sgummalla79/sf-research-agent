@@ -16,8 +16,11 @@ SSE event format (newline-delimited JSON after "data: "):
 
 import asyncio
 import json
+import logging
 import uuid
 from typing import AsyncGenerator
+
+log = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Request, UploadFile, File, HTTPException, Depends, Query
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -307,7 +310,9 @@ async def _stream_graph(graph, input_, config, db=None, user_id: str = "") -> As
             })
 
     except Exception as exc:
+        import traceback
         msg = str(exc)
+        log.error("_stream_graph exception: %s\n%s", msg, traceback.format_exc())
         # Detect provider/API-key errors thrown from get_user_key() inside nodes.
         # These are RuntimeErrors with a well-known message prefix.  Surface them
         # as a dedicated event so the frontend can offer the two-option banner
@@ -704,6 +709,10 @@ async def retry_chat(
         except Exception:
             pass
 
+    from utils.user_context import connected_providers
+    log.info("retry  session=%s  smart_pick=%s  flow_id=%s  connected=%s",
+             session_id, smart_pick, flow_id, connected_providers())
+
     try:
         fresh_agent_cfg = await _resolve_agent_cfg(
             db, current_user.sub, skill_registry,
@@ -733,11 +742,19 @@ async def retry_chat(
             },
         )
 
+    log.info("retry  resolved_cfg=%s", {k: v.get("provider") for k, v in fresh_agent_cfg.items()})
+
     # Use the skill-specific compiled graph for both state patch and streaming
     if flow_id:
         graph = graphs.get(flow_id, graph)
 
     await graph.aupdate_state(config, {"session_agent_config": fresh_agent_cfg})
+
+    # Verify the patch was applied
+    patched = await graph.aget_state(config)
+    patched_cfg = (patched.values or {}).get("session_agent_config", {})
+    log.info("retry  checkpoint_after_patch=%s", {k: v.get("provider") for k, v in patched_cfg.items()})
+
     await db.save_config(current_user.sub, f"session_agent_config_{session_id}", json.dumps(fresh_agent_cfg))
 
     asyncio.create_task(db.update_last_modified(session_id))

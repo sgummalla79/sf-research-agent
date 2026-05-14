@@ -6,8 +6,12 @@ Usage:
     llm = get_llm_for_slot(slot, session_agent_config)
 """
 
+import logging
+
 from config import PERPLEXITY_API_BASE
 from utils.api_keys import get_key
+
+log = logging.getLogger(__name__)
 
 # OpenAI-compatible base URLs for providers that use that protocol
 _GROQ_API_BASE    = "https://api.groq.com/openai/v1"
@@ -58,7 +62,15 @@ def get_llm_for_slot(slot: str, session_config: dict):
     Falls back to the global default if the session config is missing the slot.
     """
     from utils.agent_config import DEFAULT_AGENT_CONFIG
-    cfg = session_config.get(slot) or DEFAULT_AGENT_CONFIG.get(slot, {})
+    raw = session_config.get(slot)
+    if raw:
+        cfg = raw
+        src = "session_config"
+    else:
+        cfg = DEFAULT_AGENT_CONFIG.get(slot, {})
+        src = "DEFAULT_AGENT_CONFIG (FALLBACK)"
+    log.info("get_llm_for_slot  slot=%s  src=%s  provider=%s  model=%s",
+             slot, src, cfg.get("provider"), cfg.get("model"))
     return build_llm(cfg["provider"], cfg["model"])
 
 

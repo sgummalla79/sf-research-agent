@@ -8,7 +8,10 @@ asyncio.create_task() copies the current context, so background tasks
 created within the request handler also inherit the correct keys.
 """
 
+import logging
 from contextvars import ContextVar
+
+log = logging.getLogger(__name__)
 
 _user_keys:        ContextVar[dict] = ContextVar("user_keys",        default={})
 _anthropic_mode:   ContextVar[str]  = ContextVar("anthropic_mode",   default="direct")
@@ -20,7 +23,10 @@ def set_user_context(keys: dict, anthropic_mode: str = "direct") -> None:
 
 
 def get_user_key(provider: str) -> str:
-    value = _user_keys.get().get(provider)
+    keys = _user_keys.get()
+    value = keys.get(provider)
+    log.info("get_user_key  provider=%s  found=%s  keys_present=%s",
+             provider, bool(value), list(keys.keys()))
     if not value:
         raise RuntimeError(
             f"API key not configured for '{provider}'. "
