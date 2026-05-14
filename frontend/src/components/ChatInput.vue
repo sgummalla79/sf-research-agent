@@ -5,6 +5,14 @@
       @dragleave.prevent="isDragging = false"
       @drop.prevent="onDrop">
 
+      <!-- No providers banner — attached to top of chat box -->
+      <div v-if="noProviders" class="cb-no-providers">
+        <span>No LLM providers connected —
+          <button class="cb-np-link" @click="$emit('open-settings')">open Settings → Providers</button>
+          to connect your API keys.
+        </span>
+      </div>
+
       <!-- File chip -->
       <div v-if="selectedFile" class="cb-file-row">
         <div class="cb-file-chip">
@@ -34,7 +42,8 @@
 
       <!-- Textarea -->
       <textarea v-model="text" class="cb-ta"
-        :placeholder="pendingFlow ? `Describe your project for ${pendingFlow.name}…` : (hint || 'How can I help you today?')"
+        :placeholder="noProviders ? '' : (pendingFlow ? `Describe your project for ${pendingFlow.name}…` : (hint || 'How can I help you today?'))"
+        :disabled="noProviders"
         rows="2"
         @input="handleInput"
         @keydown.enter.exact.prevent="handleSend"
@@ -174,10 +183,11 @@ const props = defineProps({
   flows:        { type: Array,   default: () => [] },
   pendingFlow:  { type: Object,  default: null },
   hint:         { type: String,  default: null },
-  modelLocked:  { type: Boolean, default: false },  // true once a session has started
+  modelLocked:  { type: Boolean, default: false },
+  noProviders:  { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['submit', 'upload', 'flow-select', 'cancel-flow', 'manage-skills'])
+const emit = defineEmits(['submit', 'upload', 'flow-select', 'cancel-flow', 'manage-skills', 'open-settings'])
 
 // ── Internal state ────────────────────────────────────────────────────────────
 const text             = ref('')
@@ -341,6 +351,20 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 .cb-file-rm:hover { color: var(--tx); }
 
 /* Textarea */
+/* No-providers banner inside the chat box */
+.cb-no-providers {
+  padding: 8px 4px 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+  border-bottom: 1px solid var(--bdr);
+  margin-bottom: 4px;
+}
+.cb-np-link {
+  background: none; border: none; cursor: pointer;
+  font-size: 12.5px; font-weight: 600; color: var(--pri);
+  padding: 0; text-decoration: underline;
+}
+
 .cb-ta {
   width: 100%; box-sizing: border-box;
   background: transparent; border: none; outline: none; resize: none;
@@ -348,6 +372,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   padding: 2px 2px; min-height: 44px; max-height: 220px;
 }
 .cb-ta::placeholder { color: var(--muted); }
+.cb-ta:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Bottom bar */
 .cb-bar { display: flex; align-items: center; gap: 6px; }
