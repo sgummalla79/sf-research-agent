@@ -965,6 +965,8 @@ async function fetchFlows() {
   finally {
     flowsLoaded.value = true
   }
+  // Load theme after auth is confirmed — avoids 401 race on mount
+  _load(isDark.value)
 }
 
 function startWithFlow(flow) {
@@ -1011,9 +1013,8 @@ async function fetchAbout() {
 onMounted(() => {
   loadSessions()
   fetchKeyStatus()
-  fetchFlows()
+  fetchFlows()   // theme is loaded inside fetchFlows after auth is confirmed
   fetchAbout()
-  _load(isDark.value)
   document.addEventListener('click', () => { userMenuOpen.value = false; menuOpenId.value = null })
 })
 
