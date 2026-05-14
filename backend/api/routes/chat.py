@@ -547,17 +547,19 @@ async def restore_session(session_id: str, request: Request, current_user: AuthU
                     pending_questions = [val]
                 break
 
-    raw_stage = values.get("current_stage") or ""
+    raw_stage    = values.get("current_stage") or ""
+    session_type = values.get("session_type", "agent_flow")
     if not state.next:
-        # Graph has fully terminated — normalise missing/empty stage to "complete"
-        # so the frontend doesn't treat it as a mid-run resumable session.
-        terminal_stages = {"complete", "halted", "invalid_input"}
+        # Graph terminated — keep 'chat' and known terminal stages as-is;
+        # anything else (e.g. mid-pipeline crash) normalises to 'complete'.
+        terminal_stages = {"complete", "halted", "invalid_input", "chat"}
         resolved_stage  = raw_stage if raw_stage in terminal_stages else "complete"
     else:
         resolved_stage = raw_stage
 
     return {
         "session_id":           session_id,
+        "session_type":         session_type,
         "current_stage":        resolved_stage,
         "document_version":     values.get("document_version", 0),
         "project_brief":        (values.get("project_brief") or "")[:200],
@@ -679,6 +681,35 @@ async def post_completion_message(session_id: str, body: MessageRequest, request
 
     return StreamingResponse(
         _stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ── Regular chat continuation ─────────────────────────────────────────────────
+
+@router.post("/continue/{session_id}")
+async def continue_chat(session_id: str, body: MessageRequest, request: Request, current_user: AuthUser = Depends(get_current_user)):
+    """
+    Continue a regular chat session — adds the user message to the graph
+    state and re-invokes the graph so conversation history is preserved.
+    """
+    from langchain_core.messages import HumanMessage as _HM
+
+    graph  = request.app.state.graph
+    db     = request.app.state.db
+    config = {"configurable": {"thread_id": session_id}}
+
+    await db.update_last_modified(session_id)
+
+    return StreamingResponse(
+        _stream_graph(
+            graph,
+            {"messages": [_HM(content=body.text)]},
+            config,
+            db,
+            user_id=current_user.sub,
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

@@ -361,7 +361,7 @@
 
       <!-- Chat input — shown for new sessions AND for follow-up chat on completed sessions -->
       <ChatInput
-        v-if="(!sessionId || isComplete) && !isStreaming"
+        v-if="(!sessionId || isComplete || isRegularChat) && !isStreaming"
         :chat-models="chatModels"
         :flows="flows"
         :pending-flow="isComplete ? null : pendingFlow"
@@ -671,12 +671,12 @@ import SudarshanChakra from './SudarshanChakra.vue'
 
 const {
   sessionId, messages, currentStage, pendingQuestions, pendingConfirmation,
-  isStreaming, isComplete, isHalted, isInvalidInput, isResumable, error,
+  isStreaming, isComplete, isHalted, isInvalidInput, isResumable, isRegularChat, error,
   documentPanel, sidebar, sessionUsage,
   loadSessions, newChat, restoreSession,
   pinSession, unpinSession, deleteSession, renameSession,
   startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
-  sendMessage, forkSession,
+  continueRegularChat, sendMessage, forkSession,
   openDocumentPanel, closeDocumentPanel, downloadMD,
 } = useAgentChat()
 
@@ -1046,8 +1046,13 @@ function openChatsView()       { searchQuery.value = ''; currentView.value = 'ch
 function selectChat(threadId)  { restoreSession(threadId); currentView.value = 'chat' }
 // ChatInput event handlers
 async function handleChatSubmit(text, opts) {
+  if (isRegularChat.value && sessionId.value) {
+    // Continue an active regular chat — goes through graph to preserve history
+    await continueRegularChat(text, opts.model, opts.provider)
+    return
+  }
   if (isComplete.value) {
-    // Post-completion follow-up chat — stay in same session
+    // Post-completion follow-up on an agent_flow session
     await sendMessage(text, opts.model, opts.provider)
     return
   }

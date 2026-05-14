@@ -14,6 +14,7 @@ export function useAgentChat() {
   const isHalted            = ref(false)
   const isInvalidInput      = ref(false)
   const isResumable         = ref(false)   // restored session stuck mid-run
+  const isRegularChat       = ref(false)   // session_type === 'chat'
   const error               = ref(null)
 
   // Document panel
@@ -167,6 +168,7 @@ export function useAgentChat() {
         if (event.status === 'complete')           isComplete.value     = true
         else if (event.status === 'halted')        isHalted.value       = true
         else if (event.status === 'invalid_input') isInvalidInput.value = true
+        else if (event.status === 'chat')          isRegularChat.value  = true
         loadSessions()
         if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
@@ -207,6 +209,7 @@ export function useAgentChat() {
     isHalted.value            = false
     isInvalidInput.value      = false
     isResumable.value         = false
+    isRegularChat.value       = false
     error.value               = null
     documentPanel.open        = false
     documentPanel.content     = ''
@@ -289,9 +292,10 @@ export function useAgentChat() {
       const qs = data.pending_questions
       _addMessage('agent', qs.map((q, i) => `${i+1}. ${q}`).join('\n\n'), 'discovery')
       pendingQuestions.value = qs
-    } else if (data.current_stage === 'complete')                             isComplete.value  = true
-    else if (data.current_stage === 'halted')                                isHalted.value    = true
-    else if (data.current_stage && !terminal.includes(data.current_stage))   isResumable.value = true
+    } else if (data.current_stage === 'chat')                                isRegularChat.value = true
+    else if (data.current_stage === 'complete')                              isComplete.value    = true
+    else if (data.current_stage === 'halted')                                isHalted.value      = true
+    else if (data.current_stage && !terminal.includes(data.current_stage))   isResumable.value   = true
 
     fetchSessionUsage(sid)
   }
@@ -360,6 +364,21 @@ export function useAgentChat() {
   }
 
   // ── Post-completion chat ───────────────────────────────────────────────────
+
+  async function continueRegularChat(text, model = 'claude-sonnet-4-6', provider = 'anthropic') {
+    if (!sessionId.value) return
+    _addMessage('user', text)
+    const response = await apiFetch(`${API_BASE}/continue/${sessionId.value}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, chat_model: model, chat_provider: provider }),
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      error.value = err.detail || 'Message failed.'
+      return
+    }
+    await _readStream(response)
+  }
 
   async function sendMessage(text, model = 'claude-sonnet-4-6', provider = 'anthropic') {
     if (!sessionId.value) return
@@ -451,14 +470,14 @@ export function useAgentChat() {
   return {
     sessionId, messages, currentStage,
     pendingQuestions, pendingConfirmation,
-    isStreaming, isComplete, isHalted, isInvalidInput, isResumable, error,
+    isStreaming, isComplete, isHalted, isInvalidInput, isResumable, isRegularChat, error,
     documentPanel, sidebar, sessionUsage,
     // session ops
     loadSessions, newChat, restoreSession,
     pinSession, unpinSession, deleteSession, renameSession,
     // chat ops
     startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
-    sendMessage, forkSession,
+    continueRegularChat, sendMessage, forkSession,
     // doc panel
     openDocumentPanel, closeDocumentPanel, downloadMD, downloadPDF,
   }
