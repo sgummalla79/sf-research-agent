@@ -355,7 +355,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   padding: 8px 10px;
   font-size: 12.5px; font-weight: 500;
   color: #fff;
-  background: #991b1b;
+  background: #7f1d1d;
   border-radius: 8px;
   margin-bottom: 6px;
 }
