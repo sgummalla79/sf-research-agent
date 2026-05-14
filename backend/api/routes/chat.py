@@ -628,10 +628,17 @@ async def retry_chat(session_id: str, request: Request, current_user: AuthUser =
     Use this after a connection error or exhausted LLM retries.
     Safe to call multiple times — LangGraph resumes from the last
     completed node, so no work is duplicated or lost.
+
+    Before re-streaming, the session_agent_config in the checkpoint is patched
+    with a freshly resolved config (smart-pick from currently connected providers).
+    This fixes sessions that were created before smart-pick was introduced and had
+    Anthropic hardcoded even when the user never connected Anthropic.
     """
-    graph  = request.app.state.graph
-    db     = request.app.state.db
-    config = {"configurable": {"thread_id": session_id}}
+    graphs         = request.app.state.graphs
+    graph          = request.app.state.graph
+    db             = request.app.state.db
+    skill_registry = request.app.state.skill_registry
+    config         = {"configurable": {"thread_id": session_id}}
 
     state = await graph.aget_state(config)
     if not state or not state.values:
@@ -650,6 +657,34 @@ async def retry_chat(session_id: str, request: Request, current_user: AuthUser =
             status_code=400,
             detail="Session is waiting for your input — answer the pending question instead of retrying.",
         )
+
+    # Patch session_agent_config with a freshly resolved config so stale sessions
+    # (created before smart-pick) pick up the user's currently connected providers.
+    flow_id = state.values.get("flow_id")
+    snapshot_model_overrides: dict = {}
+    slot_map_for_retry:       dict = {}
+    if flow_id:
+        try:
+            _s = skill_registry.get(flow_id)
+            snapshot = await db.get_latest_snapshot(current_user.sub, flow_id)
+            slot_map_for_retry = _s.manifest.agent_slot_map
+            if snapshot:
+                snapshot_model_overrides = await db.get_model_config_for_snapshot(
+                    current_user.sub, flow_id, snapshot
+                )
+        except Exception:
+            pass
+
+    fresh_agent_cfg = await _resolve_agent_cfg(
+        db, current_user.sub, skill_registry,
+        flow_id, snapshot_model_overrides, slot_map_for_retry,
+    )
+    await graph.aupdate_state(config, {"session_agent_config": fresh_agent_cfg})
+    await db.save_config(current_user.sub, f"session_agent_config_{session_id}", json.dumps(fresh_agent_cfg))
+
+    # Use the skill-specific compiled graph if this is an agent_flow session
+    if flow_id:
+        graph = graphs.get(flow_id, graph)
 
     asyncio.create_task(db.update_last_modified(session_id))
 
