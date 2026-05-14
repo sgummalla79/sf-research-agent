@@ -352,6 +352,13 @@ class DBContext:
             (title[:120], thread_id),
         )
 
+    async def update_session_type(self, thread_id: str, session_type: str) -> None:
+        p = self._p()
+        await self._exec(
+            f"UPDATE agent_sessions SET session_type = {p} WHERE thread_id = {p}",
+            (session_type, thread_id),
+        )
+
     async def update_last_modified(self, thread_id: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
         p = self._p()

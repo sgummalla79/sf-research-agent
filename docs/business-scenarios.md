@@ -164,3 +164,26 @@ Every message after agent_flow completion:
 - Each message is independent (document + current message, no accumulated history)
 
 **Status: ✓**
+
+---
+
+### SF-007 — Completion banner is dismissible and reappears on reopen
+
+When agent_flow completes, the "Document approved" banner shows with a ✕ dismiss button.
+Dismissing hides it for the current page session only. Reopening the session
+(or logging out and back in) shows the banner again — until the user sends
+a post-completion message (SF-008).
+
+**Status: ✓**
+
+---
+
+### SF-008 — Session converts to regular chat after first post-completion message
+
+When the user sends the first post-completion message:
+- `session_type` in `agent_sessions` is updated from `agent_flow` → `chat`
+- On any future restore (including after logout/login), `session_type='chat'`
+  is the source of truth → `isRegularChat=true` → NO completion banner shown
+- The session behaves as regular chat from this point forward
+
+**Status: ✓**

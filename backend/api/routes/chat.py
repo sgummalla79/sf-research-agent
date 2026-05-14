@@ -662,12 +662,16 @@ async def post_completion_message(session_id: str, body: MessageRequest, request
     from langchain_core.messages import SystemMessage, HumanMessage as HM
     from utils.llm_factory import build_llm
 
+    db     = request.app.state.db
     graph  = request.app.state.graph
     config = {"configurable": {"thread_id": session_id}}
 
     state = await graph.aget_state(config)
     if not state or not state.values:
         raise HTTPException(status_code=404, detail="Session not found.")
+
+    # Mark session as converted to regular chat — persists across logouts
+    await db.update_session_type(session_id, "chat")
 
     document = state.values.get("document_draft", "")
     system   = (

@@ -347,8 +347,9 @@
         <span>This session's data is no longer available.</span>
         <button class="retry-btn" @click="newChat()">Start new chat</button>
       </div>
-      <div v-else-if="isComplete" class="banner ok">
-        🎉 Document approved and finalised. Continue chatting below, or add a new skill to start a follow-up session.
+      <div v-else-if="isComplete && !completionBannerDismissed" class="banner ok">
+        <span>🎉 Document approved and finalised. Continue chatting below, or add a new skill to start a follow-up session.</span>
+        <button class="banner-dismiss" @click="completionBannerDismissed = true" title="Dismiss">✕</button>
       </div>
       <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
       <div v-if="isInvalidInput" class="banner err">❌ Image doesn't appear to be architecture-related.</div>
@@ -808,7 +809,8 @@ async function saveRename(threadId) {
 }
 
 const isDark          = ref(true)
-const userMenuOpen    = ref(false)
+const userMenuOpen             = ref(false)
+const completionBannerDismissed = ref(false)
 const settingsOpen    = ref(false)
 const sessionModelsOpen  = ref(false)
 const sessionModelConfig = ref(null)
@@ -993,8 +995,9 @@ watch(pendingQuestions, qs => { replyAnswers.value = qs.map(() => '') })
 
 // Fetch the session's locked model config whenever the session changes
 watch(() => sessionId.value, async (id) => {
-  sessionModelConfig.value = null
-  sessionModelsOpen.value  = false
+  sessionModelConfig.value        = null
+  sessionModelsOpen.value         = false
+  completionBannerDismissed.value = false   // reset dismiss on every session switch
   if (!id) { sessionFlow.value = null; return }
   try {
     const res = await apiFetch(`/api/chat/session-config/${id}`)
@@ -1798,6 +1801,8 @@ function doPDF() {
 
 /* Banners */
 .banner{flex-shrink:0;padding:12px 28px;font-size:13px;font-weight:500;text-align:center;display:flex;align-items:center;justify-content:center;gap:12px}
+.banner-dismiss{background:none;border:none;cursor:pointer;font-size:13px;opacity:.6;padding:0;line-height:1;color:inherit;flex-shrink:0}
+.banner-dismiss:hover{opacity:1}
 .retry-btn{padding:5px 14px;border-radius:7px;border:1.5px solid currentColor;background:transparent;color:inherit;font-size:13px;font-weight:600;cursor:pointer;opacity:0.85;transition:opacity .15s}
 .retry-btn:hover{opacity:1}
 .banner.ok{background:#dcfce7;color:#166534}.banner.warn{background:#fef3c7;color:#92400e}.banner.err{background:#fee2e2;color:#991b1b}
