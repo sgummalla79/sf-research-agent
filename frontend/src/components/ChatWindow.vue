@@ -340,18 +340,14 @@
 
       <!-- Banners -->
       <div v-if="providerConflict" class="banner provider-conflict">
-        <div class="pc-body">
-          <span class="pc-icon">⚠️</span>
-          <div class="pc-text">
-            <strong>Provider unavailable</strong>
-            <span>{{ providerConflict.detail }}</span>
-          </div>
-        </div>
+        <span class="pc-icon">⚠️</span>
+        <span class="pc-text">
+          <strong>Provider unavailable</strong> —
+          {{ providerConflictMessage }}
+        </span>
         <div class="pc-actions">
           <button class="retry-btn" @click="appView = 'settings'">Configure Providers</button>
-          <button v-if="providerConflict.canSmartPick" class="retry-btn smart-pick-btn" @click="retryWithSmartPick">
-            Use Smart Config
-          </button>
+          <button v-if="providerConflict.canSmartPick" class="retry-btn smart-pick-btn" @click="retryWithSmartPick">Use Smart Config</button>
         </div>
       </div>
       <div v-else-if="isResumable" class="banner warn">
@@ -767,6 +763,16 @@ const _GREETINGS = {
     'Selamat malam',      // Malay
   ],
 }
+
+// Extract a clean human-readable message from the raw backend error string.
+// "API key not configured for 'openai'. Open Settings…" → "The 'openai' provider is not connected."
+const providerConflictMessage = computed(() => {
+  const raw = providerConflict.value?.detail || ''
+  const match = raw.match(/API key not configured for '([^']+)'/)
+  if (match) return `The '${match[1]}' provider is not connected.`
+  if (raw.includes('No LLM providers are configured')) return 'No LLM providers are configured.'
+  return raw
+})
 
 const greeting = computed(() => {
   const h = new Date().getHours()
@@ -1864,15 +1870,13 @@ function doPDF() {
 .retry-btn:hover{opacity:1}
 .banner.ok{background:#dcfce7;color:#166534}.banner.warn{background:#fef3c7;color:#92400e}.banner.err{background:#fee2e2;color:#991b1b}
 .dark .banner.ok{background:#052e16;color:#86efac}.dark .banner.warn{background:#1c1400;color:#fcd34d}.dark .banner.err{background:#1f0000;color:#fca5a5}
-.banner.provider-conflict{background:#fff7ed;color:#7c2d12;flex-direction:column;align-items:stretch;gap:10px;padding:14px 24px}
+.banner.provider-conflict{background:#fff7ed;color:#7c2d12;flex-direction:row;align-items:center;gap:8px;padding:10px 20px;flex-wrap:wrap}
 .dark .banner.provider-conflict{background:#1c0f00;color:#fdba74}
-.pc-body{display:flex;align-items:flex-start;gap:10px}
-.pc-icon{font-size:18px;line-height:1.3;flex-shrink:0}
-.pc-text{display:flex;flex-direction:column;gap:2px}
-.pc-text strong{font-size:13px;font-weight:700}
-.pc-text span{font-size:12px;opacity:.85;line-height:1.4}
-.pc-actions{display:flex;gap:8px;justify-content:flex-end}
-.smart-pick-btn{background:rgba(0,0,0,.06)}
+.pc-icon{font-size:15px;flex-shrink:0;line-height:1}
+.pc-text{flex:1;font-size:13px;line-height:1.4;min-width:0}
+.pc-text strong{font-weight:700}
+.pc-actions{display:flex;gap:8px;flex-shrink:0;margin-left:auto}
+.smart-pick-btn{background:rgba(0,0,0,.07)}
 
 /* ── Document right panel ──────────────────────────────────────────────────── */
 .doc-panel {
