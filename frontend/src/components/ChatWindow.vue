@@ -1070,15 +1070,9 @@ function modelLabel(m) { return MODEL_NAMES[m] || m }
 function fmtTokens(n) { return n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n) }
 function fmtCost(c)   { return c < 0.01 ? `$${(c).toFixed(4)}` : `$${c.toFixed(3)}` }
 
-async function handleNewChat() {
+function handleNewChat() {
   pendingFlow.value = null
   sessionFlow.value = null
-  const missing = Object.entries(keysConfigured).filter(([, v]) => !v).map(([k]) => k)
-  if (missing.length) {
-    openSettings()
-    settingsSaveMsg.value = { type: 'err', text: `Please save your API keys before starting a session. Missing: ${missing.join(', ')}.` }
-    return
-  }
   newChat()
   currentView.value = 'chat'
 }
