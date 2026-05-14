@@ -137,11 +137,14 @@
             </div>
           </div>
 
-          <!-- Adaptive Thinking — standalone toggle, Anthropic only -->
-          <button v-if="selectedModel.provider === 'anthropic' && chatModels.length"
+          <!-- Adaptive Thinking — always visible, disabled for non-Anthropic -->
+          <button v-if="chatModels.length"
             class="cb-adaptive-btn"
-            :class="{ on: extendedThinking }"
-            title="Adaptive Thinking — Claude thinks deeper before responding"
+            :class="{ on: extendedThinking, 'cb-adaptive-off': selectedModel.provider !== 'anthropic' }"
+            :disabled="selectedModel.provider !== 'anthropic'"
+            :title="selectedModel.provider === 'anthropic'
+              ? 'Adaptive Thinking — Claude thinks deeper before responding'
+              : 'Adaptive Thinking is only available for Anthropic Claude models'"
             @click.stop="extendedThinking = !extendedThinking">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="15" height="15">
               <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
@@ -227,10 +230,10 @@ watch(() => props.chatModels, (models) => {
   if (def) selectedModel.value = def
 }, { immediate: true })
 
-// Reset Adaptive Thinking when switching to a non-Anthropic model
+// Sync Adaptive Thinking with provider — on for Anthropic, off + disabled for others
 watch(() => selectedModel.value.provider, (provider) => {
-  if (provider !== 'anthropic') extendedThinking.value = false
-})
+  extendedThinking.value = provider === 'anthropic'
+}, { immediate: true })
 
 // ── File handling ─────────────────────────────────────────────────────────────
 const MAX_MB   = 10
@@ -462,7 +465,9 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   transition: all .15s;
 }
 .cb-adaptive-btn:hover { color: var(--tx); background: var(--hover); border-color: var(--ifocus); }
-.cb-adaptive-btn.on  { color: var(--pri); border-color: var(--pri); background: var(--sbg); }
+.cb-adaptive-btn.on      { color: var(--pri); border-color: var(--pri); background: var(--sbg); }
+.cb-adaptive-btn.cb-adaptive-off { opacity: 0.35; cursor: not-allowed; }
+.cb-adaptive-btn.cb-adaptive-off:hover { color: var(--muted); background: transparent; border-color: var(--bdr); }
 
 /* Model dropdown */
 .cb-model-dropdown {
