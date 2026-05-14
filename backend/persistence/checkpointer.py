@@ -1047,7 +1047,7 @@ async def _postgres_backend(url: str):
         url,
         min_size=1,
         max_size=DB_POOL_SIZE,
-        kwargs={"prepare_threshold": None},
+        kwargs={"autocommit": True, "prepare_threshold": None},
         open=False,
     ) as pool:
         await pool.open(wait=True)
