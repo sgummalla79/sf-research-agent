@@ -5,6 +5,38 @@ for expected behaviour across all chat and skill session flows.
 
 ---
 
+## Provider / Model Selection Rules
+
+### Smart Provider Selection (Agent Flow)
+
+When a skill session starts, the backend resolves the LLM for each pipeline slot
+(`intake`, `discovery`, `researcher_search`, `researcher_reasoning`,
+`researcher_writer`, `reviewer`, `approver`) using this priority:
+
+| Priority | Condition | Result |
+|---|---|---|
+| 1 | Snapshot per-agent override set AND provider connected | Use snapshot override |
+| 2 | User saved an agent_config for this slot AND provider connected | Use user config |
+| 3 | Neither above — or configured provider not connected | smart_pick from connected providers |
+| Error | User explicitly set a slot to a provider that is NOT connected | HTTP 422 — shown to user |
+
+**Smart-pick preference per slot:**
+
+| Slot | Provider preference order |
+|---|---|
+| `researcher_search` | Perplexity → Google → Anthropic → OpenAI |
+| `researcher_reasoning` | Google → Anthropic → OpenAI → Perplexity |
+| `approver` | Anthropic → Google → OpenAI → Perplexity |
+| All others | Anthropic → Google → OpenAI → Perplexity |
+
+A user with only one provider configured will always get that provider across
+all slots — no "API key not configured for X" errors unless they explicitly
+locked a slot to an unavailable provider.
+
+**Status: ✓**
+
+---
+
 ## Model Locking Rules
 
 | State | Model picker | Adaptive toggle |
