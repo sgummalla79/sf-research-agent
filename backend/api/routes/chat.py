@@ -69,8 +69,10 @@ async def _resolve_agent_cfg(
     When force_smart_pick=True the saved agent_config is ignored entirely —
     every slot is filled by smart_pick() from connected providers.
     """
-    user_keys = await db.get_all_api_keys(user_id)
-    connected = available_providers(user_keys)
+    # Use the already-decrypted ContextVar so we only count providers whose
+    # keys actually decrypted successfully — not just names present in the DB.
+    from utils.user_context import connected_providers
+    connected = connected_providers()
 
     if force_smart_pick:
         saved_user_cfg    = {}
@@ -305,7 +307,19 @@ async def _stream_graph(graph, input_, config, db=None, user_id: str = "") -> As
             })
 
     except Exception as exc:
-        yield _sse("error", {"message": str(exc)})
+        msg = str(exc)
+        # Detect provider/API-key errors thrown from get_user_key() inside nodes.
+        # These are RuntimeErrors with a well-known message prefix.  Surface them
+        # as a dedicated event so the frontend can offer the two-option banner
+        # (Configure Providers / Use Smart Config) instead of a plain error.
+        if "API key not configured for" in msg or "No LLM providers are configured" in msg:
+            from utils.user_context import connected_providers
+            yield _sse("provider_error", {
+                "message":     msg,
+                "can_smart_pick": bool(connected_providers()),
+            })
+        else:
+            yield _sse("error", {"message": msg})
 
 
 @router.post("/start")

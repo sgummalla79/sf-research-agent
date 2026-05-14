@@ -35,3 +35,9 @@ def get_anthropic_mode() -> str:
 
 def has_key(provider: str) -> bool:
     return bool(_user_keys.get().get(provider))
+
+
+def connected_providers() -> set[str]:
+    """Return the set of providers for which a decrypted key exists in this request context."""
+    from framework.defaults import available_providers
+    return available_providers(_user_keys.get())

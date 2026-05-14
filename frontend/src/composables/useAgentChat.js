@@ -48,7 +48,8 @@ export function useAgentChat() {
     let   buffer  = ''
     let   currentMsg = null
 
-    isStreaming.value = true
+    isStreaming.value      = true
+    providerConflict.value = null   // clear on each new stream attempt
     try {
       while (true) {
         const { done, value } = await reader.read()
@@ -178,6 +179,17 @@ export function useAgentChat() {
       case 'error': {
         if (currentMsg) { currentMsg.isStreaming = false; setCurrentMsg(null) }
         error.value = event.message
+        break
+      }
+
+      case 'provider_error': {
+        if (currentMsg) { currentMsg.isStreaming = false; setCurrentMsg(null) }
+        // Show the two-option banner instead of a plain error message
+        providerConflict.value = {
+          detail:       event.message,
+          canSmartPick: event.can_smart_pick,
+        }
+        isResumable.value = true
         break
       }
     }
