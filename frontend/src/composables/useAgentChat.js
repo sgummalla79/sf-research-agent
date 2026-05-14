@@ -365,7 +365,7 @@ export function useAgentChat() {
   }
 
   async function retrySession(forcedSmartPick = false) {
-    if (!sessionId.value) return
+    if (!sessionId.value || isStreaming.value) return
     error.value           = null
     providerConflict.value = null
     isResumable.value     = false

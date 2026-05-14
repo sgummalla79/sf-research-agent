@@ -346,8 +346,10 @@
           {{ providerConflictMessage }}
         </span>
         <div class="pc-actions">
-          <button class="retry-btn" @click="appView = 'settings'">Configure Providers</button>
-          <button v-if="providerConflict.canSmartPick" class="retry-btn smart-pick-btn" @click="retryWithSmartPick">Use Smart Config</button>
+          <button class="retry-btn" :disabled="isStreaming" @click="appView = 'settings'">Configure Providers</button>
+          <button v-if="providerConflict.canSmartPick" class="retry-btn smart-pick-btn" :disabled="isStreaming" @click="retryWithSmartPick">
+            {{ isStreaming ? 'Retrying…' : 'Use Smart Config' }}
+          </button>
         </div>
       </div>
       <div v-else-if="isResumable" class="banner warn">
