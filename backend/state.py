@@ -50,7 +50,7 @@ class AgentState(BaseModel):
     # ── Stage tracking ────────────────────────────────────────────────────────
     current_stage: Literal[
         "intake", "discovery", "research", "review", "approval",
-        "complete", "halted", "invalid_input"
+        "complete", "halted", "invalid_input", "chat"
     ] = "intake"
     revision_count: int = 0   # increments each time Approver rejects
 
