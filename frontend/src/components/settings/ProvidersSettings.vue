@@ -12,12 +12,14 @@
         <!-- Card header -->
         <div class="ps-card-header">
           <div class="ps-card-info">
-            <span class="ps-name">{{ p.name }}</span>
+            <div class="ps-name-row">
+              <span class="ps-name">{{ p.name }}</span>
+              <span class="ps-badge" :class="p.connected ? 'ok' : 'off'">
+                {{ p.connected ? 'Connected ✓' : 'Not connected' }}
+              </span>
+            </div>
             <span class="ps-desc">{{ p.description }}</span>
           </div>
-          <span class="ps-badge" :class="p.connected ? 'ok' : 'off'">
-            {{ p.connected ? 'Connected ✓' : 'Not connected' }}
-          </span>
         </div>
 
         <!-- Mode toggle (Anthropic only) -->
@@ -259,13 +261,14 @@ onMounted(load)
 }
 .ps-card.connected { border-color: var(--success-bdr); }
 
-.ps-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.ps-card-info { display: flex; flex-direction: column; gap: 3px; }
+.ps-card-header { display: flex; align-items: flex-start; gap: 12px; }
+.ps-card-info { display: flex; flex-direction: column; gap: 4px; }
+.ps-name-row { display: flex; align-items: center; gap: 8px; }
 .ps-name { font-size: 15px; font-weight: 700; color: var(--tx); }
 .ps-desc { font-size: 12px; color: var(--muted); }
 .ps-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; flex-shrink: 0; white-space: nowrap; }
-.ps-badge.ok  { background: rgba(34,197,94,0.1); color: var(--success-tx); }
-.ps-badge.off { background: #6b728022; color: var(--muted); }
+.ps-badge.ok  { background: rgba(34,197,94,0.12); color: var(--success-tx); }
+.ps-badge.off { background: rgba(239,68,68,0.12); color: #f87171; }
 
 .ps-mode-toggle { display: flex; gap: 6px; }
 .ps-mode-btn {

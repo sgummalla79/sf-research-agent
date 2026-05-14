@@ -343,7 +343,11 @@
         <span>⚡ This session was interrupted mid-run.</span>
         <button class="retry-btn" @click="retrySession">↺ Resume Session</button>
       </div>
-      <div v-if="isComplete" class="banner ok">
+      <div v-if="isComplete && !messages.length" class="banner warn">
+        <span>This session's data is no longer available.</span>
+        <button class="retry-btn" @click="newChat()">Start new chat</button>
+      </div>
+      <div v-else-if="isComplete" class="banner ok">
         🎉 Document approved and finalised. Continue chatting below, or add a new skill to start a follow-up session.
       </div>
       <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
@@ -482,6 +486,11 @@
             <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             {{ isDark ? 'Light mode' : 'Dark mode' }}
           </button>
+          <div class="um-divider"></div>
+          <div class="um-about-row">
+            <span class="um-about-app">Pragna</span>
+            <span class="um-about-ver">{{ appVersion ? `v${appVersion}` : '' }}</span>
+          </div>
           <div class="um-divider"></div>
           <button class="um-item um-signout" @click="handleLogout">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
@@ -949,12 +958,28 @@ function confirmFlowStart() {
   pendingFlow.value = flow   // arm — session starts only when user submits
 }
 
+const appVersion = ref('')
+
+async function fetchAbout() {
+  try {
+    const res = await apiFetch('/api/about')
+    if (res.ok) {
+      const data = await res.json()
+      appVersion.value = data.version || ''
+    }
+  } catch (_) {}
+}
+
 onMounted(() => {
   loadSessions()
   fetchKeyStatus()
   fetchFlows()
+  fetchAbout()
   document.addEventListener('click', () => { userMenuOpen.value = false; menuOpenId.value = null })
 })
+
+// Re-fetch flows when returning to chat so newly installed skills appear immediately
+watch(appView, (view) => { if (view === 'chat') fetchFlows() })
 watch(pendingQuestions, qs => { replyAnswers.value = qs.map(() => '') })
 
 // Fetch the session's locked model config whenever the session changes
@@ -1581,6 +1606,12 @@ function doPDF() {
 .um-item:hover { background: var(--sb-hover); }
 .um-signout { color: #f87171; }
 .um-signout:hover { background: rgba(239,68,68,.15); }
+.um-about-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px; gap: 8px;
+}
+.um-about-app { font-size: 12px; font-weight: 600; color: var(--sb-muted); }
+.um-about-ver { font-size: 11px; color: var(--sb-muted); font-variant-numeric: tabular-nums; }
 
 .um-user-row {
   display: flex; align-items: center; gap: 10px;

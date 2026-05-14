@@ -15,9 +15,20 @@ Used by both the K8s readinessProbe and livenessProbe.
 """
 
 import os
+from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+
+
+def _read_version() -> str:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "VERSION"
+        if candidate.exists():
+            return candidate.read_text().strip()
+    return os.environ.get("APP_VERSION", "unknown")
+
 
 router = APIRouter(tags=["ops"])
 
@@ -166,3 +177,9 @@ async def health(request: Request):
             "checks":  checks,
         },
     )
+
+
+@router.get("/api/about")
+async def about():
+    """App name and version — used by the frontend to display version info."""
+    return {"app": "Pragna", "version": _read_version()}
