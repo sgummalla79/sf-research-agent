@@ -102,4 +102,7 @@ async def get_current_user(
     anthropic_mode = await db.get_config(user.sub, "anthropic_mode") or "direct"
     set_user_context(decrypted, anthropic_mode)
 
+    # Store on request.state so request logger can read user identity
+    request.state._user = user
+
     return user

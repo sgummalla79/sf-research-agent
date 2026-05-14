@@ -24,10 +24,16 @@ from pathlib import Path
 # subsequent os.getenv() calls at module level see the .env values.
 import config  # noqa: F401
 
+# Logging must be configured immediately after config so every subsequent
+# import gets the right format and level.
+from utils.log import configure_logging
+configure_logging(level=os.getenv("LOG_LEVEL", "INFO"))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from api.middleware.request_logger import RequestLoggerMiddleware
 from api.routes.auth import router as auth_router
 from api.routes.chat import router as chat_router
 from api.routes.health import router as health_router
@@ -87,32 +93,47 @@ def _validate_env() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("═" * 60)
+    logger.info("Pragna  starting up")
+    logger.info("═" * 60)
+
     _validate_env()
+
+    logger.info("Connecting to database  backend=%s", DB_BACKEND.upper())
     async with get_async_checkpointer() as db:
         app.state.db = db
+        logger.info("Database ready")
 
-        # ── Build skill registry + one compiled graph per skill ────────────
+        # ── Skill registry ─────────────────────────────────────────────────
+        logger.info("Loading skills from  %s", _SKILLS_DIR)
         skill_registry = SkillRegistry(_SKILLS_DIR)
         skill_registry.load_all()
+        skills = skill_registry.list_all()
+        logger.info("Skills loaded  count=%d  ids=%s",
+                    len(skills), [s.manifest.id for s in skills])
         app.state.skill_registry = skill_registry
 
+        # ── Graph compilation ──────────────────────────────────────────────
         engine = SkillEngine()
         graphs: dict = {}
-        for skill in skill_registry.list_all():
+        for skill in skills:
             graphs[skill.manifest.id] = engine.build(skill, db.checkpointer)
-            logger.info("Graph compiled for skill '%s'", skill.manifest.id)
+            logger.info("Graph compiled  skill=%s", skill.manifest.id)
 
         app.state.graphs = graphs
         app.state.graph  = next(iter(graphs.values())) if graphs else None
 
-        logger.info("Pragna started — graph ready.")
+        logger.info("═" * 60)
+        logger.info("Pragna ready  skills=%d", len(graphs))
+        logger.info("═" * 60)
         yield
 
-    logger.info("Pragna shutting down.")
+    logger.info("Pragna shutting down")
 
 
 app = FastAPI(title="Pragna", lifespan=lifespan)
 
+# Middleware is applied in reverse order — CORS must wrap request logger
 _ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -121,6 +142,7 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["X-Session-Id"],
 )
+app.add_middleware(RequestLoggerMiddleware)
 
 app.include_router(health_router)
 app.include_router(auth_router)
