@@ -41,43 +41,44 @@ function luminance({ r, g, b }) {
 
 // ── Core apply ────────────────────────────────────────────────────────────────
 
-function applyTheme(themeId, isDark) {
+function applyTheme(themeId, isDark, el = null) {
   const theme = THEMES.find(t => t.id === themeId) ?? THEMES[0]
   const color = isDark ? theme.dark : theme.light
   const { r, g, b } = hexToRgb(color)
   const bright = luminance({ r, g, b }) > 160
-
-  const root = document.documentElement
+  const target = el ?? document.documentElement
   const a = (alpha) => `rgba(${r},${g},${b},${alpha})`
 
-  root.style.setProperty('--pri',       color)
-  root.style.setProperty('--pri-fg',    bright ? '#111111' : '#ffffff')
-  root.style.setProperty('--pri-h',     a(isDark ? 0.06 : 0.06))
-  root.style.setProperty('--ifocus',    color)
-  root.style.setProperty('--sbg',       a(isDark ? 0.12 : 0.08))
-  root.style.setProperty('--stx',       color)
-  root.style.setProperty('--sbdr',      a(isDark ? 0.28 : 0.25))
-  root.style.setProperty('--sb-active', a(isDark ? 0.15 : 0.10))
+  // Set as inline CSS variables on the target element so they override
+  // any scoped component styles regardless of specificity
+  target.style.setProperty('--pri',       color)
+  target.style.setProperty('--pri-fg',    bright ? '#111111' : '#ffffff')
+  target.style.setProperty('--pri-h',     a(isDark ? 0.06 : 0.06))
+  target.style.setProperty('--ifocus',    color)
+  target.style.setProperty('--sbg',       a(isDark ? 0.12 : 0.08))
+  target.style.setProperty('--stx',       color)
+  target.style.setProperty('--sbdr',      a(isDark ? 0.28 : 0.25))
+  target.style.setProperty('--sb-active', a(isDark ? 0.15 : 0.10))
 
   activeThemeId.value = themeId
 }
 
 // ── Persistence ───────────────────────────────────────────────────────────────
 
-async function loadTheme(isDark) {
+async function loadTheme(isDark, el = null) {
   try {
     const res = await apiFetch('/api/settings/theme')
     if (res.ok) {
       const data = await res.json()
-      applyTheme(data.theme || 'default', isDark)
+      applyTheme(data.theme || 'default', isDark, el)
     }
   } catch (_) {
-    applyTheme('default', isDark)
+    applyTheme('default', isDark, el)
   }
 }
 
-async function saveTheme(themeId, isDark) {
-  applyTheme(themeId, isDark)
+async function saveTheme(themeId, isDark, el = null) {
+  applyTheme(themeId, isDark, el)
   try {
     await apiFetch('/api/settings/theme', {
       method:  'POST',

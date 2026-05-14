@@ -1,5 +1,5 @@
 <template>
-  <div class="shell" :class="{ dark: isDark }">
+  <div class="shell" :class="{ dark: isDark }" ref="shellRef">
 
   <!-- ══════════════════ SETTINGS PAGE (full-page overlay) ══════════════════ -->
   <SettingsPage       v-if="appView === 'settings'"       @back="appView = 'chat'" />
@@ -502,7 +502,7 @@
               :class="{ active: activeThemeId === t.id }"
               :style="{ background: isDark ? t.dark : t.light }"
               :title="t.label"
-              @click.stop="saveTheme(t.id, isDark)"
+              @click.stop="_save(t.id, isDark)"
             >
               <svg v-if="activeThemeId === t.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" width="10" height="10">
                 <polyline points="20 6 9 17 4 12"/>
@@ -824,8 +824,14 @@ async function saveRename(threadId) {
   if (title) await renameSession(threadId, title)
 }
 
-const isDark          = ref(true)
+const isDark    = ref(true)
+const shellRef  = ref(null)
 const { activeThemeId, applyTheme, loadTheme, saveTheme } = useTheme()
+
+// Wrap applyTheme/loadTheme/saveTheme to always target the shell element
+const _apply = (id, dark) => applyTheme(id, dark, shellRef.value)
+const _load  = (dark)     => loadTheme(dark, shellRef.value)
+const _save  = (id, dark) => saveTheme(id, dark, shellRef.value)
 const userMenuOpen             = ref(false)
 const completionBannerDismissed = ref(false)
 const settingsOpen    = ref(false)
@@ -1007,12 +1013,12 @@ onMounted(() => {
   fetchKeyStatus()
   fetchFlows()
   fetchAbout()
-  loadTheme(isDark.value)
+  _load(isDark.value)
   document.addEventListener('click', () => { userMenuOpen.value = false; menuOpenId.value = null })
 })
 
 // Re-apply theme when dark/light mode toggles
-watch(isDark, (dark) => applyTheme(activeThemeId.value, dark))
+watch(isDark, (dark) => _apply(activeThemeId.value, dark))
 
 // Re-fetch flows when returning to chat so newly installed skills appear immediately
 watch(appView, (view) => { if (view === 'chat') fetchFlows() })
@@ -1663,6 +1669,7 @@ function doPDF() {
 .um-signout:hover { background: rgba(239,68,68,.15); }
 .um-theme-row {
   display: flex; gap: 8px; padding: 6px 10px 8px;
+  justify-content: center;
 }
 .um-swatch {
   width: 18px; height: 18px; border-radius: 50%;
