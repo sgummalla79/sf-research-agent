@@ -31,6 +31,7 @@ from fastapi.responses import JSONResponse
 from api.routes.auth import router as auth_router
 from api.routes.chat import router as chat_router
 from api.routes.health import router as health_router
+from api.routes.settings import router as settings_router
 from api.routes.usage import router as usage_router
 from api.routes.providers import router as providers_router
 from api.routes.flows import router as flows_router
@@ -124,6 +125,7 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(chat_router)
+app.include_router(settings_router)
 app.include_router(usage_router)
 app.include_router(providers_router)
 app.include_router(flows_router)

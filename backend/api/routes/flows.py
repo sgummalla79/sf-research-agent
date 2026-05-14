@@ -54,9 +54,12 @@ async def list_flows(
         chat_models[0] if chat_models else None,
     )
 
+    theme = await db.get_config(current_user.sub, "theme_color") or "default"
+
     return {
-        "flows":                flows,
-        "chat_models":          chat_models,
-        "chat_default_model":   default["model"]    if default else CHAT_DEFAULT_MODEL,
+        "flows":                 flows,
+        "chat_models":           chat_models,
+        "chat_default_model":    default["model"]    if default else CHAT_DEFAULT_MODEL,
         "chat_default_provider": default["provider"] if default else CHAT_DEFAULT_PROVIDER,
+        "theme":                 theme,
     }

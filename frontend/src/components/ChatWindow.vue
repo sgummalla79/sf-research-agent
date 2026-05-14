@@ -960,13 +960,13 @@ async function fetchFlows() {
       const data = await res.json()
       flows.value      = data.flows       || []
       chatModels.value = data.chat_models || []
+      // Apply theme from the same response — no extra round trip
+      if (data.theme) _apply(data.theme, isDark.value)
     }
   } catch (_) {}
   finally {
     flowsLoaded.value = true
   }
-  // Load theme after auth is confirmed — avoids 401 race on mount
-  _load(isDark.value)
 }
 
 function startWithFlow(flow) {
