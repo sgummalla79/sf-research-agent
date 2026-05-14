@@ -222,25 +222,36 @@ When the user sends the first post-completion message:
 
 ---
 
-### SF-009 — Resume session with unavailable provider
+### SF-009 — Provider unavailable banner (resume or mid-pipeline failure)
 
-A session was created with a specific provider in `agent_config`.
-That provider is later removed from Settings → Providers (or was never
-connected for this user). User tries to resume the interrupted session.
+Triggered whenever a session cannot proceed because a configured provider
+is missing or its API key cannot be decrypted. Covers two paths:
 
-**Flow:**
+**Path A — Pre-stream check (retry endpoint)**
 1. User clicks "↺ Resume Session"
-2. Backend `/retry/{session_id}` detects the configured provider is not
-   connected → returns HTTP 409 with `error: "provider_unavailable"`
-3. Banner replaces the resume banner:
-   > **Provider unavailable**
-   > *[detail message explaining which slot/provider is missing]*
-   - **"Configure Providers"** button → opens Settings → Providers
-   - **"Use Smart Config"** button → calls `/retry/{session_id}?smart_pick=true`
-     which ignores the saved config and picks the best available provider for
-     each slot from the user's currently connected providers
+2. `/retry/{session_id}` resolves the agent config from the user's
+   currently connected providers (decrypted ContextVar, not raw DB names)
+3. If the saved `agent_config` explicitly points to a provider that is not
+   connected → HTTP 409 `error: "provider_unavailable"`
+4. If no providers are connected at all → HTTP 409 `error: "no_providers"`
 
-If no providers at all are connected → HTTP 409 `error: "no_providers"`:
-- Only "Configure Providers" is shown (no smart-pick since nothing to pick from)
+**Path B — Mid-pipeline failure (any phase)**
+A pipeline stage (intake, research, review, etc.) tries to call an LLM
+whose key is unavailable. The node throws `RuntimeError("API key not
+configured for …")`. `_stream_graph` catches this and emits a
+`provider_error` SSE event instead of a generic error.
+
+**Both paths show the same banner:**
+> **Provider unavailable**
+> *[detail message]*
+- **"Configure Providers"** → opens Settings → Providers
+- **"Use Smart Config"** → retries with `?smart_pick=true`, ignoring the
+  saved config and selecting from currently available providers
+  *(hidden when no providers are connected at all)*
+
+**Key implementation note:**
+Provider detection uses the **decrypted** ContextVar set at request time,
+not raw DB key names. A key name present in the DB but failing decryption
+is NOT counted as connected, so smart-pick never selects it.
 
 **Status: ✓**
