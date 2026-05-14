@@ -190,6 +190,21 @@ async def _stream_graph(graph, input_, config, db=None, user_id: str = "") -> As
     Run the graph with astream_events and translate LangGraph events into SSE messages.
     After the stream ends, inspect state to detect interrupt vs completion.
     """
+    # LangGraph internally uses asyncio.create_task(context=<captured_context>) which
+    # does NOT include our _user_keys ContextVar — so node threads see an empty dict.
+    # We inject the keys into config["configurable"] instead; LangChain propagates the
+    # configurable dict through run_in_executor into every synchronous node thread.
+    from utils.user_context import _user_keys, get_anthropic_mode
+    live_keys = _user_keys.get()
+    if live_keys:
+        config = {
+            **config,
+            "configurable": {
+                **config.get("configurable", {}),
+                "_pragna_user_keys":      live_keys,
+                "_pragna_anthropic_mode": get_anthropic_mode(),
+            },
+        }
     try:
         async for event in graph.astream_events(input_, config, version="v2"):
             name = event.get("name", "")
