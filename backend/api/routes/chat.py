@@ -314,6 +314,11 @@ async def start_chat(body: StartRequest, request: Request, current_user: AuthUse
         else request.app.state.graph
     )
 
+    # For free-form chat sessions seed the brief as the first HumanMessage
+    # so run_chat always receives a non-empty messages list
+    from langchain_core.messages import HumanMessage as _HM
+    seed_messages = [_HM(content=body.brief)] if body.session_type == "chat" else []
+
     initial_state = AgentState(
         session_id=session_id,
         project_brief=body.brief,
@@ -326,6 +331,7 @@ async def start_chat(body: StartRequest, request: Request, current_user: AuthUse
         chat_model=body.chat_model or CHAT_DEFAULT_MODEL,
         chat_provider=body.chat_provider,
         extended_thinking=body.extended_thinking,
+        messages=seed_messages,
     )
 
     return StreamingResponse(
