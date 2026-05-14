@@ -380,12 +380,14 @@
       <transition name="fade">
         <div v-if="flowPopup.show" class="del-overlay" @click.self="flowPopup.show = false">
           <div class="del-dialog">
-            <p class="del-title">Switch to {{ flowPopup.flow?.name }}?</p>
-            <p class="del-body">Your current conversation will be saved. You'll describe your project in the new chat before the agent starts.</p>
-            <div class="del-btns">
+            <div class="del-dialog-body">
+              <p class="del-title">Switch to {{ flowPopup.flow?.name }}?</p>
+              <p class="del-body">Your current conversation will be saved. You'll describe your project in the new chat before the skill starts.</p>
+            </div>
+            <div class="del-dialog-footer">
               <button class="del-cancel" @click="flowPopup.show = false">Cancel</button>
-              <button class="del-confirm" style="background:var(--pri-h);border-color:var(--pri);color:#fff"
-                @click="confirmFlowStart">New Chat →</button>
+              <button class="del-confirm" style="background:var(--pri);color:#fff"
+                @click="confirmFlowStart">Start new chat</button>
             </div>
           </div>
         </div>
@@ -395,25 +397,27 @@
       <transition name="fade">
         <div v-if="forkConfirm.show" class="del-overlay" @click.self="forkConfirm.show = false">
           <div class="del-dialog">
-            <template v-if="forkConfirm.type === 'skill'">
-              <p class="del-title">Start a new session with {{ forkConfirm.flow?.name }}?</p>
-              <p class="del-body">
-                Your approved architecture document will be used as a starting reference.
-                The full <strong>{{ forkConfirm.flow?.name }}</strong> pipeline will run from there —
-                discovery, research, review, and approval — producing a new document in a separate session.
-              </p>
-            </template>
-            <template v-else>
-              <p class="del-title">Start a new session with this file?</p>
-              <p class="del-body">
-                Uploading a file on a completed session starts a fresh session.
-                Your current document is preserved — this will not modify it.
-              </p>
-            </template>
-            <div class="del-btns">
+            <div class="del-dialog-body">
+              <template v-if="forkConfirm.type === 'skill'">
+                <p class="del-title">Continue with {{ forkConfirm.flow?.name }}?</p>
+                <p class="del-body">
+                  Your approved document will be used as a starting reference.
+                  The full skill pipeline will run — discovery, research, review, and approval —
+                  producing a new document in a separate session.
+                </p>
+              </template>
+              <template v-else>
+                <p class="del-title">Start a new session with this file?</p>
+                <p class="del-body">
+                  Your current document is preserved. This file will be used as the basis
+                  for a new session and will not modify your existing work.
+                </p>
+              </template>
+            </div>
+            <div class="del-dialog-footer">
               <button class="del-cancel" @click="forkConfirm.show = false">Cancel</button>
-              <button class="del-confirm" style="background:var(--pri-h);border-color:var(--pri);color:#fff"
-                @click="executeFork">Continue →</button>
+              <button class="del-confirm" style="background:var(--pri);color:#fff"
+                @click="executeFork">Continue</button>
             </div>
           </div>
         </div>
@@ -641,10 +645,12 @@
     <transition name="fade">
       <div v-if="deleteConfirm.show" class="del-overlay" @click.self="deleteConfirm.show = false">
         <div class="del-dialog">
-          <p class="del-title">Delete conversation?</p>
-          <p class="del-body">"{{ deleteConfirm.title }}"</p>
-          <p class="del-warn">This cannot be undone.</p>
-          <div class="del-btns">
+          <div class="del-dialog-body">
+            <p class="del-title">Delete conversation?</p>
+            <p class="del-body">"{{ deleteConfirm.title }}"</p>
+            <p class="del-warn">This cannot be undone.</p>
+          </div>
+          <div class="del-dialog-footer">
             <button class="del-cancel" @click="deleteConfirm.show = false">Cancel</button>
             <button class="del-confirm" @click="executeDelete">Delete</button>
           </div>
@@ -1416,30 +1422,43 @@ function doPDF() {
 /* ═══════════════════ DELETE CONFIRMATION ══════════════════ */
 .del-overlay {
   position: absolute; inset: 0; z-index: 100;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(3px);
+  padding: 24px;
 }
 .del-dialog {
   background: var(--surf); border: 1px solid var(--bdr);
-  border-radius: 14px; padding: 24px 28px;
-  width: 340px; max-width: 90%;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  border-radius: 16px;
+  width: 400px; max-width: 100%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+  overflow: hidden;
 }
-.del-title { font-size: 16px; font-weight: 700; color: var(--tx); margin: 0 0 8px; }
-.del-body  { font-size: 14px; color: var(--tx); margin: 0 0 6px; line-height: 1.5; }
-.del-warn  { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+.del-dialog-body {
+  padding: 28px 28px 24px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.del-dialog-footer {
+  padding: 16px 28px;
+  border-top: 1px solid var(--bdr);
+  background: var(--inp);
+  display: flex; gap: 10px; justify-content: flex-end;
+}
+.del-title { font-size: 17px; font-weight: 700; color: var(--tx); margin: 0; line-height: 1.3; }
+.del-body  { font-size: 14px; color: var(--muted); margin: 0; line-height: 1.6; }
+.del-warn  { font-size: 13px; color: var(--muted); margin: 0; }
 .del-btns  { display: flex; gap: 10px; justify-content: flex-end; }
 .del-cancel {
-  padding: 8px 18px; border: 1px solid var(--bdr);
-  border-radius: 8px; background: transparent; color: var(--tx);
-  font-size: 14px; cursor: pointer; transition: background .12s;
+  padding: 9px 20px; border: 1px solid var(--bdr);
+  border-radius: 9px; background: transparent; color: var(--tx);
+  font-size: 14px; font-weight: 500; cursor: pointer; transition: background .12s;
 }
-.del-cancel:hover { background: var(--surf2); }
+.del-cancel:hover { background: var(--hover); }
 .del-confirm {
-  padding: 8px 18px; border: none;
-  border-radius: 8px; background: #dc2626; color: #fff;
-  font-size: 14px; font-weight: 600; cursor: pointer; transition: background .12s;
+  padding: 9px 20px; border: none;
+  border-radius: 9px; background: #dc2626; color: #fff;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background .12s, opacity .12s;
 }
 .del-confirm:hover { background: #b91c1c; }
 .fade-enter-active, .fade-leave-active { transition: opacity .2s; }
