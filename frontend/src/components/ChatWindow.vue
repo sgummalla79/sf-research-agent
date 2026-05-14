@@ -1870,7 +1870,7 @@ function doPDF() {
 .retry-btn:hover{opacity:1}
 .banner.ok{background:#dcfce7;color:#166534}.banner.warn{background:#fef3c7;color:#92400e}.banner.err{background:#fee2e2;color:#991b1b}
 .dark .banner.ok{background:#052e16;color:#86efac}.dark .banner.warn{background:#1c1400;color:#fcd34d}.dark .banner.err{background:#1f0000;color:#fca5a5}
-.banner.provider-conflict{background:#fff7ed;color:#7c2d12;flex-direction:row;align-items:center;gap:8px;padding:10px 20px;flex-wrap:wrap}
+.banner.provider-conflict{background:#fff7ed;color:#7c2d12;flex-direction:row;align-items:center;justify-content:flex-start;gap:8px;padding:10px 20px;flex-wrap:wrap}
 .dark .banner.provider-conflict{background:#1c0f00;color:#fdba74}
 .pc-icon{font-size:15px;flex-shrink:0;line-height:1}
 .pc-text{flex:1;font-size:13px;line-height:1.4;min-width:0}
