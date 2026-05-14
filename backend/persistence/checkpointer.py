@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
     last_modified  TEXT,
     pinned         INTEGER DEFAULT 0,
     pinned_at      TEXT,
-    session_type   TEXT DEFAULT 'agent_flow',
+    session_type   TEXT DEFAULT 'chat',
     chat_model     TEXT,
     chat_provider  TEXT DEFAULT 'anthropic'
 );
@@ -62,12 +62,12 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON agent_sessions(user_id);
 # Additive migration — safely adds new columns to existing installs without wiping data.
 # These are idempotent: PostgreSQL uses IF NOT EXISTS; SQLite errors are caught below.
 _ADD_SESSION_COLUMNS_PG = [
-    "ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS session_type  TEXT DEFAULT 'agent_flow'",
+    "ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS session_type  TEXT DEFAULT 'chat'",
     "ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS chat_model    TEXT",
     "ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS chat_provider TEXT DEFAULT 'anthropic'",
 ]
 _ADD_SESSION_COLUMNS_SL = [
-    "ALTER TABLE agent_sessions ADD COLUMN session_type  TEXT DEFAULT 'agent_flow'",
+    "ALTER TABLE agent_sessions ADD COLUMN session_type  TEXT DEFAULT 'chat'",
     "ALTER TABLE agent_sessions ADD COLUMN chat_model    TEXT",
     "ALTER TABLE agent_sessions ADD COLUMN chat_provider TEXT DEFAULT 'anthropic'",
 ]
@@ -429,7 +429,7 @@ class DBContext:
                 "last_modified": r[3],
                 "pinned":        bool(r[4]),
                 "pinned_at":     r[5],
-                "session_type":  r[6] or "agent_flow",
+                "session_type":  r[6] or "chat",
                 "chat_model":    r[7],
                 "chat_provider": r[8] or "anthropic",
             }

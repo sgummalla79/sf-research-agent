@@ -560,7 +560,7 @@ async def restore_session(session_id: str, request: Request, current_user: AuthU
         f"SELECT session_type, chat_model, chat_provider FROM agent_sessions WHERE thread_id = {db._p()}",
         (session_id,),
     )
-    session_type  = (session_row[0] if session_row else None) or "agent_flow"
+    session_type  = (session_row[0] if session_row else None) or "chat"
     session_model = session_row[1] if session_row else None
     session_prov  = (session_row[2] if session_row else None) or "anthropic"
     if not state.next:
