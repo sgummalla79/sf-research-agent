@@ -494,6 +494,21 @@
             <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             {{ isDark ? 'Light mode' : 'Dark mode' }}
           </button>
+          <!-- Theme colour swatches -->
+          <div class="um-theme-row">
+            <button
+              v-for="t in THEMES" :key="t.id"
+              class="um-swatch"
+              :class="{ active: activeThemeId === t.id }"
+              :style="{ background: isDark ? t.dark : t.light }"
+              :title="t.label"
+              @click.stop="saveTheme(t.id, isDark)"
+            >
+              <svg v-if="activeThemeId === t.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" width="10" height="10">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+          </div>
           <div class="um-divider"></div>
           <div class="um-about-row">
             <span class="um-about-app">Pragna</span>
@@ -669,8 +684,9 @@ import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { marked } from 'marked'
 import { useAgentChat } from '../composables/useAgentChat.js'
-import { useAuth } from '../composables/useAuth.js'
-import { apiFetch } from '../composables/useFetch.js'
+import { useAuth }      from '../composables/useAuth.js'
+import { apiFetch }     from '../composables/useFetch.js'
+import { useTheme, THEMES } from '../composables/useTheme.js'
 import SettingsPage from './SettingsPage.vue'
 import ConfigurationPage from './ConfigurationPage.vue'
 import ChatInput from './ChatInput.vue'
@@ -809,6 +825,7 @@ async function saveRename(threadId) {
 }
 
 const isDark          = ref(true)
+const { activeThemeId, applyTheme, loadTheme, saveTheme } = useTheme()
 const userMenuOpen             = ref(false)
 const completionBannerDismissed = ref(false)
 const settingsOpen    = ref(false)
@@ -990,8 +1007,12 @@ onMounted(() => {
   fetchKeyStatus()
   fetchFlows()
   fetchAbout()
+  loadTheme(isDark.value)
   document.addEventListener('click', () => { userMenuOpen.value = false; menuOpenId.value = null })
 })
+
+// Re-apply theme when dark/light mode toggles
+watch(isDark, (dark) => applyTheme(activeThemeId.value, dark))
 
 // Re-fetch flows when returning to chat so newly installed skills appear immediately
 watch(appView, (view) => { if (view === 'chat') fetchFlows() })
@@ -1640,6 +1661,20 @@ function doPDF() {
 .um-item:hover { background: var(--sb-hover); }
 .um-signout { color: #f87171; }
 .um-signout:hover { background: rgba(239,68,68,.15); }
+.um-theme-row {
+  display: flex; gap: 8px; padding: 6px 10px 8px;
+}
+.um-swatch {
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 2.5px solid transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: transform .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.um-swatch:hover  { transform: scale(1.15); }
+.um-swatch.active { border-color: var(--sb-tx); }
+.um-swatch svg    { stroke: rgba(255,255,255,0.9); }
+
 .um-about-row {
   display: flex; align-items: center; justify-content: space-between;
   padding: 6px 10px; gap: 8px;

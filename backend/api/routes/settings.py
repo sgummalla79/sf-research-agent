@@ -117,3 +117,35 @@ async def save_agent_config_route(
     populate_agent_config(payload.config)
 
     return {"saved": True, "config": get_agent_config()}
+
+
+# ── Theme ─────────────────────────────────────────────────────────────────────
+
+_VALID_THEMES = {"default", "blue", "green", "purple", "red", "mono"}
+
+
+class ThemePayload(BaseModel):
+    theme: str = "default"
+
+
+@router.get("/theme")
+async def get_theme(
+    request: Request,
+    current_user: AuthUser = Depends(get_current_user),
+) -> dict:
+    db    = request.app.state.db
+    value = await db.get_config(current_user.sub, "theme_color")
+    return {"theme": value or "default"}
+
+
+@router.post("/theme")
+async def save_theme(
+    payload: ThemePayload,
+    request: Request,
+    current_user: AuthUser = Depends(get_current_user),
+) -> dict:
+    if payload.theme not in _VALID_THEMES:
+        raise HTTPException(status_code=422, detail=f"Unknown theme: {payload.theme!r}")
+    db = request.app.state.db
+    await db.save_config(current_user.sub, "theme_color", payload.theme)
+    return {"saved": True, "theme": payload.theme}
