@@ -1,0 +1,160 @@
+"""
+Agent prompt versioning routes.
+
+GET    /api/skills/{skill_id}/agents                      — all agents + versions
+PUT    /api/skills/{skill_id}/agents/{agent_key}/draft    — save/update draft
+DELETE /api/skills/{skill_id}/agents/{agent_key}/draft    — discard draft
+POST   /api/skills/{skill_id}/agents/{agent_key}/publish  — per-agent publish
+POST   /api/skills/{skill_id}/publish                     — publish ALL drafts
+"""
+
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+
+from utils.auth import AuthUser, get_current_user
+
+log    = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/skills")
+
+
+class SaveDraftRequest(BaseModel):
+    content: str
+
+
+@router.get("/{skill_id}/agents")
+async def list_agents(
+    skill_id:     str,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    db    = request.app.state.db
+    skill = await db.skills.get_by_key(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
+
+    skill_registry = request.app.state.skill_registry
+    manifest       = skill_registry.get(skill_id).manifest if skill_id in skill_registry else None
+    slot_map       = manifest.agent_slot_map if manifest else {}
+
+    agents     = await db.agents.get_by_skill(skill.id)
+    user_agents = await db.user_agents.get_for_skill(current_user.sub, skill.id)
+    ua_by_agent = {ua.agent_id: ua for ua in user_agents}
+
+    result = []
+    for agent in agents:
+        ua       = ua_by_agent.get(agent.id)
+        history  = await db.user_agents.get_version_history(current_user.sub, agent.id) if ua else []
+        published = next((v for v in history if v.status == "published" and (ua and v.version == ua.current_version)), None)
+        draft     = next((v for v in history if v.status == "draft"), None)
+
+        result.append({
+            "agent_key":        agent.agent_key,
+            "label":            agent.label,
+            "slot":             slot_map.get(agent.agent_key),
+            "provider_to_use":  ua.provider_to_use if ua else None,
+            "model_to_use":     ua.model_to_use    if ua else None,
+            "current_version":  ua.current_version if ua else None,
+            "published":        {
+                "version":      published.version,
+                "content":      published.content,
+                "published_at": published.published_at,
+            } if published else None,
+            "draft": {
+                "version":    draft.version,
+                "content":    draft.content,
+                "created_at": draft.created_at,
+            } if draft else None,
+            "has_draft": draft is not None,
+        })
+
+    has_draft = any(a["has_draft"] for a in result)
+    return {"skill_id": skill_id, "agents": result, "has_draft": has_draft}
+
+
+@router.put("/{skill_id}/agents/{agent_key}/draft")
+async def save_draft(
+    skill_id:     str,
+    agent_key:    str,
+    body:         SaveDraftRequest,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    db    = request.app.state.db
+    skill = await db.skills.get_by_key(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
+
+    agent = await db.agents.get_by_key(skill.id, agent_key)
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found.")
+
+    version = await db.user_agents.save_draft(current_user.sub, agent.id, body.content)
+    return {"ok": True, "agent_key": agent_key, "version": version.version}
+
+
+@router.delete("/{skill_id}/agents/{agent_key}/draft")
+async def discard_draft(
+    skill_id:     str,
+    agent_key:    str,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    db    = request.app.state.db
+    skill = await db.skills.get_by_key(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
+    agent = await db.agents.get_by_key(skill.id, agent_key)
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found.")
+
+    await db.user_agents.discard_draft(current_user.sub, agent.id)
+    return {"ok": True}
+
+
+@router.post("/{skill_id}/agents/{agent_key}/publish")
+async def publish_agent(
+    skill_id:     str,
+    agent_key:    str,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    db    = request.app.state.db
+    skill = await db.skills.get_by_key(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
+    agent = await db.agents.get_by_key(skill.id, agent_key)
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found.")
+
+    try:
+        version = await db.user_agents.publish(current_user.sub, agent.id)
+        return {"ok": True, "agent_key": agent_key, "version": version.version}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/{skill_id}/publish")
+async def publish_all(
+    skill_id:     str,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """Publish all drafts for a skill atomically."""
+    db    = request.app.state.db
+    skill = await db.skills.get_by_key(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
+
+    published = await db.user_agents.publish_all(current_user.sub, skill.id)
+    if not published:
+        raise HTTPException(status_code=400, detail="No unpublished drafts to publish.")
+
+    return {
+        "ok":               True,
+        "skill_id":         skill_id,
+        "published_agents": [v.user_agent_id for v in published],
+        "count":            len(published),
+    }
