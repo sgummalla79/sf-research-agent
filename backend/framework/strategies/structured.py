@@ -19,7 +19,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from framework.context import build_context
 from framework.strategies.base import ExecutionStrategy, StrategyRegistry
-from utils.llm_factory import get_llm_for_slot, slot_model
+from utils.llm_factory import get_llm_for_agent, agent_model
 from utils.llm_retry import invoke_with_retry
 from utils.pricing import usage_record
 
@@ -66,7 +66,7 @@ class StructuredStrategy(ExecutionStrategy):
 
         def node(state: "AgentState") -> dict:
             llm = (
-                get_llm_for_slot(stage.llm_slot, state.session_agent_config)
+                get_llm_for_agent(stage.agent_key, state.session_agent_config)
                 .with_structured_output(schema_cls, include_raw=True)
             )
             system_prompt = state.flow_config.get(stage.agent_key, "")
@@ -79,7 +79,7 @@ class StructuredStrategy(ExecutionStrategy):
             result  = raw["parsed"]
             urec    = usage_record(
                 stage.id,
-                slot_model(stage.llm_slot, state.session_agent_config),
+                agent_model(stage.agent_key, state.session_agent_config),
                 getattr(raw.get("raw"), "usage_metadata", None),
             )
             return _build_state_update(stage, state, result, urec)

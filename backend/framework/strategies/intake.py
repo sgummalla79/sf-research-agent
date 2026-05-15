@@ -23,7 +23,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel
 
 from framework.strategies.base import ExecutionStrategy, StrategyRegistry
-from utils.llm_factory import get_llm_for_slot, slot_model
+from utils.llm_factory import get_llm_for_agent, agent_model
 from utils.llm_retry import invoke_with_retry
 from utils.pricing import usage_record
 
@@ -165,7 +165,7 @@ def _extract_from_image(
     prompt    = state.flow_config.get(agent_key, "")
 
     llm = (
-        get_llm_for_slot(stage.llm_slot, state.session_agent_config)
+        get_llm_for_agent(stage.agent_key, state.session_agent_config)
         .with_structured_output(_ImageResult, include_raw=True)
     )
     raw    = invoke_with_retry(llm, [
@@ -178,7 +178,7 @@ def _extract_from_image(
     result: _ImageResult = raw["parsed"]
     urec = usage_record(
         stage.id,
-        slot_model(stage.llm_slot, state.session_agent_config),
+        agent_model(stage.agent_key, state.session_agent_config),
         getattr(raw.get("raw"), "usage_metadata", None),
     )
     if not result.is_architecture_related:
@@ -193,7 +193,7 @@ def _extract_from_document(
 ) -> tuple[str, dict, str]:
     agent_key = agent_map.get("document", "intake-document")
     prompt    = state.flow_config.get(agent_key, "")
-    llm       = get_llm_for_slot(stage.llm_slot, state.session_agent_config)
+    llm       = get_llm_for_agent(stage.agent_key, state.session_agent_config)
 
     response = invoke_with_retry(llm, [
         SystemMessage(content=prompt),
@@ -206,7 +206,7 @@ def _extract_from_document(
     ])
     urec = usage_record(
         stage.id,
-        slot_model(stage.llm_slot, state.session_agent_config),
+        agent_model(stage.agent_key, state.session_agent_config),
         getattr(response, "usage_metadata", None),
     )
     return response.content, urec, ""

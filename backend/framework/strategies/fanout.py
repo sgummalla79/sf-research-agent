@@ -18,7 +18,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from framework.context import build_context
 from framework.strategies.base import ExecutionStrategy, StrategyRegistry
-from utils.llm_factory import get_llm_for_slot, slot_model
+from utils.llm_factory import get_llm_for_agent, agent_model
 from utils.llm_retry import invoke_with_retry
 from utils.pricing import usage_record
 
@@ -66,10 +66,10 @@ class FanoutStrategy(ExecutionStrategy):
             # keyed by session_id that _stream_graph populates before streaming starts.
             # This is the only mechanism guaranteed to survive LangGraph's internal
             # asyncio.create_task(context=...) boundaries and nested ThreadPoolExecutor threads.
-            from utils.user_context import get_session_keys, get_session_mode, set_user_context
-            _sid           = state.session_id
-            _captured_keys = get_session_keys(_sid)
-            _captured_mode = get_session_mode(_sid)
+            from utils.user_context import get_execution_keys, get_execution_mode, set_user_context
+            _eid           = state.execution_id
+            _captured_keys = get_execution_keys(_eid)
+            _captured_mode = get_execution_mode(_eid)
 
             # ── Step 1: run all branches in parallel ──────────────────────────
             branch_outputs: list[tuple[str, str, dict]] = []  # (label, text, urec)
@@ -78,7 +78,7 @@ class FanoutStrategy(ExecutionStrategy):
                 # Re-establish user context at the start of each thread so get_user_key works.
                 if _captured_keys:
                     set_user_context(_captured_keys, _captured_mode)
-                llm      = get_llm_for_slot(branch.llm_slot, state.session_agent_config)
+                llm      = get_llm_for_agent(branch.agent, state.session_agent_config)
                 prompt   = state.flow_config.get(branch.agent, "")
                 response = invoke_with_retry(llm, [
                     SystemMessage(content=prompt),
@@ -86,7 +86,7 @@ class FanoutStrategy(ExecutionStrategy):
                 ])
                 urec = usage_record(
                     stage.id,
-                    slot_model(branch.llm_slot, state.session_agent_config),
+                    agent_model(branch.agent, state.session_agent_config),
                     getattr(response, "usage_metadata", None),
                 )
                 return branch.agent, response.content, urec
@@ -99,7 +99,7 @@ class FanoutStrategy(ExecutionStrategy):
 
             # ── Step 2: merge writer synthesises all branch outputs ───────────
             merge      = stage.merge
-            merge_llm  = get_llm_for_slot(merge.llm_slot, state.session_agent_config)
+            merge_llm  = get_llm_for_agent(merge.agent, state.session_agent_config)
             merge_prompt = state.flow_config.get(merge.agent, "")
 
             research_block = "\n\n---\n\n".join(
@@ -133,7 +133,7 @@ class FanoutStrategy(ExecutionStrategy):
             ])
             merge_urec = usage_record(
                 stage.id,
-                slot_model(merge.llm_slot, state.session_agent_config),
+                agent_model(merge.agent, state.session_agent_config),
                 getattr(merge_response, "usage_metadata", None),
             )
 

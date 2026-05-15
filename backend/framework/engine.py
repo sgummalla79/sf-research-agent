@@ -9,7 +9,7 @@ Responsibilities (S in SOLID):
 The engine does not know anything about:
   - Individual skill logic  (that's in skills/<id>/)
   - Execution patterns      (that's in strategies/)
-  - Prompt content          (that's in agents/*.md + the DB)
+  - Prompt content          (that's in the DB)
 
 Extending the engine:
   - New execution patterns: add a strategy, self-register on import.
@@ -46,13 +46,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# ── Chat node (built-in, not part of any skill's pipeline) ────────────────────
-from framework.chat import run_chat
-
 
 class SkillEngine:
     """
     Builds a compiled LangGraph StateGraph from a loaded skill definition.
+
+    Every graph starts at the first pipeline stage (intake).
+    Regular chat is handled outside LangGraph — no router or chat node needed.
 
     Usage:
         engine = SkillEngine()
@@ -60,72 +60,27 @@ class SkillEngine:
     """
 
     def __init__(self, registry: StrategyRegistry | None = None) -> None:
-        # Accept an injected registry for testing; use the global one by default.
         self._registry = registry or StrategyRegistry
 
     def build(self, skill: LoadedSkill, checkpointer) -> StateGraph:
-        """
-        Build and compile a LangGraph graph for the given skill.
-
-        The graph always includes:
-          - router      passthrough node; dispatches to chat or the skill pipeline
-          - chat        free-form chat node (no pipeline)
-          - <stage_id>  one node per stage in skill.manifest.pipeline
-        """
         graph = StateGraph(AgentState)
-
-        # ── Built-in nodes ────────────────────────────────────────────────────
-        graph.add_node("router", lambda s: s)   # passthrough
-        graph.add_node("chat",   run_chat)
 
         # ── Skill pipeline nodes ──────────────────────────────────────────────
         for stage_id, stage_cfg in skill.manifest.stages.items():
             strategy = self._registry.get(stage_cfg.execution)
             node_fn  = strategy.build_node(stage_cfg, skill)
             graph.add_node(stage_id, node_fn)
-            logger.debug(
-                "Registered node '%s' with strategy '%s'",
-                stage_id,
-                stage_cfg.execution,
-            )
+            logger.debug("Registered node '%s' with strategy '%s'", stage_id, stage_cfg.execution)
 
-        # ── Entry point and edges ─────────────────────────────────────────────
-        graph.set_entry_point("router")
-        self._add_entry_edges(graph, skill)
-        self._add_chat_edges(graph)
+        # ── Entry point: always the first pipeline stage ──────────────────────
+        first_stage = skill.manifest.pipeline[0]
+        graph.set_entry_point(first_stage)
+
         self._add_pipeline_edges(graph, skill)
 
         compiled = graph.compile(checkpointer=checkpointer)
-        logger.info(
-            "Graph compiled for skill '%s' — stages: %s",
-            skill.manifest.id,
-            skill.manifest.pipeline,
-        )
+        logger.info("Graph compiled for skill '%s' — stages: %s", skill.manifest.id, skill.manifest.pipeline)
         return compiled
-
-    # ── Edge builders ─────────────────────────────────────────────────────────
-
-    @staticmethod
-    def _add_entry_edges(graph: StateGraph, skill: LoadedSkill) -> None:
-        """Router dispatches to chat or the first pipeline stage."""
-        first_stage = skill.manifest.pipeline[0]
-
-        def route(state: AgentState) -> str:
-            return "chat" if state.session_type == "chat" else first_stage
-
-        graph.add_conditional_edges(
-            "router",
-            route,
-            {"chat": "chat", first_stage: first_stage},
-        )
-
-    @staticmethod
-    def _add_chat_edges(graph: StateGraph) -> None:
-        graph.add_conditional_edges(
-            "chat",
-            lambda _: "end",
-            {"end": END},
-        )
 
     def _add_pipeline_edges(self, graph: StateGraph, skill: LoadedSkill) -> None:
         pipeline = skill.manifest.pipeline
