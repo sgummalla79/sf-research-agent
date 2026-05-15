@@ -50,6 +50,7 @@ def _get(obj, key, default=None):
 
 class InvokeRequest(BaseModel):
     brief:               Optional[str] = ""
+    original_message:    Optional[str] = ""   # raw user text (with /skill tokens) — saved to DB
     source_type:         Optional[str] = "brief"   # brief | document | image
     uploaded_file_path:  Optional[str] = ""
     uploaded_image_path: Optional[str] = ""
@@ -304,13 +305,14 @@ async def invoke_skill(
 
     config = {"configurable": {"thread_id": execution_id}}
 
-    # Save user's brief as a message
-    if body.brief:
+    # Save user message — original text (with /skill tokens) if provided, else the brief
+    user_content = body.original_message or body.brief
+    if user_content:
         await db.messages.create(
             conversation_id = conversation_id,
             execution_id    = execution_id,
             role            = "user",
-            content         = body.brief,
+            content         = user_content,
             message_type    = "chat",
             message_state   = "visible",
         )

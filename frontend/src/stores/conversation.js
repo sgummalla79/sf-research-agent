@@ -288,6 +288,10 @@ export const useConversationStore = defineStore('conversation', () => {
 
   // ── Skill invocation ───────────────────────────────────────────────────────
 
+  function addLocalMessage(role, content) {
+    _addMessage(role, content, null, 'text')
+  }
+
   async function invokeSkill(skillId, brief = '', opts = {}) {
     error.value            = null
     providerConflict.value = null
@@ -316,7 +320,9 @@ export const useConversationStore = defineStore('conversation', () => {
     const addData          = await addRes.json()
     conversationSkillId.value = addData.conversation_skill_id
 
-    if (brief.trim()) _addMessage('user', brief)
+    // Show original message in UI (with /skill tokens); backend stores it too
+    const displayMsg = opts.originalMessage || brief
+    if (displayMsg.trim()) _addMessage('user', displayMsg)
 
     isPipelineRunning.value = true
     currentStage.value      = null
@@ -326,8 +332,9 @@ export const useConversationStore = defineStore('conversation', () => {
       {
         method: 'POST',
         body:   JSON.stringify({
-          brief:       brief,
-          source_type: opts.sourceType || 'brief',
+          brief:            brief,
+          original_message: opts.originalMessage || '',
+          source_type:      opts.sourceType || 'brief',
           uploaded_file_path:  opts.uploadedFilePath  || '',
           uploaded_image_path: opts.uploadedImagePath || '',
           raw_document_text:   opts.rawDocumentText   || '',
@@ -480,6 +487,7 @@ export const useConversationStore = defineStore('conversation', () => {
     hasActiveConversation, isInputLocked,
     // Actions
     reset,
+    addLocalMessage,
     sendMessage,
     invokeSkill,
     uploadAndInvoke,

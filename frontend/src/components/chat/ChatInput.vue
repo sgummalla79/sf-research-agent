@@ -33,14 +33,12 @@
 
       <!-- Textarea -->
       <textarea ref="taEl" v-model="text" class="cb-ta"
+        :class="{ 'cb-ta-skill': hasSkillToken }"
         :placeholder="effectivePlaceholder"
         :disabled="props.noProviders || props.isPipelineRunning"
         rows="2"
         @input="handleInput"
-        @keydown.enter.exact.prevent="canSend && handleSend()"
-        @keydown.meta.enter.prevent="canSend && handleSend()"
-        @keydown.ctrl.enter.prevent="canSend && handleSend()"
-        @keydown.esc="$emit('hide-palette')" />
+        @keydown="handleKeydown" />
 
       <!-- Bottom bar -->
       <div class="cb-bar">
@@ -154,7 +152,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useAppStore }  from '../../stores/app'
 import FlyoutMenu       from '../ui/FlyoutMenu.vue'
 
@@ -165,10 +163,11 @@ const props = defineProps({
   isStreaming:       { type: Boolean, default: false },
   noProviders:       { type: Boolean, default: false },
   isEmptyChat:       { type: Boolean, default: false },
+  paletteOpen:       { type: Boolean, default: false },
   placeholder:       { type: String,  default: 'Message or type / to use a skill…' },
 })
 
-const emit = defineEmits(['submit', 'upload', 'show-palette', 'hide-palette', 'open-settings', 'skill-select'])
+const emit = defineEmits(['submit', 'upload', 'show-palette', 'hide-palette', 'open-settings', 'skill-select', 'palette-move', 'palette-confirm', 'palette-space'])
 const app  = useAppStore()
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -195,6 +194,9 @@ const isDragging       = ref(false)
 const uploadError      = ref(null)
 const fileInputEl      = ref(null)
 const taEl             = ref(null)
+
+// Bold + theme color only when text is just the skill command (nothing typed after the space yet)
+const hasSkillToken = computed(() => /^\/\w[\w-]*\s*$/.test(text.value))
 
 const effectivePlaceholder = computed(() => {
   if (props.noProviders)       return ''
@@ -223,9 +225,36 @@ watch(() => selectedModel.value.provider, (provider) => {
 
 // ── Slash command — delegate palette to parent ────────────────────────────────
 function handleInput() {
-  if (text.value.startsWith('/')) {
-    emit('show-palette', text.value.slice(1))
+  const slashIdx = text.value.lastIndexOf('/')
+  if (slashIdx !== -1) {
+    const afterSlash = text.value.slice(slashIdx + 1)
+    if (afterSlash.includes(' ')) {
+      // Space typed — check if we should auto-select
+      const command = afterSlash.split(' ')[0]
+      if (command) emit('palette-space', command)
+      else emit('hide-palette')
+    } else {
+      emit('show-palette', afterSlash)
+    }
   } else {
+    emit('hide-palette')
+  }
+}
+
+function handleKeydown(e) {
+  if (props.paletteOpen) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); emit('palette-move', 'down'); return }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); emit('palette-move', 'up');   return }
+    if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault(); emit('palette-confirm'); return
+    }
+    if (e.key === 'Escape') { emit('hide-palette'); return }
+  }
+  if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
+    e.preventDefault(); canSend.value && handleSend()
+  } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    e.preventDefault(); canSend.value && handleSend()
+  } else if (e.key === 'Escape') {
     emit('hide-palette')
   }
 }
@@ -241,7 +270,20 @@ function clear() {
   taEl.value?.focus()
 }
 
-defineExpose({ clear })
+function setText(val) {
+  text.value = val
+  nextTick(() => taEl.value?.focus())
+}
+
+function setSkill(skillId) {
+  // Replace only the /query portion — keep any text the user typed before the slash
+  const slashIdx = text.value.lastIndexOf('/')
+  const before   = slashIdx !== -1 ? text.value.slice(0, slashIdx) : ''
+  text.value     = `${before}/${skillId} `
+  nextTick(() => taEl.value?.focus())
+}
+
+defineExpose({ clear, setText, setSkill })
 
 // ── File handling ─────────────────────────────────────────────────────────────
 const MAX_MB   = 10
@@ -343,6 +385,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   font-size: 15px; font-family: inherit; color: var(--tx); line-height: 1.55;
   padding: 2px; min-height: 44px; max-height: 220px;
 }
+.cb-ta-skill { color: var(--pri); font-weight: 700; }
 .cb-ta::placeholder { color: var(--muted); }
 .cb-ta:disabled { opacity: 0.4; cursor: not-allowed; }
 

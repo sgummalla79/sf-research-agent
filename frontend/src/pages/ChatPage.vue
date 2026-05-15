@@ -26,33 +26,41 @@
           <h1 class="greeting-text">{{ greeting }}{{ firstName ? ', ' + firstName : '' }}</h1>
         </div>
 
-        <Transition name="slide-up">
-          <div v-if="paletteVisible" class="cp-palette-wrap cp-palette-centered">
-            <SkillPalette
-              :skills="skills"
-              :query="paletteQuery"
-              @select="onSkillSelect"
-              @dismiss="hidePalette"
-            />
-          </div>
-        </Transition>
+        <!-- Input group: palette + input flush together -->
+        <div class="cp-input-group">
+          <Transition name="slide-up">
+            <div v-if="paletteVisible" class="cp-palette-wrap">
+              <SkillPalette
+                ref="skillPaletteRef"
+                :skills="skills"
+                :query="paletteQuery"
+                @select="onSkillSelect"
+                @dismiss="hidePalette"
+              />
+            </div>
+          </Transition>
 
-        <ChatInput
-          ref="chatInputRef"
-          :chat-models="chatModels"
-          :skills="skills"
-          :is-pipeline-running="false"
-          :is-streaming="conv.isStreaming"
-          :no-providers="noProviders"
-          :is-empty-chat="true"
-          placeholder="How can I help you today?"
-          @submit="onSubmit"
-          @upload="onUpload"
-          @show-palette="showPalette"
-          @hide-palette="hidePalette"
-          @open-settings="openSettings('providers')"
-          @skill-select="onSkillSelect"
-        />
+          <ChatInput
+            ref="chatInputRef"
+            :chat-models="chatModels"
+            :skills="skills"
+            :is-pipeline-running="false"
+            :is-streaming="conv.isStreaming"
+            :no-providers="noProviders"
+            :is-empty-chat="true"
+            :palette-open="paletteVisible"
+            placeholder="How can I help you today?"
+            @submit="onSubmit"
+            @upload="onUpload"
+            @show-palette="showPalette"
+            @hide-palette="hidePalette"
+            @open-settings="openSettings('providers')"
+            @skill-select="onSkillSelect"
+            @palette-move="onPaletteMove"
+            @palette-confirm="onPaletteConfirm"
+            @palette-space="onPaletteSpace"
+          />
+        </div>
       </div>
 
       <!-- ── ACTIVE STATE — messages + bottom input ────────────────────────── -->
@@ -108,6 +116,7 @@
           <Transition name="slide-up">
             <div v-if="paletteVisible" class="cp-palette-wrap">
               <SkillPalette
+                ref="skillPaletteRef"
                 :skills="skills"
                 :query="paletteQuery"
                 @select="onSkillSelect"
@@ -124,6 +133,7 @@
             :is-pipeline-running="false"
             :is-streaming="conv.isStreaming"
             :no-providers="noProviders"
+            :palette-open="paletteVisible"
             placeholder="How can I help you today?"
             @submit="onSubmit"
             @upload="onUpload"
@@ -131,6 +141,9 @@
             @hide-palette="hidePalette"
             @open-settings="openSettings('providers')"
             @skill-select="onSkillSelect"
+            @palette-move="onPaletteMove"
+            @palette-confirm="onPaletteConfirm"
+            @palette-space="onPaletteSpace"
             />
         </div>
 
@@ -167,7 +180,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { marked } from 'marked'
 
 import { useConversationStore } from '../stores/conversation'
@@ -371,29 +384,130 @@ function renderMd(text) {
 }
 
 // ── Skill palette ──────────────────────────────────────────────────────────────
-const paletteVisible = ref(false)
-const paletteQuery   = ref('')
+const paletteVisible  = ref(false)
+const paletteQuery    = ref('')
+const skillPaletteRef = ref(null)
+
+// Auto-close palette when query matches no skills
+watch(paletteQuery, (q) => {
+  if (!paletteVisible.value) return
+  const matched = skills.value.filter(s =>
+    !q || s.name.toLowerCase().includes(q.toLowerCase()) || s.id.toLowerCase().includes(q.toLowerCase())
+  )
+  if (matched.length === 0) hidePalette()
+})
 const chatInputRef   = ref(null)
 
 function showPalette(query) { paletteQuery.value = query; paletteVisible.value = true }
 function hidePalette()      { paletteVisible.value = false; paletteQuery.value = '' }
 
-async function onSkillSelect(skillId) {
-  hidePalette()
-  chatInputRef.value?.clear()
-  activeSkillId.value             = skillId
+function onPaletteMove(dir) {
+  if (dir === 'down') skillPaletteRef.value?.navigateDown()
+  else                skillPaletteRef.value?.navigateUp()
+}
 
+function onPaletteConfirm() {
+  skillPaletteRef.value?.selectActive()
+}
+
+function onPaletteSpace(command) {
+  const filtered = skillPaletteRef.value?.filtered ?? []
+  if (filtered.length === 1) {
+    hidePalette()
+    chatInputRef.value?.setSkill(filtered[0].id)
+  } else {
+    hidePalette()
+  }
+}
+
+function onSkillSelect(skillId) {
+  hidePalette()
+  chatInputRef.value?.setSkill(skillId)
+}
+
+// ── Skill token parsing ────────────────────────────────────────────────────────
+const pendingSkillSelection = ref(null) // { skills, brief } when multiple skills found
+
+function parseSkillTokens(text) {
+  const matches = [...text.matchAll(/\/(\w[\w-]*)/g)]
+  const found   = matches
+    .map(m => skills.value.find(s => s.id === m[1].toLowerCase()))
+    .filter(Boolean)
+  return [...new Map(found.map(s => [s.id, s])).values()]  // distinct by id
+}
+
+function buildBrief(text) {
+  return text.replace(/\/\w[\w-]*/g, '').replace(/\s+/g, ' ').trim()
+}
+
+async function runSkill(skillId, originalText, brief, opts) {
+  activeSkillId.value = skillId
   conv.reset()
   sidebar.load()
-  await conv.invokeSkill(skillId, '')
+  await conv.invokeSkill(skillId, brief, {
+    chatProvider:    opts.provider,
+    chatModel:       opts.model,
+    originalMessage: originalText,
+  })
   sidebar.load()
 }
 
 // ── Chat input events ──────────────────────────────────────────────────────────
 async function onSubmit(text, opts) {
   hidePalette()
-  await conv.sendMessage(text, { chatProvider: opts.provider, chatModel: opts.model })
-  sidebar.load()
+
+  // Resolve pending multi-skill selection
+  if (pendingSkillSelection.value) {
+    await resolvePendingSelection(text, opts)
+    return
+  }
+
+  const foundSkills = parseSkillTokens(text)
+
+  if (foundSkills.length === 1) {
+    await runSkill(foundSkills[0].id, text, buildBrief(text), opts)
+  } else if (foundSkills.length > 1) {
+    await promptSkillSelection(foundSkills, text, opts)
+  } else {
+    await conv.sendMessage(text, { chatProvider: opts.provider, chatModel: opts.model })
+    sidebar.load()
+  }
+}
+
+async function promptSkillSelection(foundSkills, originalText, opts) {
+  const brief = buildBrief(originalText)
+  // Add user message and assistant prompt locally
+  conv.addLocalMessage('user', originalText)
+  const skillLines = foundSkills.map((s, i) =>
+    `**${i + 1}. /${s.id}** — ${s.name}\n${s.description || ''}`
+  ).join('\n\n')
+  conv.addLocalMessage('agent',
+    `I found ${foundSkills.length} skills in your message:\n\n${skillLines}\n\nWhich one would you like to run? (or say "none" to just chat)`
+  )
+  pendingSkillSelection.value = { skills: foundSkills, brief, originalText }
+}
+
+async function resolvePendingSelection(text, opts) {
+  const { skills: pendingSkills, brief, originalText } = pendingSkillSelection.value
+  pendingSkillSelection.value = null
+
+  const res  = await apiFetch('/api/skills/classify-choice', {
+    method: 'POST',
+    body:   JSON.stringify({
+      response: text,
+      skills:   pendingSkills.map(s => ({ id: s.id, name: s.name, description: s.description || '' })),
+    }),
+  })
+  const { skill_id } = await res.json()
+
+  conv.addLocalMessage('user', text)
+
+  if (skill_id && skill_id !== 'none') {
+    await runSkill(skill_id, originalText, brief, opts)
+  } else {
+    await conv.sendMessage(text, { chatProvider: opts.provider, chatModel: opts.model })
+    sidebar.load()
+  }
 }
 
 async function onUpload(file, opts) {
@@ -484,11 +598,15 @@ onMounted(async () => {
   flex: 1;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  padding: 0 20px 80px;   /* shift slightly above true center */
+  padding: 0 20px 80px;
   gap: 32px;
 }
-.cp-centered > :deep(.ci-outer) { width: 100%; max-width: 720px; }
-.cp-palette-centered { width: 100%; max-width: 720px; }
+
+/* Input group: palette floats above input as overlay */
+.cp-input-group {
+  width: 100%; max-width: 720px;
+  position: relative;
+}
 
 .greeting-row  { display: flex; align-items: center; gap: 18px; }
 .greeting-text {
@@ -540,9 +658,15 @@ html.dark .banner.provider-conflict { background: #1c0f00; color: #fdba74; }
   flex-shrink: 0;
   display: flex; flex-direction: column;
   max-width: 720px; width: 100%; margin: 0 auto;
+  position: relative;
 }
 .cp-interrupt    { margin: 0 0 8px; }
-.cp-palette-wrap { position: relative; margin: 0 0 6px; }
+
+/* Palette floats above input — left edge aligns with chat box (ci-outer has 20px padding) */
+.cp-palette-wrap {
+  position: absolute; bottom: calc(100% + 4px); left: 20px;
+  z-index: 500;
+}
 
 /* ── Transitions ── */
 .slide-up-enter-active, .slide-up-leave-active { transition: opacity .15s, transform .15s; }

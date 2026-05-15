@@ -7,7 +7,9 @@ DELETE /api/skills/{id}      — uninstall a skill
 """
 
 import logging
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
 
 from utils.auth import AuthUser, get_current_user
 
@@ -77,3 +79,49 @@ async def uninstall_skill(
 
     await db.user_skills.uninstall(current_user.sub, skill.id)
     return {"ok": True, "skill": skill_id}
+
+
+# ── Skill choice classification ───────────────────────────────────────────────
+
+class SkillChoiceItem(BaseModel):
+    id:          str
+    name:        str
+    description: Optional[str] = ""
+
+class ClassifyChoiceRequest(BaseModel):
+    response: str
+    skills:   list[SkillChoiceItem]
+
+
+@router.post("/classify-choice")
+async def classify_skill_choice(
+    body:         ClassifyChoiceRequest,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """Use the cheapest available LLM to classify which skill the user chose."""
+    from utils.user_context import connected_providers
+    from framework.defaults import smart_pick
+    from utils.llm_factory import build_llm
+    from langchain_core.messages import SystemMessage, HumanMessage
+
+    connected = connected_providers()
+    try:
+        pick = smart_pick("default", connected)
+        llm  = build_llm(pick["provider"], pick["model"])
+    except ValueError:
+        return {"skill_id": "none"}
+
+    skill_lines = "\n".join(f'- {s.id}: {s.name}' for s in body.skills)
+    valid_ids   = {s.id for s in body.skills} | {"none"}
+
+    result = await llm.ainvoke([
+        SystemMessage(content=(
+            f"The user was asked to choose a skill to run. Options:\n{skill_lines}\n- none\n\n"
+            "Reply with ONLY the exact skill_id or 'none'. No punctuation, no explanation."
+        )),
+        HumanMessage(content=body.response),
+    ])
+
+    chosen = result.content.strip().lower().split()[0] if result.content.strip() else "none"
+    return {"skill_id": chosen if chosen in valid_ids else "none"}
