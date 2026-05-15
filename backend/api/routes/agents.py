@@ -1,11 +1,12 @@
 """
 Agent prompt versioning routes.
 
-GET    /api/skills/{skill_id}/agents                      — all agents + versions
-PUT    /api/skills/{skill_id}/agents/{agent_key}/draft    — save/update draft
-DELETE /api/skills/{skill_id}/agents/{agent_key}/draft    — discard draft
-POST   /api/skills/{skill_id}/agents/{agent_key}/publish  — per-agent publish
-POST   /api/skills/{skill_id}/publish                     — publish ALL drafts
+GET    /api/skills/{skill_id}/agents                         — all agents + versions
+PUT    /api/skills/{skill_id}/agents/{agent_key}/draft       — save/update draft
+DELETE /api/skills/{skill_id}/agents/{agent_key}/draft       — discard draft
+POST   /api/skills/{skill_id}/agents/{agent_key}/publish     — per-agent publish
+POST   /api/skills/{skill_id}/publish                        — publish ALL drafts
+PATCH  /api/skills/{skill_id}/agents/{agent_key}/model       — update default model
 """
 
 import logging
@@ -158,3 +159,33 @@ async def publish_all(
         "published_agents": [v.user_agent_id for v in published],
         "count":            len(published),
     }
+
+
+# ── Per-agent default model config ───────────────────────────────────────────
+
+class UpdateModelRequest(BaseModel):
+    provider: Optional[str] = None
+    model:    Optional[str] = None
+
+
+@router.patch("/{skill_id}/agents/{agent_key}/model")
+async def update_agent_model(
+    skill_id:     str,
+    agent_key:    str,
+    body:         UpdateModelRequest,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """Update the user's default provider/model for a specific agent."""
+    db    = request.app.state.db
+    skill = await db.skills.get_by_key(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
+    agent = await db.agents.get_by_key(skill.id, agent_key)
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found.")
+
+    await db.user_agents.update_model(
+        current_user.sub, agent.id, body.provider, body.model
+    )
+    return {"ok": True, "agent_key": agent_key, "provider": body.provider, "model": body.model}

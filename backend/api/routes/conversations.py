@@ -83,19 +83,26 @@ async def list_conversations(
 ):
     db    = request.app.state.db
     convs = await db.conversations.list_for_user(current_user.sub)
-    return {
-        "conversations": [
-            {
-                "id":            c.id,
-                "title":         c.title,
-                "chat_provider": c.chat_provider,
-                "chat_model":    c.chat_model,
-                "created_at":    c.created_at,
-                "last_modified": c.last_modified,
-            }
-            for c in convs
-        ]
-    }
+
+    def _fmt(c):
+        return {
+            "id":            c.id,
+            "title":         c.title,
+            "chat_provider": c.chat_provider,
+            "chat_model":    c.chat_model,
+            "created_at":    c.created_at,
+            "last_modified": c.last_modified,
+            "pinned":        c.pinned,
+            "pinned_at":     c.pinned_at,
+        }
+
+    pinned = sorted(
+        [_fmt(c) for c in convs if c.pinned],
+        key=lambda x: x["pinned_at"] or "",
+        reverse=True,
+    )
+    recent = [_fmt(c) for c in convs if not c.pinned]
+    return {"pinned": pinned, "recent": recent}
 
 
 @router.get("/{conversation_id}")
@@ -360,3 +367,33 @@ async def update_skill_config(
         )
 
     return {"ok": True, "updated": len(body.agents)}
+
+
+# ── Pin / unpin ───────────────────────────────────────────────────────────────
+
+@router.post("/{conversation_id}/pin")
+async def pin_conversation(
+    conversation_id: str,
+    request:         Request,
+    current_user:    AuthUser = Depends(get_current_user),
+):
+    db   = request.app.state.db
+    conv = await db.conversations.get_by_id(conversation_id)
+    if not conv or conv.user_id != current_user.sub:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    await db.conversations.pin(conversation_id)
+    return {"ok": True}
+
+
+@router.delete("/{conversation_id}/pin")
+async def unpin_conversation(
+    conversation_id: str,
+    request:         Request,
+    current_user:    AuthUser = Depends(get_current_user),
+):
+    db   = request.app.state.db
+    conv = await db.conversations.get_by_id(conversation_id)
+    if not conv or conv.user_id != current_user.sub:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    await db.conversations.unpin(conversation_id)
+    return {"ok": True}
