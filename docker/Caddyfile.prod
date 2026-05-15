@@ -1,0 +1,20 @@
+your-domain.com {
+    # Reverse proxy API (SSE requires buffering off + long timeout)
+    handle /api/* {
+        reverse_proxy api:8000 {
+            flush_interval -1
+            transport http {
+                read_timeout 300s
+            }
+        }
+    }
+
+    handle /auth/* {
+        reverse_proxy api:8000
+    }
+
+    # Serve the Vue SPA
+    handle {
+        reverse_proxy ui:80
+    }
+}
