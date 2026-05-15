@@ -16,6 +16,18 @@ async def pool():
     url = os.getenv("TEST_DATABASE_URL", "postgresql://pragna:pragna@localhost:5432/pragna_test")
     async with AsyncConnectionPool(url, min_size=1, max_size=2, kwargs={"autocommit": True}, open=False) as p:
         await p.open(wait=True)
+        # Truncate all application tables before each test for clean state
+        async with p.connection() as conn:
+            await conn.execute("""
+                TRUNCATE TABLE
+                    token_usage, conversation_artifacts, conversation_messages,
+                    conversation_skill_execution_stages, conversation_skill_executions,
+                    conversation_skill_agents, conversation_skills, conversations,
+                    user_agents_versions, user_agents, user_skills,
+                    user_api_keys, user_config, users,
+                    agents, skills
+                CASCADE
+            """)
         yield p
 
 
