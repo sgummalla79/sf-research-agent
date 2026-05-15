@@ -728,17 +728,20 @@ Design decision already made: deployment concern, not server startup. Actual too
 
 ---
 
-### P8. ~~Skill invocation UX~~ ✅ Resolved (backend)
+### P8. ~~Skill invocation UX~~ ✅ Resolved
 
-Resolved by the invocation endpoint design: `POST /conversation/{conversation_id}/skill/{skill_id}/invoke`. The `skill_id` is explicit in the URL — the frontend knows which skill to invoke before calling the backend. This is a frontend UI decision (buttons/cards per skill in the conversation), not a LangGraph interrupt. Backend design is complete.
+User types `/` in the chat input → a command palette panel appears above the input showing all skills added to this conversation (icon + name + description, type to filter — same pattern as Slack slash commands). User selects a skill → frontend calls `POST /conversation/{conversation_id}/skill/{skill_id}/invoke`.
+
+- Pure frontend mechanism — no backend change needed
+- Data displayed comes from `skills` table (`icon`, `name`, `description`, `skill_key`)
+- Selection never appears in conversation message history
+- No LangGraph interrupt involved
 
 ---
 
-### P9. Post-skill-completion behaviour — 🔲 Partially Open
+### P9. ~~Post-skill-completion behaviour~~ ✅ Resolved
 
-Decided:
-- Regular chat resumes after skill completes ✅
-- Same skill can be re-invoked — always a completely fresh start ✅
-
-Still open:
-- Can user invoke a **different skill** from the same conversation after one completes?
+- After skill completes → regular chat resumes. Nothing is auto-presented to the user.
+- User invokes any skill (same or different) at any time via `/` slash command (see P8).
+- Every invocation is always a completely fresh pipeline start regardless of which skill.
+- No restriction on order or frequency of skill invocations within a conversation.
