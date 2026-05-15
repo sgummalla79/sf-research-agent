@@ -683,9 +683,9 @@ The following topics were raised but explicitly deferred during the discussion.
 
 ---
 
-### P1. New agent added to an existing skill
+### P1. ~~New agent added to an existing skill~~ 🔮 Future Feature
 
-When a new agent is added to a skill (new row in `agents` table, new entry in `SKILL.md`) after users have already installed the skill — their `user_agents` table has no row for the new agent, and existing `conversation_skill_agents` snapshots won't include it either. Gap detection and backfill strategy not yet decided.
+Explicitly deferred. Not in scope for the current rewrite. When a new agent is added to an existing skill post-deployment, backfilling `user_agents` and existing `conversation_skill_agents` snapshots will be handled as a separate future initiative.
 
 ---
 
