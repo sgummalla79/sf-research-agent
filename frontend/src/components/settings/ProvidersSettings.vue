@@ -62,13 +62,6 @@
             </button>
             <button
               v-if="p.connected"
-              class="ps-btn-refresh"
-              :disabled="refreshing[p.id]"
-              @click="refresh(p.id)"
-              title="Re-fetch model list"
-            >↻</button>
-            <button
-              v-if="p.connected"
               class="ps-btn-disconnect"
               :disabled="disconnecting[p.id]"
               @click="disconnect(p.id)"
@@ -96,13 +89,6 @@
             </button>
             <button
               v-if="p.connected"
-              class="ps-btn-refresh"
-              :disabled="refreshing[p.id]"
-              @click="refresh(p.id)"
-              title="Re-fetch model list"
-            >↻</button>
-            <button
-              v-if="p.connected"
               class="ps-btn-disconnect"
               :disabled="disconnecting[p.id]"
               @click="disconnect(p.id)"
@@ -127,7 +113,6 @@ const keyInputs     = reactive({})
 const selectedMode  = reactive({})
 const errors        = reactive({})
 const connecting    = reactive({})
-const refreshing    = reactive({})
 const disconnecting = reactive({})
 
 async function load() {
@@ -140,7 +125,7 @@ async function load() {
       for (const p of providers.value) {
         errors[p.id]        = ''
         connecting[p.id]    = false
-        refreshing[p.id]    = false
+
         disconnecting[p.id] = false
 
         if (p.auth_modes) {
@@ -217,19 +202,7 @@ async function connect(pid) {
   }
 }
 
-async function refresh(pid) {
-  refreshing[pid] = true
-  try {
-    const res  = await apiFetch(`/api/providers/${pid}/refresh`, { method: 'POST' })
-    const data = await res.json()
-    if (res.ok) {
-      const p = providers.value.find(x => x.id === pid)
-      if (p) p.models = data.models || []
-    }
-  } finally {
-    refreshing[pid] = false
-  }
-}
+// refresh() removed — model lists are hardcoded in the frontend, no caching needed
 
 async function disconnect(pid) {
   disconnecting[pid] = true

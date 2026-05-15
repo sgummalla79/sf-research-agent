@@ -27,7 +27,8 @@ async def list_skills(request: Request, current_user: AuthUser = Depends(get_cur
     for skill in all_skills:
         manifest = skill_registry.get(skill.skill_key).manifest if skill.skill_key in skill_registry else None
         result.append({
-            "id":          skill.skill_key,
+            "id":          skill.skill_key,   # string key, e.g. "architect"
+            "skill_key":   skill.skill_key,
             "name":        skill.name,
             "description": skill.description,
             "icon":        skill.icon,

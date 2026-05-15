@@ -17,7 +17,7 @@ const routes = [
   {
     path:      '/',
     name:      'chat',
-    component: () => import('../components/ChatWindow.vue'),
+    component: () => import('../pages/ChatPage.vue'),
   },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]

@@ -1,6 +1,21 @@
+import os
+from pathlib import Path
 from fastapi import APIRouter, Request
 
 router = APIRouter()
+
+
+def _read_version() -> str:
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "VERSION"
+        if candidate.exists():
+            return candidate.read_text().strip()
+    return os.getenv("APP_VERSION", "")
+
+
+@router.get("/api/about")
+async def about():
+    return {"version": _read_version()}
 
 
 @router.get("/health")

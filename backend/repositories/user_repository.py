@@ -87,6 +87,13 @@ class UserRepository(BaseRepository):
         )
         return row[0] if row else None
 
+    async def get_all_config(self, user_id: str) -> dict[str, str]:
+        rows = await self._fetchall(
+            "SELECT key, value FROM user_config WHERE user_id = %s",
+            (user_id,),
+        )
+        return {r[0]: r[1] for r in rows}
+
     async def delete_config(self, user_id: str, key: str) -> None:
         await self._exec(
             "DELETE FROM user_config WHERE user_id = %s AND key = %s",

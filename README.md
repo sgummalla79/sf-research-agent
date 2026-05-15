@@ -1,6 +1,6 @@
 # Pragna
 
-A multi-agent AI system that produces formal Architecture Recommendation Documents through a structured 5-stage pipeline: intake → discovery → research → review → approval. Platform-agnostic — works with any enterprise or SaaS technology stack.
+A multi-agent AI platform that produces formal Architecture Recommendation Documents through a structured 5-stage pipeline: intake → discovery → research → review → approval. Supports free-form chat as well.
 
 ---
 
@@ -8,12 +8,21 @@ A multi-agent AI system that produces formal Architecture Recommendation Documen
 
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
-- [First-Time Setup](#first-time-setup)
+- [Clone the Repository](#clone-the-repository)
 - [Environment Variables](#environment-variables)
 - [Development Setup](#development-setup)
-- [Production Setup](#production-setup)
+  - [Option A — SQLite (simplest, no database server)](#option-a--sqlite-simplest-no-database-server)
+  - [Option B — Local Docker PostgreSQL](#option-b--local-docker-postgresql)
+  - [Option C — Cloud PostgreSQL (Neon / Supabase)](#option-c--cloud-postgresql-neon--supabase)
+- [First-Time App Setup (all modes)](#first-time-app-setup-all-modes)
+- [Running Tests](#running-tests)
+  - [Backend Tests](#backend-tests)
+  - [Frontend Tests](#frontend-tests)
+- [Production Deployment](#production-deployment)
+  - [Option 1 — Docker Compose on a VPS (local Docker PostgreSQL)](#option-1--docker-compose-on-a-vps-local-docker-postgresql)
+  - [Option 2 — Docker Compose on a VPS (Cloud PostgreSQL)](#option-2--docker-compose-on-a-vps-cloud-postgresql)
+  - [Option 3 — CI/CD via GitHub Actions to Kubernetes](#option-3--cicd-via-github-actions-to-kubernetes)
 - [Project Structure](#project-structure)
-- [Documentation](#documentation)
 
 ---
 
@@ -29,213 +38,659 @@ The agent conducts a platform-adaptive discovery session, runs parallel research
 
 ## Prerequisites
 
-| Tool | Minimum version |
-|---|---|
-| Python | 3.11+ |
-| Node.js | 18+ |
-| npm | 9+ |
+| Tool | Minimum version | Install |
+|---|---|---|
+| Python | 3.11+ | [python.org](https://www.python.org/downloads/) |
+| Node.js | 18+ | [nodejs.org](https://nodejs.org) |
+| pnpm | 8+ | `npm install -g pnpm` |
+| Docker | 24+ | [docker.com](https://www.docker.com/get-started/) — only needed for local Docker DB or full containerised prod |
 
 ---
 
-## First-Time Setup
+## Clone the Repository
 
-API keys (Anthropic, Perplexity, Google) are **not** stored in `.env`. They are configured through the in-app **Settings UI** (avatar icon → Settings) and stored encrypted in the database.
-
-1. Start the backend and frontend (see [Development Setup](#development-setup))
-2. Open **http://localhost:5173**
-3. Click the **avatar icon** (bottom-left) → **Settings**
-4. Enter your three API keys — they are validated against each provider before being saved
-5. Click **Save Keys** — you are ready to start sessions
-
-You will need:
-- **Anthropic API key** — [console.anthropic.com](https://console.anthropic.com)
-- **Perplexity API key** — [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
-- **Google API key** — [aistudio.google.com](https://aistudio.google.com)
+```bash
+git clone https://github.com/sgummalla79/sf-research-agent.git
+cd sf-research-agent
+```
 
 ---
 
 ## Environment Variables
 
-Copy `backend/.env.example` to `backend/.env` and fill in all values:
+Copy the example env file and edit it:
 
 ```bash
 cp backend/.env.example backend/.env
 ```
 
-| Variable | Required | Description |
-|---|---|---|
-| `SETTINGS_SECRET` | **Yes** | Fernet encryption key for API key storage — generate once (see below) |
-| `DB_BACKEND` | Yes | `sqlite` (dev) or `postgres` (prod) |
-| `SQLITE_PATH` | Dev only | Path to SQLite file, default `data/agent.db` |
-| `POSTGRES_URI` | Prod only | Full PostgreSQL connection string |
-| `CLAUDE_MODEL` | No | Default: `claude-sonnet-4-6` |
-| `PERPLEXITY_MODEL` | No | Default: `sonar-pro` |
-| `GEMINI_MODEL` | No | Default: `gemini-2.5-pro` |
-| `CLAUDE_HAIKU_MODEL` | No | Default: `claude-haiku-4-5-20251001` |
-| `SESSION_TTL_DAYS` | No | Default: `15` |
-| `DB_POOL_SIZE` | No | Default: `20` |
-| `MAX_DISCOVERY_QUESTIONS` | No | Default: `30` |
-| `UPLOAD_DIR` | No | Default: `uploads` |
-| `MAX_FILE_SIZE_MB` | No | Default: `10` |
-| `MAX_PDF_PAGES` | No | Default: `50` |
-| `ALLOWED_ORIGINS` | No | Default: `*` — tighten in production |
-
-### Generating SETTINGS_SECRET
-
-Run this once and paste the output into your `.env`:
+**Generate `SETTINGS_SECRET` (run once — paste output into `.env`):**
 
 ```bash
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-Keep this value secret — it is the key used to encrypt your API keys in the database.
+**Generate `JWT_SECRET` (run once — paste output into `.env`):**
+
+```bash
+openssl rand -hex 32
+```
+
+### Full variable reference
+
+| Variable | Required | Description |
+|---|---|---|
+| `SETTINGS_SECRET` | **Yes** | Fernet encryption key for API keys stored in the database — generate once and keep secret |
+| `JWT_SECRET` | **Yes** | HS256 secret for signing httpOnly session cookies |
+| `AUTH0_DOMAIN` | **Yes** | Your Auth0 tenant, e.g. `your-tenant.us.auth0.com` |
+| `AUTH0_CLIENT_ID` | **Yes** | Auth0 SPA client ID |
+| `AUTH0_CLIENT_SECRET` | **Yes** | Auth0 SPA client secret |
+| `AUTH0_CALLBACK_URL` | **Yes** | Redirect URL after Auth0 login (`http://localhost:5173/callback` in dev) |
+| `DATABASE_URL` | **Yes** | Full PostgreSQL connection string — omit only if using SQLite mode |
+| `DB_PASSWORD` | Compose only | Plain password used in `docker-compose.yml` for the local `db` service |
+| `ALLOWED_ORIGINS` | No | Comma-separated allowed CORS origins — default `*`, tighten in prod |
+| `FRONTEND_URL` | No | Used in dev redirect flows — default `http://localhost:5173` |
+| `CLAUDE_HAIKU_MODEL` | No | Default: `claude-haiku-4-5-20251001` |
+| `DB_POOL_SIZE` | No | Default: `10` |
+| `MAX_DISCOVERY_QUESTIONS` | No | Default: `30` |
+| `MAX_REVISIONS` | No | Default: `5` |
+| `UPLOAD_DIR` | No | Default: `uploads` |
+| `MAX_FILE_SIZE_MB` | No | Default: `10` |
+| `MAX_PDF_PAGES` | No | Default: `50` |
+| `LOG_LEVEL` | No | Default: `INFO` |
 
 ---
 
 ## Development Setup
 
-Uses **SQLite** — no Docker or database server required.
+### Option A — SQLite (simplest, no database server)
 
-### Step 1 — Install pnpm (if not already installed)
+> Best for: first run, local exploration, no PostgreSQL available.
 
-**Mac / Linux**
+**1. Set up Python environment**
+
 ```bash
-npm install -g pnpm
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-**Windows (PowerShell)**
-```powershell
-npm install -g pnpm
+**2. Configure `.env`**
+
+Edit `backend/.env`. The minimum required for SQLite mode:
+
+```env
+SETTINGS_SECRET=<your-fernet-key>
+JWT_SECRET=<your-jwt-secret>
+AUTH0_DOMAIN=your-tenant.us.auth0.com
+AUTH0_CLIENT_ID=your_spa_client_id
+AUTH0_CLIENT_SECRET=your_spa_client_secret
+AUTH0_CALLBACK_URL=http://localhost:5173/callback
+FRONTEND_URL=http://localhost:5173
+
+# SQLite — no DATABASE_URL needed; set the path explicitly if you want
+# SQLITE_PATH=data/agent.db
 ```
 
-Verify: `pnpm --version`
+> When `DATABASE_URL` is absent, the backend falls back to SQLite automatically.
+
+**3. Install root dependencies and start both servers**
+
+```bash
+cd ..                  # back to project root
+pnpm install           # first time only
+pnpm dev
+```
+
+Both servers start with colour-coded output:
+- **blue** = FastAPI backend on port 8000
+- **green** = Vite frontend on port 5173
 
 ---
 
-### Step 2 — Set up the Python backend (one-time)
+### Option B — Local Docker PostgreSQL
 
-**Mac / Linux**
+> Best for: matching production database behaviour on a local machine.
+
+**1. Create `backend/.env`** with the following database block (in addition to the secrets and Auth0 vars above):
+
+```env
+SETTINGS_SECRET=<your-fernet-key>
+JWT_SECRET=<your-jwt-secret>
+AUTH0_DOMAIN=your-tenant.us.auth0.com
+AUTH0_CLIENT_ID=your_spa_client_id
+AUTH0_CLIENT_SECRET=your_spa_client_secret
+AUTH0_CALLBACK_URL=http://localhost:5173/callback
+FRONTEND_URL=http://localhost:5173
+ALLOWED_ORIGINS=http://localhost:5173
+
+DATABASE_URL=postgresql://pragna:your_db_password@localhost:5432/pragna
+DB_PASSWORD=your_db_password
+```
+
+**2. Start a local PostgreSQL container**
+
+```bash
+docker compose up db -d
+```
+
+This brings up the `db` service from `docker-compose.yml` — a `postgres:16-alpine` container on port 5432 with the `pragna` database pre-created.
+
+Verify it is healthy:
+
+```bash
+docker compose ps
+# db    "docker-entrypoint.s…"   Up (healthy)
+```
+
+**3. Set up Python environment and start**
+
 ```bash
 cd backend
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
-# Edit .env: set DB_BACKEND=sqlite and generate SETTINGS_SECRET (see above)
+cd ..
+pnpm install           # first time only
+pnpm dev
 ```
 
-**Windows (Command Prompt or PowerShell)**
-```cmd
-cd backend
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env
-rem Edit .env: set DB_BACKEND=sqlite and generate SETTINGS_SECRET (see above)
-```
-
----
-
-### Step 3 — Start both servers with one command
-
-Go back to the **project root** and run:
+**4. Stop the database when done**
 
 ```bash
-pnpm install   # first time only
-pnpm dev       # works on Mac and Windows
+docker compose down    # keeps the postgres_data volume
+docker compose down -v # also removes the volume (wipes data)
 ```
-
-Both processes start in parallel with colour-coded output:
-- `blue  = backend` (FastAPI on port 8000)
-- `green = frontend` (Vite on port 5173)
-
-If either process crashes, the other stops automatically.
 
 ---
 
-### Step 4 — Open the app
+### Option C — Cloud PostgreSQL (Neon / Supabase)
 
-Open **http://localhost:5173**, then follow [First-Time Setup](#first-time-setup) to configure your API keys.
+> Best for: sharing a database between teammates, or mimicking the exact production connection.
 
-### Verify backend is healthy
+**1. Create your database**
+
+- **Neon:** Create a project at [neon.tech](https://neon.tech) → copy the connection string from the dashboard.
+- **Supabase:** Create a project at [supabase.com](https://supabase.com) → Settings → Database → Connection string (use the `URI` tab).
+
+**2. Configure `backend/.env`**
+
+```env
+SETTINGS_SECRET=<your-fernet-key>
+JWT_SECRET=<your-jwt-secret>
+AUTH0_DOMAIN=your-tenant.us.auth0.com
+AUTH0_CLIENT_ID=your_spa_client_id
+AUTH0_CLIENT_SECRET=your_spa_client_secret
+AUTH0_CALLBACK_URL=http://localhost:5173/callback
+FRONTEND_URL=http://localhost:5173
+ALLOWED_ORIGINS=http://localhost:5173
+
+# Neon
+DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/pragna?sslmode=require
+
+# Supabase
+# DATABASE_URL=postgresql://postgres:pass@db.xxx.supabase.co:5432/postgres
+```
+
+> **Neon note:** Neon routes connections through PgBouncer. The backend already sets `autocommit=True, prepare_threshold=None` for compatibility — no extra configuration needed.
+
+**3. Set up Python environment and start**
+
+```bash
+cd backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cd ..
+pnpm install
+pnpm dev
+```
+
+---
+
+## First-Time App Setup (all modes)
+
+Once both servers are running:
+
+1. Open **http://localhost:5173**
+2. Sign in (Auth0)
+3. Click the **avatar icon** (bottom-left) → **Settings**
+4. Enter your LLM API keys — each key is validated against the provider before saving:
+   - **Anthropic** — [console.anthropic.com](https://console.anthropic.com)
+   - **Perplexity** — [perplexity.ai/settings/api](https://www.perplexity.ai/settings/api)
+   - **Google AI Studio** — [aistudio.google.com](https://aistudio.google.com)
+5. Click **Save Keys**
+
+Verify the backend is healthy:
 
 ```bash
 curl http://localhost:8000/health
 # {"status":"ok","graph":"ready"}
 ```
 
-> **Without pnpm?** Run the two processes manually in separate terminals:
-> - Terminal 1: `cd backend && .venv/bin/uvicorn api.app:app --reload --port 8000`
-> - Terminal 2: `cd frontend && npm run dev`
-
 ---
 
-## Production Setup
+## Running Tests
 
-### 1. Database
+### Backend Tests
 
-```bash
-# Local Docker
-docker run --name arch-agent-db \
-  -e POSTGRES_USER=agent \
-  -e POSTGRES_PASSWORD=agent \
-  -e POSTGRES_DB=arch_agent \
-  -p 5432:5432 -d postgres:16
-```
+The backend test suite uses **pytest** and **pytest-asyncio**. Tests are split into three directories:
 
-```bash
-# backend/.env
-DB_BACKEND=postgres
-POSTGRES_URI=postgresql://agent:agent@localhost:5432/arch_agent
-ALLOWED_ORIGINS=https://yourdomain.com
-SETTINGS_SECRET=<your-fernet-key>
-```
+| Directory | Contents |
+|---|---|
+| `backend/tests/unit/` | Pure unit tests — no database required |
+| `backend/tests/integration/` | Repository-level tests — require a real PostgreSQL database |
+| `backend/tests/e2e/` | Full API tests — FastAPI app running against `pragna_test` DB |
 
-### 2. Build frontend
+#### Prerequisites
+
+Integration and e2e tests require a `pragna_test` database. If you are using local Docker:
 
 ```bash
-cd frontend && npm run build
-# Output: frontend/dist/
+# Start the db container if not already running
+docker compose up db -d
+
+# Create the test database
+docker exec -it sf-research-agent-db-1 \
+  psql -U pragna -c "CREATE DATABASE pragna_test;"
 ```
 
-### 3. Run backend
+If you are using Neon or Supabase, create a `pragna_test` branch or schema in your cloud console.
+
+#### Running tests
 
 ```bash
 cd backend
-pip install gunicorn
-
-gunicorn api.app:app \
-  --worker-class uvicorn.workers.UvicornWorker \
-  --workers 4 \
-  --bind 0.0.0.0:8000 \
-  --timeout 300
+source .venv/bin/activate
 ```
 
-### 4. Nginx (SSE requires buffering off)
+**All tests:**
 
-```nginx
-server {
-    root /path/to/pragna/frontend/dist;
+```bash
+pytest
+```
 
-    location / { try_files $uri $uri/ /index.html; }
+**Unit tests only (no database needed):**
 
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_buffering off;
-        proxy_cache off;
-        proxy_read_timeout 300s;
-        add_header X-Accel-Buffering no;
+```bash
+pytest tests/unit/
+```
+
+**Integration tests:**
+
+```bash
+pytest tests/integration/
+```
+
+**E2E tests:**
+
+```bash
+pytest tests/e2e/
+```
+
+**With coverage report:**
+
+```bash
+pytest --cov=. --cov-report=term-missing
+```
+
+**Against a different test database:**
+
+```bash
+TEST_DATABASE_URL=postgresql://user:pass@host:5432/pragna_test pytest
+```
+
+> By default, tests use `postgresql://pragna:pragna_dev@localhost:5432/pragna_test`. Override with the `TEST_DATABASE_URL` environment variable.
+
+**Useful flags:**
+
+```bash
+pytest -x                     # stop on first failure
+pytest -v                     # verbose output
+pytest tests/e2e/test_conversation.py   # single file
+pytest -k "test_health"       # run tests matching a name pattern
+```
+
+---
+
+### Frontend Tests
+
+The frontend uses **Vitest** with `@vue/test-utils` and `happy-dom`.
+
+```bash
+cd frontend
+npm install       # first time only
+```
+
+**Run all frontend tests once:**
+
+```bash
+npm run test
+# or from project root:
+# cd frontend && npm run test
+```
+
+**Watch mode (re-runs on file changes):**
+
+```bash
+npm run test:watch
+```
+
+Test files live in:
+- `frontend/src/tests/unit/` — unit tests for composables and utilities
+- `frontend/src/tests/component/` — component-level tests
+
+---
+
+## Production Deployment
+
+---
+
+### Option 1 — Docker Compose on a VPS (local Docker PostgreSQL)
+
+This deploys the full stack (API + UI + PostgreSQL + Caddy reverse proxy) entirely on one server using Docker Compose.
+
+#### Step 1 — Provision a server
+
+Recommended minimum: 2 vCPU / 2 GB RAM (e.g. DigitalOcean Droplet, Hetzner CX22, AWS t3.small). Install Docker:
+
+```bash
+curl -fsSL https://get.docker.com | sh
+```
+
+#### Step 2 — Clone the repository on the server
+
+```bash
+git clone https://github.com/sgummalla79/sf-research-agent.git /opt/pragna
+cd /opt/pragna
+```
+
+#### Step 3 — Configure the environment
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Edit `backend/.env` with **production values**:
+
+```env
+# ── Secrets ────────────────────────────────────────────────────────────────
+SETTINGS_SECRET=<your-fernet-key>
+JWT_SECRET=<your-jwt-secret>
+
+# ── Auth0 ─────────────────────────────────────────────────────────────────
+AUTH0_DOMAIN=your-tenant.us.auth0.com
+AUTH0_CLIENT_ID=your_spa_client_id
+AUTH0_CLIENT_SECRET=your_spa_client_secret
+AUTH0_CALLBACK_URL=https://yourdomain.com/callback
+
+# ── Database (local Docker postgres) ─────────────────────────────────────
+DATABASE_URL=postgresql://pragna:your_db_password@db:5432/pragna
+DB_PASSWORD=your_db_password
+
+# ── CORS ──────────────────────────────────────────────────────────────────
+ALLOWED_ORIGINS=https://yourdomain.com
+FRONTEND_URL=https://yourdomain.com
+```
+
+> The hostname in `DATABASE_URL` is `db` — the Docker Compose service name, resolved on the `internal` network.
+
+#### Step 4 — Configure Caddy
+
+Edit `docker/Caddyfile.prod` and replace `your-domain.com` with your actual domain:
+
+```
+yourdomain.com {
+    handle /api/* {
+        reverse_proxy api:8000 {
+            flush_interval -1
+            transport http {
+                read_timeout 300s
+            }
+        }
+    }
+
+    handle /auth/* {
+        reverse_proxy api:8000
+    }
+
+    handle {
+        reverse_proxy ui:80
     }
 }
 ```
 
-### 5. Infrastructure sizing
+Caddy will automatically provision a TLS certificate via Let's Encrypt. Your server's port 80 and 443 must be publicly reachable.
 
-| Load | App | DB |
+#### Step 5 — Point your domain
+
+Create an A record at your DNS provider pointing `yourdomain.com` → your server's public IP.
+
+#### Step 6 — Pull images and start
+
+```bash
+cd /opt/pragna
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+This starts four containers: `db`, `api`, `ui`, `caddy`.
+
+#### Step 7 — Verify
+
+```bash
+# Check all containers are running
+docker compose -f docker-compose.prod.yml ps
+
+# Check API health
+curl https://yourdomain.com/health
+# {"status":"ok","graph":"ready"}
+
+# Tail logs
+docker compose -f docker-compose.prod.yml logs -f api
+```
+
+#### Updating to a new version
+
+```bash
+cd /opt/pragna
+git pull
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d --no-deps api ui
+```
+
+#### Maintenance commands
+
+```bash
+# Stop everything (keeps DB data volume)
+docker compose -f docker-compose.prod.yml down
+
+# Stop and wipe database (destructive — loses all data)
+docker compose -f docker-compose.prod.yml down -v
+
+# Restart only the API
+docker compose -f docker-compose.prod.yml restart api
+
+# View DB size and tables
+docker exec -it $(docker compose -f docker-compose.prod.yml ps -q db) \
+  psql -U pragna -c "\dt"
+```
+
+---
+
+### Option 2 — Docker Compose on a VPS (Cloud PostgreSQL)
+
+Same as Option 1 but the `db` container is removed — the API connects to Neon, Supabase, or any managed PostgreSQL.
+
+#### Step 1 — Follow steps 1–2 from Option 1
+
+Clone the repo on your server and install Docker.
+
+#### Step 2 — Configure `backend/.env`
+
+```env
+# ── Secrets ────────────────────────────────────────────────────────────────
+SETTINGS_SECRET=<your-fernet-key>
+JWT_SECRET=<your-jwt-secret>
+
+# ── Auth0 ─────────────────────────────────────────────────────────────────
+AUTH0_DOMAIN=your-tenant.us.auth0.com
+AUTH0_CLIENT_ID=your_spa_client_id
+AUTH0_CLIENT_SECRET=your_spa_client_secret
+AUTH0_CALLBACK_URL=https://yourdomain.com/callback
+
+# ── Cloud PostgreSQL (Neon example) ─────────────────────────────────────
+DATABASE_URL=postgresql://user:pass@ep-xxx.us-east-2.aws.neon.tech/pragna?sslmode=require
+
+# ── CORS ──────────────────────────────────────────────────────────────────
+ALLOWED_ORIGINS=https://yourdomain.com
+FRONTEND_URL=https://yourdomain.com
+```
+
+#### Step 3 — Create a trimmed compose file
+
+Create `/opt/pragna/docker-compose.cloud-db.yml` with the `db` service removed:
+
+```yaml
+services:
+  api:
+    image: ghcr.io/sgummalla79/pragna-api:latest
+    restart: unless-stopped
+    env_file: backend/.env
+    networks:
+      - web
+
+  ui:
+    image: ghcr.io/sgummalla79/pragna-ui:latest
+    restart: unless-stopped
+    networks:
+      - web
+
+  caddy:
+    image: caddy:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - ui
+    networks:
+      - web
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  web:
+    driver: bridge
+```
+
+#### Step 4 — Configure Caddy, point DNS, and start
+
+Same as steps 4–6 in Option 1, but use the new compose file:
+
+```bash
+docker compose -f docker-compose.cloud-db.yml pull
+docker compose -f docker-compose.cloud-db.yml up -d
+```
+
+#### Step 5 — Verify
+
+```bash
+curl https://yourdomain.com/health
+# {"status":"ok","graph":"ready"}
+```
+
+---
+
+### Option 3 — CI/CD via GitHub Actions to Kubernetes
+
+The repository ships with a `workflow_dispatch` workflow at `.github/workflows/build-and-push.yml`. It bumps the version, builds and pushes Docker images to GHCR, then rolls them out to a K3s cluster via SSH.
+
+#### One-time cluster setup
+
+**1. Install K3s on your server:**
+
+```bash
+curl -sfL https://get.k3s.io | sh -
+```
+
+**2. Apply the Kubernetes namespace and manifests:**
+
+```bash
+kubectl apply -f k8s/pragna/namespace.yaml
+
+# Create secrets (fill in all values first)
+cp k8s/pragna/secret.template.yaml k8s/pragna/secret.yaml
+# Edit k8s/pragna/secret.yaml — base64-encode all values:
+#   echo -n "your-value" | base64
+kubectl apply -f k8s/pragna/secret.yaml
+
+kubectl apply -f k8s/pragna/
+```
+
+**3. Configure required GitHub secrets** (Settings → Secrets → Actions):
+
+| Secret | Value |
+|---|---|
+| `VPS_HOST` | Public IP or hostname of your server |
+| `VPS_SSH_KEY` | Private SSH key with root access to the server |
+| `VPS_REPO_PATH` | Absolute path to the cloned repo on the server, e.g. `/opt/pragna` |
+| `GHCR_PAT` | GitHub Personal Access Token with `write:packages` scope |
+
+#### Triggering a deployment
+
+1. Go to **Actions** → **Build and Push** → **Run workflow**
+2. Select version bump type: `patch`, `minor`, or `major`
+3. Click **Run workflow**
+
+The workflow:
+1. Bumps `VERSION` and commits it
+2. Generates release notes in `release-notes/`
+3. Builds `pragna-api` and `pragna-ui` Docker images (no cache) and pushes to GHCR
+4. SSHs into the server, runs `kubectl set image` for both deployments
+5. Waits for rollout and runs a health check against `https://yourdomain.com/health`
+
+#### Manual rollout (without GitHub Actions)
+
+```bash
+# On the server
+VERSION=1.2.3   # target version
+
+kubectl set image deployment/pragna-api \
+  pragna-api=ghcr.io/sgummalla79/pragna-api:${VERSION} \
+  -n pragna
+
+kubectl set image deployment/pragna-ui \
+  pragna-ui=ghcr.io/sgummalla79/pragna-ui:${VERSION} \
+  -n pragna
+
+kubectl rollout status deployment/pragna-api -n pragna --timeout=120s
+kubectl rollout status deployment/pragna-ui  -n pragna --timeout=120s
+kubectl get pods -n pragna
+```
+
+#### Rollback
+
+```bash
+kubectl rollout undo deployment/pragna-api -n pragna
+kubectl rollout undo deployment/pragna-ui  -n pragna
+```
+
+#### Infrastructure sizing
+
+| Daily sessions | App server | Database |
 |---|---|---|
-| 25/day | 2 vCPU / 2 GB | t3.micro / 2 GB storage |
-| 50/day | 2 vCPU / 4 GB | t3.small / 4 GB storage |
-| 100/day | 4 vCPU / 8 GB ×2 | t3.medium / 8 GB storage |
+| ~25/day | 2 vCPU / 2 GB | Neon free tier / t3.micro |
+| ~50/day | 2 vCPU / 4 GB | Neon launch / t3.small |
+| ~100/day | 4 vCPU / 8 GB × 2 | Neon scale / t3.medium |
 
 ---
 
@@ -243,66 +698,63 @@ server {
 
 ```
 pragna/
-├── backend/                        # Python API + AI agents
-│   ├── agents/                     # LangGraph nodes
-│   │   ├── base.py                 # BaseAgent — single-LLM-call skeleton
-│   │   ├── intake.py               # Stage 1 — document/image intake
-│   │   ├── discovery.py            # Stage 2 — dynamic discovery Q&A
-│   │   ├── researcher.py           # Stage 3 — parallel search + reasoning + writing
-│   │   ├── reviewer.py             # Stage 4 — peer review gate
-│   │   ├── approver.py             # Stage 5 — strategic approval gate
-│   │   └── chat.py                 # Free-form chat node
-│   ├── flows/
-│   │   ├── registry.py             # FlowConfig, FLOWS dict, CHAT_MODELS
-│   │   └── architect.py            # Default prompts for Technical Architect flow
+├── backend/                        # Python FastAPI + LangGraph agents
 │   ├── api/
-│   │   ├── routes/
-│   │   │   ├── chat.py             # SSE streaming endpoints
-│   │   │   ├── flows.py            # GET /api/flows — available flows + chat models
-│   │   │   ├── prompts.py          # Agent prompt versioning CRUD
-│   │   │   ├── providers.py        # Provider management
-│   │   │   ├── settings.py         # API key management
-│   │   │   └── usage.py            # Token usage endpoints
-│   │   └── app.py                  # FastAPI app, lifespan, seeding, CORS
-│   ├── graph/                      # LangGraph StateGraph builder + conditional edges
-│   ├── persistence/                # SQLite / PostgreSQL checkpointer + all DB tables
+│   │   ├── app.py                  # FastAPI lifespan, middleware, seeding
+│   │   └── routes/
+│   │       ├── chat.py             # SSE streaming endpoints
+│   │       ├── providers.py        # Provider management
+│   │       ├── settings.py         # API key management
+│   │       ├── prompts.py          # Agent prompt versioning CRUD
+│   │       └── usage.py            # Token usage endpoints
+│   ├── framework/
+│   │   ├── schema.py               # SkillManifest, StageConfig
+│   │   ├── registry.py             # Skill loader + cache
+│   │   ├── engine.py               # Compiles SKILL.md → LangGraph StateGraph
+│   │   ├── defaults.py             # Smart LLM slot selection
+│   │   └── strategies/             # Stage execution patterns (intake, interrupt, structured, fanout)
+│   ├── skills/
+│   │   └── architect/              # 5-stage architecture pipeline
+│   │       ├── SKILL.md            # Pipeline manifest
+│   │       └── agents/*.md         # System prompts (versioned in DB)
+│   ├── persistence/
+│   │   └── checkpointer.py         # SQLite + PostgreSQL backends, all DB tables
+│   ├── repositories/               # Data access layer per entity
 │   ├── utils/
-│   │   ├── api_keys.py             # Fernet encryption, in-memory key cache
-│   │   ├── key_validator.py        # Live API key validation per provider
-│   │   ├── pricing.py              # Model pricing constants + cost calculation
-│   │   ├── file_parser.py          # PDF/DOCX/TXT/MD text extraction
-│   │   ├── file_storage.py         # Upload save/delete
-│   │   └── llm_retry.py            # Tenacity retry wrapper for all LLM calls
-│   ├── state.py                    # AgentState schema
+│   │   ├── llm_factory.py          # LLM client construction
+│   │   ├── user_context.py         # Per-request key storage + session store
+│   │   ├── api_keys.py             # Fernet encryption
+│   │   ├── key_validator.py        # Live API key validation
+│   │   ├── pricing.py              # Token cost calculation
+│   │   └── file_parser.py          # PDF/DOCX/TXT/MD extraction
+│   ├── state.py                    # AgentState (Pydantic + LangGraph reducers)
 │   ├── config.py                   # Environment variable loading
 │   ├── requirements.txt
-│   └── .env.example
-├── frontend/                       # Vue 3 chat UI
+│   ├── .env.example
+│   └── tests/
+│       ├── unit/                   # No database required
+│       ├── integration/            # Requires pragna_test PostgreSQL database
+│       └── e2e/                    # Full API tests against pragna_test database
+├── frontend/                       # Vue 3 SPA
 │   └── src/
-│       ├── components/
-│       │   ├── ChatWindow.vue      # Main shell (sidebar, chat pane, doc panel)
-│       │   ├── ChatInput.vue       # Input box component (model picker, + menu, flows)
-│       │   ├── ConfigurationPage.vue  # Agent prompts + agent models config
-│       │   ├── SettingsPage.vue    # Providers + usage settings
-│       │   └── settings/
-│       │       ├── AgentPromptsSettings.vue   # Versioned prompt editor
-│       │       ├── AgentConfigSettings.vue    # Per-agent model assignment
-│       │       ├── ProvidersSettings.vue      # API key management
-│       │       └── UsageSettings.vue
-│       └── composables/
-│           └── useAgentChat.js     # SSE stream handler, session state
-├── scripts/
-│   └── dev.js                      # Cross-platform dev runner (port cleanup + health poll)
-├── docs/                           # Design and requirements documents
+│       ├── components/             # UI components (chat, settings, document, sidebar)
+│       ├── composables/
+│       │   ├── useAgentChat.js     # SSE stream handler, session state
+│       │   └── useDocumentPanel.js
+│       ├── pages/                  # ChatPage, etc.
+│       ├── stores/                 # Pinia stores
+│       └── tests/
+│           ├── unit/               # Composable unit tests
+│           └── component/          # Vue component tests
+├── docker/
+│   ├── Dockerfile.api              # Python backend image
+│   ├── Dockerfile.ui               # Node build → Caddy serve
+│   ├── Caddyfile.prod              # Production reverse proxy config
+│   └── Caddyfile.ui                # Static SPA serve config
+├── k8s/pragna/                     # Kubernetes manifests
+├── scripts/                        # Dev runner, preflight checks
+├── docker-compose.yml              # Dev: api + db (local Docker postgres)
+├── docker-compose.prod.yml         # Prod: api + ui + db + caddy
+├── CLAUDE.md                       # Claude Code guidance
 └── README.md
 ```
-
----
-
-## Documentation
-
-| Document | Description |
-|---|---|
-| [UI Design](docs/UI_DESIGN.md) | Layout, shell structure, input component, agent flow UX |
-| [Functional Requirements](docs/FUNCTIONAL_REQUIREMENTS.md) | Feature spec, user flows, agent pipeline, prompt versioning |
-| [Technical Requirements](docs/TECHNICAL_REQUIREMENTS.md) | Architecture, API endpoints, DB schema, security |

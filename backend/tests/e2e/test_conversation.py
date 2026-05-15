@@ -22,4 +22,6 @@ async def test_create_conversation(client):
 async def test_list_conversations_empty(client):
     resp = await client.get("/api/conversations")
     assert resp.status_code == 200
-    assert resp.json()["conversations"] == []
+    data = resp.json()
+    assert data["pinned"] == []
+    assert data["recent"] == []

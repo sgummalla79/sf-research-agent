@@ -19,7 +19,9 @@ async def test_create_and_list_conversation(client):
 
     resp = await client.get("/api/conversations")
     assert resp.status_code == 200
-    ids = [c["id"] for c in resp.json()["conversations"]]
+    data = resp.json()
+    all_convs = data.get("recent", []) + data.get("pinned", [])
+    ids = [c["id"] for c in all_convs]
     assert conv_id in ids
 
 

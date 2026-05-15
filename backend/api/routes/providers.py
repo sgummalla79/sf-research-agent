@@ -3,12 +3,13 @@ LLM provider management routes.
 
 GET    /api/providers               — list all providers with connection status
 POST   /api/providers/{id}/connect  — save/update API key for a provider
-POST   /api/providers/{id}/refresh  — refresh available models from provider API
 DELETE /api/providers/{id}          — disconnect (delete key)
 GET    /api/providers/model-info    — get metadata for a specific model
+
+Model lists are NOT cached. The frontend uses hardcoded defaults per provider
+(curated, stable lists that rarely change). No /refresh endpoint is needed.
 """
 
-import json
 import logging
 from typing import Optional
 
@@ -32,7 +33,7 @@ class ConnectRequest(BaseModel):
 
 @router.get("")
 async def list_providers(request: Request, current_user: AuthUser = Depends(get_current_user)):
-    db             = request.app.state.db
+    db            = request.app.state.db
     encrypted_keys = await db.users.get_all_api_keys(current_user.sub)
     connected_ids  = {k.split("_")[0] for k in encrypted_keys if encrypted_keys[k]}
 
@@ -40,10 +41,12 @@ async def list_providers(request: Request, current_user: AuthUser = Depends(get_
     for pid in PROVIDER_ORDER:
         info = PROVIDERS.get(pid, {})
         providers.append({
-            "id":        pid,
-            "name":      info.get("name", pid),
-            "connected": pid in connected_ids,
-            "icon":      info.get("icon", ""),
+            "id":          pid,
+            "name":        info.get("name", pid),
+            "connected":   pid in connected_ids,
+            "icon":        info.get("icon", ""),
+            "auth_modes":  info.get("auth_modes"),
+            "description": info.get("description", ""),
         })
     return {"providers": providers}
 
@@ -76,25 +79,6 @@ async def connect_provider(
             )
 
     return {"ok": True, "provider": provider_id}
-
-
-@router.post("/{provider_id}/refresh")
-async def refresh_models(
-    provider_id:  str,
-    request:      Request,
-    current_user: AuthUser = Depends(get_current_user),
-):
-    """Fetch available models from the provider API and cache them."""
-    from utils.models_cache import fetch_models
-    try:
-        models = await fetch_models(provider_id)
-        db = request.app.state.db
-        await db.users.save_config(
-            current_user.sub, f"models_{provider_id}", json.dumps(models)
-        )
-        return {"provider": provider_id, "models": models}
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.delete("/{provider_id}")

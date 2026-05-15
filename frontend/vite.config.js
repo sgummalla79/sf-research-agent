@@ -11,4 +11,9 @@ export default defineConfig({
       '/auth': { target: 'http://localhost:8000', changeOrigin: true },
     },
   },
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+    setupFiles: ['./src/tests/setup.js'],
+  },
 })
