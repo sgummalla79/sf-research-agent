@@ -98,12 +98,12 @@
 
     <!-- ── Avatar footer — always visible, adapts to collapsed state ─────── -->
     <div class="sb-footer" :class="{ 'sb-footer-collapsed': !sidebar.open }">
-      <button class="avatar-btn" :class="{ 'avatar-btn-collapsed': !sidebar.open }"
+      <button class="avatar-btn"
+        :class="{ 'avatar-btn-collapsed': !sidebar.open, 'avatar-btn-active': userMenuOpen }"
         @click.stop="userMenuOpen = !userMenuOpen">
-        <img v-if="user?.picture" :src="user.picture" class="avatar-photo" />
-        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-          <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
-        </svg>
+        <img v-if="user?.picture?.trim() && !imgError" :src="user.picture" class="avatar-photo"
+          @error="imgError = true" />
+        <span v-else class="avatar-initials">{{ initials }}</span>
         <div v-if="sidebar.open && user" class="avatar-info">
           <span class="avatar-name">{{ user?.name || user?.email || 'Account' }}</span>
           <span class="avatar-email">{{ user?.email }}</span>
@@ -192,6 +192,7 @@ const { isDark }                 = useDarkMode()
 
 const userMenuOpen = ref(false)
 const appVersion   = ref('')
+const imgError     = ref(false)
 
 // Injected from AppLayout — opens the settings drawer at a specific tab
 const app = useAppStore()
@@ -228,6 +229,14 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 
 const filteredPinned = computed(() => sidebar.pinned)
 const filteredRecent  = computed(() => sidebar.recent)
+
+const initials = computed(() => {
+  const name = user.value?.name?.trim() || user.value?.email?.trim() || ''
+  if (!name) return '?'
+  const parts = name.split(/[\s@]+/).filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return parts[0].slice(0, 2).toUpperCase()
+})
 
 function handlePin(c) {
   c.pinned ? sidebar.unpin(c.id) : sidebar.pin(c.id)
@@ -307,7 +316,8 @@ function handlePin(c) {
   background: transparent; cursor: pointer; color: var(--sb-tx);
   transition: background .13s;
 }
-.avatar-btn:hover { background: var(--sb-hover); }
+.avatar-btn:hover          { background: var(--sb-hover); }
+.avatar-btn.avatar-btn-active { background: var(--hover); }
 /* Collapsed: same style as col-icon-btn */
 .avatar-btn-collapsed {
   width: 40px; height: 40px;
@@ -320,6 +330,13 @@ function handlePin(c) {
 .avatar-btn-collapsed:hover { background: var(--sb-hover); }
 
 .avatar-photo { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover; }
+.avatar-initials {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  background: var(--pri); color: var(--pri-fg);
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  display: flex; align-items: center; justify-content: center;
+  user-select: none;
+}
 .avatar-info  { display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: left; }
 .avatar-name  { font-size: 13px; font-weight: 600; color: var(--sb-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .avatar-email { font-size: 11px; color: var(--sb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -328,12 +345,13 @@ function handlePin(c) {
 .user-menu {
   position: absolute; bottom: calc(100% + 4px); left: 8px;
   width: calc(100% - 16px);
-  background: var(--surface-2); border: 1px solid rgba(128,128,128,0.15);
-  border-radius: 10px; padding: 6px;
-  box-shadow: 0 8px 28px rgba(0,0,0,.3);
+  background: var(--hover);
+  border: 1px solid rgba(128,128,128,0.18);
+  border-radius: 12px; padding: 6px;
+  box-shadow: 0 16px 48px rgba(0,0,0,.55), 0 0 0 0.5px rgba(255,255,255,.04);
   z-index: 200;
 }
-/* Collapsed: appear above the avatar, extend right, sidebar background */
+/* Collapsed: appear above the avatar, extend right */
 .sb-footer-collapsed .user-menu {
   bottom: calc(100% + 4px);
   left: 0;
@@ -349,7 +367,7 @@ function handlePin(c) {
   background: transparent; color: var(--text); font-size: 13px;
   cursor: pointer; text-align: left; transition: background .12s;
 }
-.um-item:hover   { background: var(--hover); }
+.um-item:hover   { background: rgba(128,128,128,0.12); }
 .um-signout      { color: var(--text); }
 .um-signout:hover { background: var(--pri); color: var(--pri-fg); }
 

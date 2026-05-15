@@ -44,6 +44,7 @@
           :is-pipeline-running="false"
           :is-streaming="conv.isStreaming"
           :no-providers="noProviders"
+          :is-empty-chat="true"
           placeholder="How can I help you today?"
           @submit="onSubmit"
           @upload="onUpload"

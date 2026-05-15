@@ -52,14 +52,19 @@ html, body, #app { height: 100%; }
 }
 
 /* ── Dark mode — via html.dark class set by useDarkMode ── */
+/*
+   Two background colors only:
+     Ink  #1a1a1a  — base layer (sidebar, main canvas, inset inputs)
+     Ash  #282828  — elevated layer (menus, modals, panels, cards, hover)
+*/
 html.dark {
-  --bg:        #1a1a1a;
-  --surface:   #212121;
-  --surface-2: #181818;
+  --bg:        #1a1a1a;   /* Ink */
+  --surface:   #282828;   /* Ash */
+  --surface-2: #1a1a1a;   /* Ink — inset / input areas */
   --border:    rgba(255,255,255,0.09);
   --text:      #ececea;
   --muted:     #888888;
-  --hover:     #282828;
+  --hover:     #282828;   /* Ash */
   --ifocus:    #c97040;
   --pri:       #c97040;
   --pri-fg:    #ffffff;
@@ -71,13 +76,11 @@ html.dark {
   --pass-bg:   #0d1f10; --pass-tx: #86efac;
   --fail-bg:   #1f0d0d; --fail-tx: #fca5a5;
   --draft-bg:  #1c1400; --draft-tx: #fcd34d;
-  /* Sidebar-specific (now same bg as main) */
-  --sb-bg:     #1a1a1a;
-  --sb-hover:  #252525;
-  --sb-active: #2e2e2e;
+  --sb-bg:     #1a1a1a;   /* Ink */
+  --sb-hover:  #282828;   /* Ash */
+  --sb-active: #282828;   /* Ash */
   --sb-tx:     #d9d9d7;
   --sb-muted:  #5e5e5e;
-  /* Aliases */
   --tx:    var(--text);
   --surf:  var(--surface);
   --surf2: var(--surface-2);
@@ -88,13 +91,13 @@ html.dark {
 /* System dark fallback when no explicit class is set yet */
 @media (prefers-color-scheme: dark) {
   :root:not(.dark):not([data-light]) {
-    --bg:        #1a1a1a;
-    --surface:   #212121;
-    --surface-2: #181818;
+    --bg:        #1a1a1a;   /* Ink */
+    --surface:   #282828;   /* Ash */
+    --surface-2: #1a1a1a;   /* Ink */
     --border:    rgba(255,255,255,0.09);
     --text:      #ececea;
     --muted:     #888888;
-    --hover:     #282828;
+    --hover:     #282828;   /* Ash */
     --ifocus:    #c97040;
     --pri:       #c97040;
     --pri-fg:    #ffffff;
@@ -106,9 +109,9 @@ html.dark {
     --pass-bg:   #0d1f10; --pass-tx: #86efac;
     --fail-bg:   #1f0d0d; --fail-tx: #fca5a5;
     --draft-bg:  #1c1400; --draft-tx: #fcd34d;
-    --sb-bg:     #1a1a1a;
-    --sb-hover:  #252525;
-    --sb-active: #2e2e2e;
+    --sb-bg:     #1a1a1a;   /* Ink */
+    --sb-hover:  #282828;   /* Ash */
+    --sb-active: #282828;   /* Ash */
     --sb-tx:     #d9d9d7;
     --sb-muted:  #5e5e5e;
     --tx:    var(--text);

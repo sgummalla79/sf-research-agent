@@ -109,7 +109,7 @@
         <!-- Right controls -->
         <div class="cb-controls">
 
-          <!-- Model picker — hidden while pipeline is running -->
+          <!-- Model picker -->
           <div v-if="!props.isPipelineRunning && props.chatModels.length" class="cb-model-wrap">
             <button class="cb-model-btn" @click.stop="modelPickerOpen = !modelPickerOpen">
               {{ selectedModel.display }}
@@ -117,15 +117,13 @@
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
             </button>
-            <div v-if="modelPickerOpen" class="cb-model-dropdown" @click.stop>
-              <div v-for="m in props.chatModels" :key="m.model"
-                class="cbd-option" :class="{ selected: selectedModel.model === m.model }"
-                @click="selectedModel = m; modelPickerOpen = false">
-                <div class="cbd-name">{{ m.display }}</div>
-                <div class="cbd-desc">{{ m.description }}</div>
-                <span v-if="selectedModel.model === m.model" class="cbd-check">✓</span>
-              </div>
-            </div>
+            <FlyoutMenu
+              :groups="modelGroups"
+              :open="modelPickerOpen"
+              :direction="props.isEmptyChat ? 'below' : 'above'"
+              @select="m => { selectedModel = m }"
+              @close="modelPickerOpen = false"
+            />
           </div>
 
           <!-- Adaptive Thinking — hidden while pipeline is running -->
@@ -157,7 +155,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useAppStore } from '../../stores/app'
+import { useAppStore }  from '../../stores/app'
+import FlyoutMenu       from '../ui/FlyoutMenu.vue'
 
 const props = defineProps({
   chatModels:        { type: Array,   default: () => [] },
@@ -165,6 +164,7 @@ const props = defineProps({
   isPipelineRunning: { type: Boolean, default: false },
   isStreaming:       { type: Boolean, default: false },
   noProviders:       { type: Boolean, default: false },
+  isEmptyChat:       { type: Boolean, default: false },
   placeholder:       { type: String,  default: 'Message or type / to use a skill…' },
 })
 
@@ -172,12 +172,23 @@ const emit = defineEmits(['submit', 'upload', 'show-palette', 'hide-palette', 'o
 const app  = useAppStore()
 
 // ── State ─────────────────────────────────────────────────────────────────────
-const text             = ref('')
-const selectedModel    = ref({ model: 'claude-sonnet-4-6', display: 'Sonnet 4.6', description: 'Responsive everyday work', provider: 'anthropic' })
-const extendedThinking = ref(true)
-const plusMenuOpen     = ref(false)
-const skillsOpen       = ref(false)
-const modelPickerOpen  = ref(false)
+const text                  = ref('')
+const selectedModel         = ref({ model: 'claude-sonnet-4-6', display: 'Sonnet 4.6', description: 'Responsive everyday work', provider: 'anthropic' })
+const extendedThinking      = ref(true)
+const plusMenuOpen          = ref(false)
+const skillsOpen            = ref(false)
+const modelPickerOpen       = ref(false)
+const PROVIDER_LABELS = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', perplexity: 'Perplexity', groq: 'Groq', mistral: 'Mistral' }
+
+const modelGroups = computed(() => {
+  const map = {}
+  for (const m of props.chatModels) {
+    const p = m.provider || 'other'
+    if (!map[p]) map[p] = { key: p, label: PROVIDER_LABELS[p] || p, items: [] }
+    map[p].items.push({ label: m.display, value: m, selected: selectedModel.value.model === m.model })
+  }
+  return Object.values(map)
+})
 const selectedFile     = ref(null)
 const imagePreviewUrl  = ref(null)
 const isDragging       = ref(false)
@@ -394,7 +405,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 
 .cb-upload-err { flex: 1; font-size: 12.5px; color: var(--danger); }
 
-.cb-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.cb-controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
 .cb-model-wrap { position: relative; }
 .cb-model-btn {
@@ -407,26 +418,6 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 .cb-model-btn:hover { background: var(--hover); }
 .cb-model-btn svg { color: var(--muted); flex-shrink: 0; }
 
-.cb-model-dropdown {
-  position: absolute; bottom: calc(100% + 8px); right: 0;
-  width: 250px; background: var(--surf);
-  border: 1px solid var(--bdr); border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.12);
-  z-index: 300; overflow: hidden;
-}
-.cbd-option {
-  display: flex; flex-direction: column; gap: 2px;
-  padding: 10px 14px; cursor: pointer; position: relative;
-  transition: background .13s;
-}
-.cbd-option:hover    { background: var(--hover); }
-.cbd-option.selected { background: var(--sbg); }
-.cbd-name  { font-size: 13px; font-weight: 600; color: var(--tx); }
-.cbd-desc  { font-size: 11.5px; color: var(--muted); }
-.cbd-check {
-  position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
-  color: var(--pri); font-weight: 700; font-size: 14px;
-}
 
 .cb-adaptive-btn {
   display: flex; align-items: center; gap: 5px;
