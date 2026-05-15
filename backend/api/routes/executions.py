@@ -317,6 +317,20 @@ async def invoke_skill(
 
     await db.conversations.touch(conversation_id)
 
+    # Auto-title on first invocation (brief becomes the title source)
+    if not conv.title and (body.brief or body.raw_document_text):
+        from utils.user_context import _user_keys, get_anthropic_mode
+        from api.routes.conversations import _auto_title
+        title_text  = body.brief or body.raw_document_text or ""
+        _cfg        = session_agent_config
+        first_agent = next(iter(_cfg.values()), {}) if _cfg else {}
+        t_provider  = first_agent.get("provider") or "anthropic"
+        t_model     = first_agent.get("model")    or "claude-haiku-4-5-20251001"
+        asyncio.create_task(_auto_title(
+            db, conversation_id, title_text, t_provider, t_model,
+            _user_keys.get() or {}, get_anthropic_mode(),
+        ))
+
     graph = request.app.state.graphs.get(skill.skill_key, request.app.state.graph)
 
     initial_state = AgentState(

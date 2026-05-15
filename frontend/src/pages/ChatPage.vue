@@ -134,6 +134,23 @@
             />
         </div>
 
+        <!-- Token usage bar — below input, always visible once messages exist -->
+        <StatusBar v-if="conv.messages.length" justify="end">
+          <template v-for="row in conv.sessionUsage.breakdown" :key="row.model">
+            <div class="ub-cell">
+              <span class="ub-name">{{ row.model }}</span>
+              <span class="ub-tokens">↑ {{ fmtTokens(row.input_tokens) }} &nbsp;↓ {{ fmtTokens(row.output_tokens) }}</span>
+              <span class="ub-cost">{{ fmtCost(row.cost_usd) }}</span>
+            </div>
+            <div class="ub-sep" />
+          </template>
+          <div class="ub-cell">
+            <span class="ub-name">Session</span>
+            <span class="ub-tokens">↑ {{ fmtTokens(conv.sessionUsage.input_tokens) }} &nbsp;↓ {{ fmtTokens(conv.sessionUsage.output_tokens) }}</span>
+            <span class="ub-cost">{{ fmtCost(conv.sessionUsage.cost_usd) }}</span>
+          </div>
+        </StatusBar>
+
       </template>
     </div>
 
@@ -170,6 +187,7 @@ import SkillPalette     from '../components/skill/SkillPalette.vue'
 import ChatInput        from '../components/chat/ChatInput.vue'
 import DocumentPanel    from '../components/document/DocumentPanel.vue'
 import SudarshanChakra  from '../components/SudarshanChakra.vue'
+import StatusBar        from '../components/ui/StatusBar.vue'
 
 const conv    = useConversationStore()
 const sidebar = useSidebarStore()
@@ -345,6 +363,9 @@ function modelDescription(modelId, provider) {
   return ''
 }
 
+function fmtTokens(n) { return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n) }
+function fmtCost(c)   { return c < 0.01  ? `$${c.toFixed(6)}`           : `$${c.toFixed(5)}` }
+
 function renderMd(text) {
   try { return marked.parse(text) } catch { return text }
 }
@@ -481,6 +502,7 @@ onMounted(async () => {
 .banner {
   flex-shrink: 0; padding: 12px 28px; font-size: 13px; font-weight: 500;
   text-align: center; display: flex; align-items: center; justify-content: center; gap: 12px;
+  max-width: 720px; width: 100%; margin: 0 auto; align-self: center;
 }
 .banner-dismiss { background: none; border: none; cursor: pointer; font-size: 13px; opacity: .6; padding: 0; line-height: 1; color: inherit; flex-shrink: 0; }
 .banner-dismiss:hover { opacity: 1; }
@@ -504,10 +526,23 @@ html.dark .banner.provider-conflict { background: #1c0f00; color: #fdba74; }
 .pc-icon { font-size: 16px; flex-shrink: 0; }
 .pc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
 
+.ub-cell {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; padding: 6px 20px;
+}
+.ub-sep    { width: 1px; background: var(--border); flex-shrink: 0; margin: 6px 0; }
+.ub-name   { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); white-space: nowrap; }
+.ub-tokens { font-size: 11.5px; font-weight: 500; color: var(--text); white-space: nowrap; }
+.ub-cost   { font-size: 11.5px; font-weight: 600; color: var(--pri); white-space: nowrap; }
+
 /* ── Bottom ── */
-.cp-bottom { flex-shrink: 0; display: flex; flex-direction: column; }
-.cp-interrupt   { margin: 0 20px 8px; }
-.cp-palette-wrap { position: relative; margin: 0 20px 6px; }
+.cp-bottom {
+  flex-shrink: 0;
+  display: flex; flex-direction: column;
+  max-width: 720px; width: 100%; margin: 0 auto;
+}
+.cp-interrupt    { margin: 0 0 8px; }
+.cp-palette-wrap { position: relative; margin: 0 0 6px; }
 
 /* ── Transitions ── */
 .slide-up-enter-active, .slide-up-leave-active { transition: opacity .15s, transform .15s; }

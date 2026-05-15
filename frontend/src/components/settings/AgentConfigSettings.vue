@@ -325,7 +325,7 @@ onMounted(load)
 .ac-btn-suggest:hover { background: var(--surface-2); }
 
 .ac-save-btn {
-  padding: 7px 16px; background: var(--pri); color: #fff;
+  padding: 7px 16px; background: var(--pri); color: var(--pri-fg);
   border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
   cursor: pointer; transition: opacity .13s;
 }

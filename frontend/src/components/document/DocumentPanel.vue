@@ -51,7 +51,7 @@ function renderContent(text) {
 
 .ol-btn { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 12px; cursor: pointer; }
 .ol-btn:hover { background: var(--surface); }
-.ol-btn.accent { background: var(--pri); color: #fff; border-color: var(--pri); }
+.ol-btn.accent { background: var(--pri); color: var(--pri-fg); border-color: var(--pri); }
 .ol-btn.close  { color: var(--muted); }
 
 .doc-panel-body { flex: 1; overflow-y: auto; padding: 24px; }

@@ -31,7 +31,7 @@ defineProps({
   transition: opacity .15s, background .15s;
 }
 .app-btn:disabled { opacity: .5; cursor: not-allowed; }
-.app-btn--primary   { background: var(--pri); color: #fff; }
+.app-btn--primary   { background: var(--pri); color: var(--pri-fg); }
 .app-btn--secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
 .app-btn--ghost     { background: transparent; color: var(--text); }
 .app-btn--danger    { background: #ef4444; color: #fff; }

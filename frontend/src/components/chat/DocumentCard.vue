@@ -24,6 +24,6 @@ defineEmits(['view'])
 .doc-card-body { flex: 1; }
 .doc-card-title { font-size: 14px; font-weight: 600; color: var(--text); margin: 0 0 2px; }
 .doc-card-sub   { font-size: 12px; color: var(--muted); margin: 0; }
-.doc-card-btn   { padding: 6px 14px; border-radius: 6px; background: var(--pri); color: #fff; border: none; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.doc-card-btn   { padding: 6px 14px; border-radius: 6px; background: var(--pri); color: var(--pri-fg); border: none; cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap; }
 .doc-card-btn:hover { opacity: .85; }
 </style>

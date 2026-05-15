@@ -333,7 +333,7 @@ onMounted(fetchSkills)
 
 .cp-publish-btn {
   flex-shrink: 0; padding: 8px 18px; border-radius: 8px;
-  background: var(--pri); color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .13s;
+  background: var(--pri); color: var(--pri-fg); border: none; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity .13s;
 }
 .cp-publish-btn:hover:not(:disabled) { opacity: .88; }
 .cp-publish-btn:disabled { opacity: .4; cursor: not-allowed; }

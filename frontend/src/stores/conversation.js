@@ -11,7 +11,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { apiFetch } from '../composables/useFetch'
 
 const DEFAULT_SKILL = 'architect'
@@ -57,6 +57,9 @@ export const useConversationStore = defineStore('conversation', () => {
   const pendingQuestions    = ref([])
   const pendingConfirmation = ref(null)
 
+  // ── Token usage ────────────────────────────────────────────────────────────
+  const sessionUsage = reactive({ input_tokens: 0, output_tokens: 0, cost_usd: 0, breakdown: [], loaded: false })
+
   // ── Errors ─────────────────────────────────────────────────────────────────
   const error            = ref(null)
   const providerConflict = ref(null)  // { detail, canSmartPick }
@@ -89,6 +92,25 @@ export const useConversationStore = defineStore('conversation', () => {
     pendingConfirmation.value  = null
     error.value                = null
     providerConflict.value     = null
+    sessionUsage.input_tokens  = 0
+    sessionUsage.output_tokens = 0
+    sessionUsage.cost_usd      = 0
+    sessionUsage.breakdown     = []
+    sessionUsage.loaded        = false
+  }
+
+  async function _refreshUsage() {
+    if (!conversationId.value) return
+    try {
+      const res  = await apiFetch(`/api/conversations/${conversationId.value}/usage`)
+      if (!res.ok) return
+      const data = await res.json()
+      sessionUsage.input_tokens  = data.totals?.input_tokens  ?? 0
+      sessionUsage.output_tokens = data.totals?.output_tokens ?? 0
+      sessionUsage.cost_usd      = data.totals?.cost_usd      ?? 0
+      sessionUsage.breakdown     = data.breakdown             ?? []
+      sessionUsage.loaded        = true
+    } catch { /* non-critical */ }
   }
 
   // ── SSE event dispatcher ───────────────────────────────────────────────────
@@ -219,6 +241,7 @@ export const useConversationStore = defineStore('conversation', () => {
     } finally {
       isStreaming.value = false
       if (holder.msg) holder.msg.isStreaming = false
+      await _refreshUsage()
     }
   }
 
@@ -435,6 +458,9 @@ export const useConversationStore = defineStore('conversation', () => {
       _addMessage(role, m.content || '', stage, 'text')
     }
 
+    // Load token usage for this conversation
+    _refreshUsage()
+
     // Detect pending interrupt from skills
     // (If a skill was active when restored, the execution table has running status)
     // For now, rely on frontend state — the pipeline will be resumable via /retry
@@ -449,6 +475,7 @@ export const useConversationStore = defineStore('conversation', () => {
     isHalted, isInvalidInput,
     pendingQuestions, pendingConfirmation,
     error, providerConflict,
+    sessionUsage,
     // Computed
     hasActiveConversation, isInputLocked,
     // Actions

@@ -511,7 +511,7 @@ onMounted(loadAll)
 
 /* Primary — filled brand colour: Save Draft, Publish */
 .ap-btn-primary {
-  background: var(--pri); color: #fff; border-color: transparent;
+  background: var(--pri); color: var(--pri-fg); border-color: transparent;
 }
 .ap-btn-primary:hover:not(:disabled) { opacity: .88; }
 

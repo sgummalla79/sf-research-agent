@@ -438,5 +438,6 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 }
 .cb-send svg { stroke: var(--surf); }
 .cb-send:hover:not(:disabled) { background: var(--pri); }
+.cb-send:hover:not(:disabled) svg { stroke: var(--pri-fg); }
 .cb-send:disabled { opacity: 0.3; cursor: not-allowed; }
 </style>

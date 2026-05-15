@@ -18,6 +18,33 @@ import json
 import logging
 from typing import Optional
 
+async def _generate_title(text: str, provider: str, model: str) -> str:
+    """Use the conversation's LLM to produce a short 4-7 word title."""
+    from utils.llm_factory import build_llm
+    from langchain_core.messages import HumanMessage
+    try:
+        llm  = build_llm(provider, model)
+        resp = await llm.ainvoke([HumanMessage(content=(
+            "Write a short 4-7 word title for this conversation. "
+            "No quotes, no punctuation at end, title case. "
+            f"It starts with: {text[:300]}"
+        ))])
+        title = resp.content.strip().strip("\"'").rstrip(".")
+        return title[:100] if title else text[:60]
+    except Exception:
+        return text[:60]
+
+async def _auto_title(db, conversation_id: str, text: str, provider: str, model: str,
+                      user_keys: dict, anthropic_mode: str) -> None:
+    """Fire-and-forget — generate and save a title for a new conversation."""
+    try:
+        from utils.user_context import set_user_context
+        set_user_context(user_keys, anthropic_mode)
+        title = await _generate_title(text, provider, model)
+        await db.conversations.rename(conversation_id, title)
+    except Exception as exc:
+        log.debug("Auto-title failed for %s: %s", conversation_id, exc)
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -213,6 +240,14 @@ async def send_message(
     )
     await db.conversations.touch(conversation_id)
 
+    # Auto-title on first message
+    if not conv.title:
+        from utils.user_context import _user_keys, get_anthropic_mode
+        asyncio.create_task(_auto_title(
+            db, conversation_id, body.text, provider, model,
+            _user_keys.get() or {}, get_anthropic_mode(),
+        ))
+
     # Load recent conversation history
     history = await db.messages.list_for_conversation(conversation_id, limit=50, visible_only=False)
     lc_msgs = []
@@ -226,13 +261,19 @@ async def send_message(
     llm = build_llm(provider, model)
 
     async def _stream():
-        full_response = ""
+        full_response  = ""
+        input_tokens   = 0
+        output_tokens  = 0
         try:
             async for chunk in llm.astream(lc_msgs):
                 text = chunk.content if isinstance(chunk.content, str) else ""
                 if text:
                     full_response += text
                     yield _sse("token", {"content": text})
+                # Capture token counts from the last chunk's usage metadata
+                meta = getattr(chunk, "usage_metadata", None) or {}
+                if meta.get("input_tokens"):  input_tokens  = meta["input_tokens"]
+                if meta.get("output_tokens"): output_tokens = meta["output_tokens"]
 
             # Save assistant message
             await db.messages.create(
@@ -242,8 +283,7 @@ async def send_message(
                 message_type    = "chat",
                 message_state   = "visible",
             )
-            # Record token usage (approximate — langchain streaming doesn't always have metadata)
-            await db.usage.record(conversation_id, provider, model, 0, 0)
+            await db.usage.record(conversation_id, provider, model, input_tokens, output_tokens)
 
             yield _sse("done", {"status": "complete"})
         except Exception as exc:

@@ -97,7 +97,7 @@
     </template>
 
     <!-- ── Avatar footer — always visible, adapts to collapsed state ─────── -->
-    <div class="sb-footer" :class="{ 'sb-footer-collapsed': !sidebar.open }">
+    <StatusBar class="sb-footer" :class="{ 'sb-footer-collapsed': !sidebar.open }">
       <button class="avatar-btn"
         :class="{ 'avatar-btn-collapsed': !sidebar.open, 'avatar-btn-active': userMenuOpen }"
         @click.stop="userMenuOpen = !userMenuOpen">
@@ -132,6 +132,7 @@
             {{ isDark ? 'Light mode' : 'Dark mode' }}
           </button>
 
+          <div class="um-section-label">Theme Color</div>
           <div class="um-theme-row">
             <button
               v-for="t in THEMES" :key="t.id"
@@ -163,7 +164,7 @@
           </button>
         </div>
       </Transition>
-    </div>
+    </StatusBar>
 
   </div>
 </template>
@@ -178,6 +179,7 @@ import { useDarkMode }      from '../../composables/useDarkMode'
 import { apiFetch }         from '../../composables/useFetch'
 import ConversationRow      from './ConversationRow.vue'
 import SudarshanChakra      from '../SudarshanChakra.vue'
+import StatusBar            from '../ui/StatusBar.vue'
 
 const props = defineProps({
   activeConversationId: { type: String, default: null },
@@ -297,10 +299,7 @@ function handlePin(c) {
 
 /* ── Avatar footer ── */
 .sb-footer {
-  flex-shrink: 0;
-  border-top: 1px solid rgba(128,128,128,0.12);
   padding: 8px;
-  position: relative;
 }
 /* In collapsed mode: no border, no padding — blend with the icon buttons above */
 .sb-footer-collapsed {
@@ -338,8 +337,8 @@ function handlePin(c) {
   user-select: none;
 }
 .avatar-info  { display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: left; }
-.avatar-name  { font-size: 13px; font-weight: 600; color: var(--sb-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.avatar-email { font-size: 11px; color: var(--sb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avatar-name  { font-size: 16px; font-weight: 600; color: var(--sb-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avatar-email { font-size: 13px; color: var(--sb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── User menu popup ── */
 .user-menu {

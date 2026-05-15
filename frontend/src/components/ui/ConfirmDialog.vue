@@ -161,7 +161,7 @@ html.dark .cd-icon-info   { background: rgba(96, 165, 250, .12);  color: #60a5fa
 .cd-cancel:hover { background: var(--surface-2); }
 
 .cd-confirm {
-  border: none; background: var(--pri); color: #fff;
+  border: none; background: var(--pri); color: var(--pri-fg);
 }
 .cd-confirm:hover { opacity: .88; }
 
