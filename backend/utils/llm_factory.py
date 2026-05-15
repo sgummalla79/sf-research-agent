@@ -54,18 +54,27 @@ def build_llm(provider: str, model: str):
 
 def get_llm_for_agent(agent_key: str, session_agent_config: dict):
     """
-    Return a configured LangChain chat model for the given agent key,
-    reading from the session's frozen config snapshot.
+    Return a configured LangChain chat model for the given agent key.
+    If provider/model are null, smart_pick runs against currently connected providers.
+    The resolved values are written back into session_agent_config so agent_model()
+    returns the correct model for usage tracking.
     """
-    cfg = session_agent_config.get(agent_key)
-    if not cfg:
-        raise RuntimeError(
-            f"No model configured for agent '{agent_key}'. "
-            "Ensure session_agent_config is populated before invoking the pipeline."
-        )
-    log.info("get_llm_for_agent  agent=%s  provider=%s  model=%s",
-             agent_key, cfg.get("provider"), cfg.get("model"))
-    return build_llm(cfg["provider"], cfg["model"])
+    cfg      = session_agent_config.setdefault(agent_key, {})
+    provider = cfg.get("provider")
+    model    = cfg.get("model")
+
+    if not provider or not model:
+        from framework.defaults import smart_pick
+        from utils.user_context import connected_providers
+        slot   = cfg.get("slot", "default")
+        picked = smart_pick(slot, connected_providers())
+        provider = picked["provider"]
+        model    = picked["model"]
+        cfg["provider"] = provider
+        cfg["model"]    = model
+
+    log.info("get_llm_for_agent  agent=%s  provider=%s  model=%s", agent_key, provider, model)
+    return build_llm(provider, model)
 
 
 def agent_model(agent_key: str, session_agent_config: dict) -> str:

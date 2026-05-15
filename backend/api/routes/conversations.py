@@ -280,17 +280,17 @@ async def add_skill(
     if not installed:
         raise HTTPException(status_code=400, detail=f"Skill '{body.skill_id}' is not installed.")
 
-    # Build snapshot from current user_agents state
+    # Build snapshot from current published version (content + model come from version record)
     user_agents = await db.user_agents.get_for_skill(current_user.sub, skill.id)
     agents_data = []
     for ua in user_agents:
-        content = await db.user_agents.get_current_content(ua.id)
+        ver = await db.user_agents.get_current_version_record(ua.id)
         agents_data.append({
             "agent_id": ua.agent_id,
             "version":  ua.current_version,
-            "content":  content or "",
-            "provider": ua.provider_to_use,
-            "model":    ua.model_to_use,
+            "content":  ver.content  if ver else "",
+            "provider": ver.provider_to_use if ver else None,
+            "model":    ver.model_to_use    if ver else None,
         })
 
     conv_skill = await db.conversations.add_skill(conversation_id, skill.id, agents_data)

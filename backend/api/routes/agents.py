@@ -22,7 +22,9 @@ router = APIRouter(prefix="/api/skills")
 
 
 class SaveDraftRequest(BaseModel):
-    content: str
+    content:  str
+    provider: Optional[str] = None
+    model:    Optional[str] = None
 
 
 @router.get("/{skill_id}/agents")
@@ -55,18 +57,22 @@ async def list_agents(
             "agent_key":        agent.agent_key,
             "label":            agent.label,
             "slot":             slot_map.get(agent.agent_key),
-            "provider_to_use":  ua.provider_to_use if ua else None,
-            "model_to_use":     ua.model_to_use    if ua else None,
+            "provider_to_use":  published.provider_to_use if published else None,
+            "model_to_use":     published.model_to_use    if published else None,
             "current_version":  ua.current_version if ua else None,
             "published":        {
-                "version":      published.version,
-                "content":      published.content,
-                "published_at": published.published_at,
+                "version":          published.version,
+                "content":          published.content,
+                "provider_to_use":  published.provider_to_use,
+                "model_to_use":     published.model_to_use,
+                "published_at":     published.published_at,
             } if published else None,
             "draft": {
-                "version":    draft.version,
-                "content":    draft.content,
-                "created_at": draft.created_at,
+                "version":          draft.version,
+                "content":          draft.content,
+                "provider_to_use":  draft.provider_to_use,
+                "model_to_use":     draft.model_to_use,
+                "created_at":       draft.created_at,
             } if draft else None,
             "has_draft": draft is not None,
         })
@@ -92,7 +98,9 @@ async def save_draft(
     if not agent:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found.")
 
-    version = await db.user_agents.save_draft(current_user.sub, agent.id, body.content)
+    version = await db.user_agents.save_draft(
+        current_user.sub, agent.id, body.content, body.provider, body.model
+    )
     return {"ok": True, "agent_key": agent_key, "version": version.version}
 
 
@@ -161,31 +169,3 @@ async def publish_all(
     }
 
 
-# ── Per-agent default model config ───────────────────────────────────────────
-
-class UpdateModelRequest(BaseModel):
-    provider: Optional[str] = None
-    model:    Optional[str] = None
-
-
-@router.patch("/{skill_id}/agents/{agent_key}/model")
-async def update_agent_model(
-    skill_id:     str,
-    agent_key:    str,
-    body:         UpdateModelRequest,
-    request:      Request,
-    current_user: AuthUser = Depends(get_current_user),
-):
-    """Update the user's default provider/model for a specific agent."""
-    db    = request.app.state.db
-    skill = await db.skills.get_by_key(skill_id)
-    if not skill:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
-    agent = await db.agents.get_by_key(skill.id, agent_key)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found.")
-
-    await db.user_agents.update_model(
-        current_user.sub, agent.id, body.provider, body.model
-    )
-    return {"ok": True, "agent_key": agent_key, "provider": body.provider, "model": body.model}

@@ -57,7 +57,7 @@
                 @click="select({ type: 'agent', skillId: skill.id, skillKey: skill.skill_key, agentKey: agent.agent_key, label: agent.label || agent.agent_key })">
                 <span class="cp-file-icon">📝</span>
                 {{ agent.label || agent.agent_key }}
-                <span v-if="agent.has_draft" class="cp-draft-dot" title="Unpublished draft" />
+                <span v-if="agent.draft" class="cp-draft-dot" title="Unpublished draft" />
               </button>
             </div>
           </div>
@@ -95,16 +95,20 @@
               class="cp-agent-chip"
               @click="select({ type: 'agent', skillId: activeSkill.id, skillKey: activeSkill.skill_key, agentKey: agent.agent_key, label: agent.label || agent.agent_key })">
               {{ agent.label || agent.agent_key }}
-              <span v-if="agent.has_draft" class="cp-draft-dot" />
+              <span v-if="agent.draft" class="cp-draft-dot" />
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Agent prompt editor -->
+      <!-- Agent prompt editor — embedded, nav hidden, agent pre-selected -->
       <AgentPromptsSettings
         v-else-if="sel?.type === 'agent'"
         :key="`${sel.skillKey}/${sel.agentKey}`"
+        :embedded="true"
+        :skill-key="sel.skillKey"
+        :agent-key="sel.agentKey"
+        @draft-saved="onDraftSaved"
       />
 
       <div v-else class="cp-empty-state">
@@ -116,18 +120,14 @@
 
   <SkillDirectory v-if="directoryOpen" @close="directoryOpen = false" @changed="fetchSkills" />
 
-  <Transition name="fade">
-    <div v-if="uninstallTarget" class="del-overlay" @click.self="uninstallTarget = null">
-      <div class="del-dialog">
-        <p class="del-title">Uninstall {{ uninstallTarget.name }}?</p>
-        <p class="del-body">Removed from chat menu. You can reinstall anytime from the skill directory.</p>
-        <div class="del-btns">
-          <button class="del-cancel" @click="uninstallTarget = null">Cancel</button>
-          <button class="del-confirm" @click="executeUninstall">Uninstall</button>
-        </div>
-      </div>
-    </div>
-  </Transition>
+  <ConfirmDialog
+    :open="!!uninstallTarget"
+    :title="`Uninstall ${uninstallTarget?.name}?`"
+    body="Removed from chat menu. You can reinstall anytime from the skill directory."
+    confirm-label="Uninstall"
+    @confirm="executeUninstall"
+    @cancel="uninstallTarget = null"
+  />
 </template>
 
 <script setup>
@@ -135,6 +135,7 @@ import { ref, computed, reactive, onMounted } from 'vue'
 import { apiFetch }         from '../composables/useFetch.js'
 import AgentPromptsSettings from './settings/AgentPromptsSettings.vue'
 import SkillDirectory       from './SkillDirectory.vue'
+import ConfirmDialog        from './ui/ConfirmDialog.vue'
 
 defineEmits(['back'])
 
@@ -175,8 +176,9 @@ async function loadAgents(skill) {
   try {
     const res  = await apiFetch(`/api/skills/${skill.skill_key}/agents`)
     const data = await res.json()
-    skillAgents[skill.id]   = data.agents   || []
-    skillHasDraft[skill.id] = data.has_draft || false
+    const agents = data.agents || []
+    skillAgents[skill.id]   = agents
+    skillHasDraft[skill.id] = agents.some(a => !!a.draft)
   } catch (_) {
     skillAgents[skill.id]   = []
     skillHasDraft[skill.id] = false
@@ -214,6 +216,15 @@ function toggleFolder(skillId, folder) {
 
 function folderOpen(skillId, folder) {
   return !!openFolders[`${skillId}/${folder}`]
+}
+
+// Called when AgentPromptsSettings saves a draft — refresh hasDraft so
+// "Publish All Drafts" on the SKILL.md view becomes enabled immediately
+async function onDraftSaved() {
+  const skillKey = sel.value?.skillKey
+  if (!skillKey) return
+  const skill = skills.value.find(s => s.skill_key === skillKey)
+  if (skill) await loadAgents(skill)
 }
 
 function select(item) {
@@ -345,15 +356,4 @@ onMounted(fetchSkills)
 
 .cp-empty-state { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-size: 14px; }
 
-/* ── Delete dialog ── */
-.del-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 900; }
-.del-dialog { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px 28px; width: 360px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 16px 48px rgba(0,0,0,.25); }
-.del-title { font-size: 16px; font-weight: 700; color: var(--text); margin: 0; }
-.del-body  { font-size: 13px; color: var(--muted); margin: 0; line-height: 1.55; }
-.del-btns  { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
-.del-cancel { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text); font-size: 13px; font-weight: 500; cursor: pointer; }
-.del-confirm { padding: 8px 16px; border-radius: 8px; background: #dc2626; color: #fff; border: none; font-size: 13px; font-weight: 600; cursor: pointer; }
-
-.fade-enter-active, .fade-leave-active { transition: opacity .15s; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

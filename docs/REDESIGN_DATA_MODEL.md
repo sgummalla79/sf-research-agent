@@ -138,28 +138,30 @@ user_agents:
   agent_id         GUID FK → agents.id
   current_version  INTEGER    -- points to the active published version in user_agents_versions
                               -- NULL is not valid here; always points to at least version 1
-  provider_to_use  TEXT       -- e.g. "anthropic" — NULL until configured
-  model_to_use     TEXT       -- e.g. "claude-sonnet-4-6" — NULL until configured
   created_at       TEXT
   UNIQUE (user_id, agent_id)
 ```
 
-> `provider_to_use` and `model_to_use` are NULL immediately after skill install. They are set either via manual configuration on the skill config page or via smart suggest.
+> No `provider_to_use` / `model_to_use` here. Model choice is versioned alongside prompt content in `user_agents_versions`.
 
 #### `user_agents_versions`
-The actual prompt content, versioned per user per agent. One row per version.
+Prompt content **and model choice**, versioned together per user per agent. One row per version.
 
 ```
 user_agents_versions:
-  id             GUID PK
-  user_agent_id  GUID FK → user_agents.id
-  version        INTEGER        -- sequential: 1, 2, 3, ...
-  content        TEXT           -- the full system prompt text
-  status         TEXT           -- "draft" or "published"
-  created_at     TEXT
-  published_at   TEXT           -- NULL if status = "draft"
+  id               GUID PK
+  user_agent_id    GUID FK → user_agents.id
+  version          INTEGER        -- sequential: 1, 2, 3, ...
+  content          TEXT           -- the full system prompt text
+  status           TEXT           -- "draft" or "published"
+  provider_to_use  TEXT           -- e.g. "anthropic" — NULL until configured
+  model_to_use     TEXT           -- e.g. "claude-sonnet-4-6" — NULL until configured
+  created_at       TEXT
+  published_at     TEXT           -- NULL if status = "draft"
   UNIQUE (user_agent_id, version)
 ```
+
+> `provider_to_use` and `model_to_use` are NULL in version 1 (factory default on install). They are set when the user configures a model and saves a draft. Publishing that draft makes the model choice live alongside the new prompt content.
 
 ---
 
@@ -172,13 +174,14 @@ When a user installs a skill (e.g. `architect`):
 
 2. For each agent in the skill (rows in agents table):
      INSERT into user_agents:
-       (user_id, agent_id, current_version=1, provider_to_use=NULL, model_to_use=NULL)
+       (user_id, agent_id, current_version=1)
 
      INSERT into user_agents_versions:
-       (user_agent_id, version=1, content=agents.default_content, status="published", published_at=now)
+       (user_agent_id, version=1, content=agents.default_content, status="published",
+        provider_to_use=NULL, model_to_use=NULL, published_at=now)
 ```
 
-Version 1 is always the factory default content, published immediately on install.
+Version 1 is always the factory default content, published immediately on install. Model is NULL until the user configures it.
 
 ---
 
@@ -214,13 +217,15 @@ No `archived` status. The `current_version` pointer in `user_agents` is the sing
 ```
 user_agents_versions (for one agent, one user):
 
-  version | content | status    | published_at          | is current?
-  --------|---------|-----------|----------------------|------------
-  1       | "..."   | published | 2026-01-01           | no
-  2       | "..."   | published | 2026-02-01           | no
-  3       | "..."   | published | 2026-03-01           | YES  ← current_version = 3
-  4       | "..."   | draft     | null                 | no (in progress)
+  version | content | status    | provider    | model          | published_at  | is current?
+  --------|---------|-----------|-------------|----------------|---------------|------------
+  1       | "..."   | published | null        | null           | 2026-01-01    | no
+  2       | "..."   | published | anthropic   | sonnet-4-6     | 2026-02-01    | no
+  3       | "..."   | published | google      | gemini-2.5-pro | 2026-03-01    | YES  ← current_version = 3
+  4       | "..."   | draft     | openai      | gpt-4o         | null          | no (in progress)
 ```
+
+Model and content travel together — publishing a draft captures both the new prompt and the chosen model as one atomic version.
 
 ---
 
@@ -228,40 +233,46 @@ user_agents_versions (for one agent, one user):
 
 ### Where it lives
 
-`provider_to_use` and `model_to_use` on `user_agents`. Model choice is **not versioned** — it is orthogonal to prompt content. Changing the model does not create a new prompt version.
+`provider_to_use` and `model_to_use` are columns on **`user_agents_versions`**. Model choice is **versioned alongside prompt content** — they are saved and published together as one atomic version.
+
+There are no model fields on `user_agents`. The current model is always read from the version pointed to by `user_agents.current_version`.
 
 ### Initial state
 
-Both fields are `NULL` immediately after skill install.
+Both fields are `NULL` in version 1 (the factory default installed on skill install). They remain NULL until the user explicitly configures a model and publishes.
 
-### Three places where model validity is checked
+### How model is changed
 
-| Check point | Trigger |
-|---|---|
-| **Skill added to chat** | User selects the skill to start a conversation |
-| **Session starts** | Before the pipeline begins executing |
-| **Per agent trigger** | Just before each individual agent runs in the pipeline |
+Changing the model follows the same draft → publish flow as editing prompt content:
 
-At all three points, the **same banner behavior** applies:
-- If `provider_to_use` / `model_to_use` is NULL → not configured
-- If `provider_to_use` is set but that provider is no longer connected → invalid
-- Either condition triggers the banner
+```
+1. User opens agent on the skill config page
+2. User picks a model from the dropdown (connected providers only)
+3. This marks the agent as having an unsaved change (dirty)
+4. User clicks Save Draft → content + provider + model saved together into user_agents_versions (draft)
+5. User clicks Publish → draft promoted to published, current_version pointer updated
+```
 
-### Banner options
+There is no separate `PATCH /model` endpoint. Model and content are always saved and published together.
 
-**In chat (skill added / session start):**
-- Message input is **disabled** until resolved
-- Banner offers two actions:
-  1. **Configure** → takes user to the skill config page
-  2. **Smart suggest** → system auto-picks best provider/model per agent from connected providers → saves to `user_agents` → banner dismissed → input enabled
+### Model at execution time — smart pick
 
-**On skill config page (deliberate configuration):**
-- **Smart suggest button** → auto-fills provider/model per agent
-- **Dropdown** → shows models available from the user's connected LLM providers, user picks manually
+When a skill execution starts, `session_agent_config` is built from `conversation_skill_agents` (the frozen snapshot). If `provider`/`model` are NULL for an agent, **no error is raised at invocation time**. Instead, smart pick runs lazily inside `get_llm_for_agent` just before that agent's stage executes:
 
-### Smart suggest logic
+```
+get_llm_for_agent(agent_key, session_agent_config)
+  → if provider/model null:
+      slot   = session_agent_config[agent_key]["slot"]   ← set at invocation from SKILL.md
+      picked = smart_pick(slot, connected_providers())
+      → resolved values written back into session_agent_config for that agent
+  → build_llm(provider, model)
+```
 
-Uses the existing slot-based preference chains (from `defaults.py`). Each agent maps to a slot, and each slot has an ordered provider preference:
+Smart pick at execution time is **ephemeral** — it does not persist back to `user_agents_versions` or `conversation_skill_agents`. It only applies for the duration of that execution.
+
+### Smart pick preference chains
+
+Each agent maps to a slot via `SKILL.md`. Each slot has an ordered provider preference:
 
 | Slot | Provider preference order |
 |---|---|
@@ -270,7 +281,14 @@ Uses the existing slot-based preference chains (from `defaults.py`). Each agent 
 | `approver` | Anthropic (Opus) → Google → OpenAI → Perplexity |
 | All others | Anthropic → Google → OpenAI → Perplexity |
 
-Smart suggest persists the result to `user_agents.provider_to_use` and `user_agents.model_to_use`. It is not session-only.
+If no providers are connected at all, `smart_pick` raises `ValueError` which surfaces as a `provider_error` SSE to the frontend.
+
+### Skill config page
+
+- Dropdown shows models from the user's connected LLM providers only
+- Selecting a model marks the agent dirty (unsaved change)
+- Save Draft + Publish is the only path to persisting a model choice
+- No "Smart suggest" button — smart pick is handled automatically at execution time
 
 ---
 
@@ -424,12 +442,17 @@ When a skill is added to a conversation:
 1. INSERT conversation_skills (conversation_id, skill_id)
 
 2. For each agent in the skill:
+     current_ver = user_agents_versions WHERE user_agent_id = ua.id
+                                          AND version = user_agents.current_version
+
      INSERT conversation_skill_agents:
-       content  ← copied from user_agents_versions WHERE version = user_agents.current_version
-       version  ← user_agents.current_version
-       provider ← user_agents.provider_to_use
-       model    ← user_agents.model_to_use
+       content  ← current_ver.content
+       version  ← current_ver.version
+       provider ← current_ver.provider_to_use   ← may be NULL
+       model    ← current_ver.model_to_use       ← may be NULL
 ```
+
+Both content and model are snapshotted from the same version record. NULL provider/model in the snapshot is valid — smart pick resolves them at stage execution time.
 
 Snapshot is point-in-time. Any future publish or model change on `user_agents` does not affect this conversation.
 
@@ -527,16 +550,17 @@ class AgentState(BaseModel):
 - `flow_snapshot_id`, `flow_snapshot_version` → replaced by `conversation_skill_id`
 - `created_at` → not needed in state, tracked in DB
 
-**`session_agent_config` is now agent_key-based** (not slot-based):
+**`session_agent_config` is agent_key-based** and includes `slot` for smart pick fallback:
 ```python
 {
-    "discovery":          {"provider": "anthropic",  "model": "claude-sonnet-4-6"},
-    "research-search":    {"provider": "perplexity", "model": "sonar-pro"},
-    "research-reasoning": {"provider": "google",     "model": "gemini-2.5-pro"},
-    "research-writer":    {"provider": "anthropic",  "model": "claude-sonnet-4-6"},
-    "review":             {"provider": "anthropic",  "model": "claude-sonnet-4-6"},
-    "approval":           {"provider": "anthropic",  "model": "claude-opus-4-7"},
+    "discovery":          {"provider": "anthropic",  "model": "claude-sonnet-4-6", "slot": "discovery"},
+    "research-search":    {"provider": None,          "model": None,                "slot": "researcher_search"},
+    "research-reasoning": {"provider": "google",     "model": "gemini-2.5-pro",   "slot": "researcher_reasoning"},
+    "research-writer":    {"provider": "anthropic",  "model": "claude-sonnet-4-6", "slot": "researcher_writer"},
+    "review":             {"provider": "anthropic",  "model": "claude-sonnet-4-6", "slot": "reviewer"},
+    "approval":           {"provider": None,          "model": None,                "slot": "approver"},
 }
+# Agents with null provider/model get smart_pick applied at their stage execution time
 ```
 
 ---
@@ -559,11 +583,12 @@ class AgentState(BaseModel):
 
 4. Load conversation_skill_agents for this conversation_skill_id
    → build flow_config          = {agent_key: content}
-   → build session_agent_config = {agent_key: {provider, model}}
+   → build session_agent_config = {agent_key: {provider, model, slot}}
+     where slot comes from skill.manifest.agent_slot_map
+     provider/model may be NULL — resolved lazily per stage
 
-5. Validate all agents:
-   → any provider NULL or disconnected → surface banner (not HTTP error)
-   → all valid → proceed
+5. No upfront model validation — NULL provider/model is allowed at invocation.
+   Smart pick runs inside get_llm_for_agent just before each agent stage executes.
 
 6. Create conversation_skill_executions row
    → new UUID = execution_id = LangGraph thread_id
@@ -696,8 +721,8 @@ The `artifact_ref` message links to the artifact via `artifact_id`. The UI rende
 | 4 | `user_api_keys` | Encrypted LLM provider API keys per user |
 | 5 | `user_config` | Plain config values per user |
 | 6 | `user_skills` | Which skills a user has installed |
-| 7 | `user_agents` | Per-user per-agent state — `current_version` pointer + `provider_to_use` + `model_to_use` |
-| 8 | `user_agents_versions` | Versioned prompt content — `status`: `draft` \| `published` |
+| 7 | `user_agents` | Per-user per-agent state — `current_version` pointer only (no model fields) |
+| 8 | `user_agents_versions` | Versioned prompt content + model choice — `provider_to_use`, `model_to_use`, `status`: `draft` \| `published` |
 
 ### Conversation
 

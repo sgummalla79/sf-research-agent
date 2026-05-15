@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from state import AgentState
 from utils.auth import AuthUser, get_current_user
-from framework.defaults import resolve_agent_config, available_providers
+from framework.defaults import available_providers
 
 log    = logging.getLogger(__name__)
 router = APIRouter()
@@ -277,36 +277,26 @@ async def invoke_skill(
     if not csa_list:
         raise HTTPException(status_code=400, detail="Skill snapshot has no agents.")
 
-    # Build flow_config + session_agent_config
+    skill = await db.skills.get_by_id(conv_skill.skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail="Skill not found.")
+
+    # Build flow_config and session_agent_config (source: conversation_skill_agents)
+    # Slot is included so get_llm_for_agent can smart_pick if provider/model are null
+    registry_entry = request.app.state.skill_registry.get(skill.skill_key)
+    agent_slot_map = registry_entry.manifest.agent_slot_map if registry_entry else {}
+
     flow_config:          dict = {}
-    snapshot_agent_config: dict = {}
+    session_agent_config: dict = {}
     for csa in csa_list:
         agent = await db.agents.get_by_id(csa.agent_id)
         if agent:
             flow_config[agent.agent_key] = csa.content
-            snapshot_agent_config[agent.agent_key] = {
+            session_agent_config[agent.agent_key] = {
                 "provider": csa.provider,
                 "model":    csa.model,
+                "slot":     agent_slot_map.get(agent.agent_key, "default"),
             }
-
-    # Validate all agents have connected providers
-    from utils.user_context import connected_providers
-    connected = connected_providers()
-    missing   = [k for k, v in snapshot_agent_config.items() if not v.get("provider") or v["provider"] not in connected]
-    if missing:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "error":   "model_not_configured",
-                "agents":  missing,
-                "message": f"Agents {missing} have no valid provider configured.",
-            },
-        )
-
-    # Get skill info for flow_id
-    skill = await db.skills.get_by_id(conv_skill.skill_id)
-    if not skill:
-        raise HTTPException(status_code=404, detail="Skill not found.")
 
     # Create execution
     execution    = await db.executions.create(conversation_skill_id)
@@ -335,7 +325,7 @@ async def invoke_skill(
         conversation_skill_id = conversation_skill_id,
         flow_id               = skill.skill_key,
         flow_config           = flow_config,
-        session_agent_config  = snapshot_agent_config,
+        session_agent_config  = session_agent_config,
         source_type           = body.source_type or "brief",
         project_brief         = body.brief or "",
         uploaded_file_path    = body.uploaded_file_path or "",
