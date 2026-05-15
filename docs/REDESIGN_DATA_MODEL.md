@@ -1,8 +1,8 @@
 # Data Model Redesign — Design Discussion
 
-> **Status:** In progress — active design discussion.
+> **Status:** Design complete — ready for implementation planning.
 > **Purpose:** Documents decisions made, rationale behind them, and topics parked for later discussion.
-> **Last updated:** P3 (session start flow), conversation messages, and artifacts model finalised. Pending items: P1, P4, P5, P6, P7, P8, P9.
+> **Last updated:** All design items resolved. Final table list locked. Moving to plan mode.
 
 ---
 
@@ -19,7 +19,8 @@
 9. [Conversation & Execution Model](#9-conversation--execution-model)
 10. [Session Start Flow & AgentState](#10-session-start-flow--agentstate)
 11. [Conversation Messages & Artifacts](#11-conversation-messages--artifacts)
-12. [Parked — To Discuss Later](#12-parked--to-discuss-later)
+12. [Final Complete Table List](#12-final-complete-table-list)
+13. [Parked — To Discuss Later](#13-parked--to-discuss-later)
 
 ---
 
@@ -100,16 +101,15 @@ Canonical list of agents per skill with their **default prompt content**. Popula
 
 ```
 agents:
-  id            GUID PK
-  skill_id      GUID FK → skills.id
-  agent_key     TEXT           -- e.g. "discovery", "research-writer"
-  label         TEXT           -- e.g. "Discovery Agent"
-  slot          TEXT           -- e.g. "discovery", "researcher_writer"
-                               -- (open question: populated from SKILL.md at deployment,
-                               --  or derived at runtime? — see §8)
-  default_content TEXT         -- the full default system prompt
-  created_at    TEXT
+  id              GUID PK
+  skill_id        GUID FK → skills.id
+  agent_key       TEXT    -- e.g. "discovery", "research-writer"
+  label           TEXT    -- e.g. "Discovery Agent"
+  default_content TEXT    -- the full default system prompt
+  created_at      TEXT
 ```
+
+> No `slot` field — slot is derived at runtime from `skill.manifest.agent_slot_map` (SKILL.md). No duplication in DB.
 
 > **Note:** `agents.default_content` is the factory default — the prompt that ships with the skill. It is **never modified** after deployment. All user edits go into `user_agents_versions`.
 
@@ -677,7 +677,58 @@ The `artifact_ref` message links to the artifact via `artifact_id`. The UI rende
 
 ---
 
-## 12. Parked — To Discuss Later
+## 12. Final Complete Table List
+
+16 application tables. Clean — every table has one reason to exist, one non-null FK to its parent, zero nullable FKs, zero polymorphic associations.
+
+### Platform (global, deployment-time)
+
+| # | Table | Purpose |
+|---|---|---|
+| 1 | `skills` | Registry of all available skills — `id`, `skill_key`, `name`, `description`, `icon`, `version` |
+| 2 | `agents` | Canonical agents per skill with default prompt content — no `slot` field (derived from SKILL.md) |
+
+### User Management
+
+| # | Table | Purpose |
+|---|---|---|
+| 3 | `users` | User accounts |
+| 4 | `user_api_keys` | Encrypted LLM provider API keys per user |
+| 5 | `user_config` | Plain config values per user |
+| 6 | `user_skills` | Which skills a user has installed |
+| 7 | `user_agents` | Per-user per-agent state — `current_version` pointer + `provider_to_use` + `model_to_use` |
+| 8 | `user_agents_versions` | Versioned prompt content — `status`: `draft` \| `published` |
+
+### Conversation
+
+| # | Table | Purpose |
+|---|---|---|
+| 9 | `conversations` | Root — `chat_provider` + `chat_model` for regular chat |
+| 10 | `conversation_skills` | Skills added to a conversation — IS the snapshot, created at add time |
+| 11 | `conversation_skill_agents` | Frozen agent prompt + model per skill per conversation — content frozen, model modifiable |
+| 12 | `conversation_skill_executions` | One per skill invocation — `id` = LangGraph `thread_id` |
+| 13 | `conversation_skill_execution_stages` | Per-stage audit — `agent_key`, `provider`, `model`, `status`, `ran_at` |
+| 14 | `conversation_messages` | All messages — regular chat and skill pipeline — `message_type` + `message_state` |
+| 15 | `conversation_artifacts` | Documents produced during executions — every version, every status |
+
+### Billing
+
+| # | Table | Purpose |
+|---|---|---|
+| 16 | `token_usage` | Every LLM call — chat or skill — tracked at conversation level via `conversation_id` FK |
+
+### LangGraph Internal (auto-managed)
+
+| # | Table | Purpose |
+|---|---|---|
+| 17 | `checkpoints` | LangGraph pipeline state |
+| 18 | `checkpoint_writes` | LangGraph write log |
+| 19 | `checkpoint_blobs` | LangGraph state blobs |
+| 20 | `checkpoint_migrations` | LangGraph migration tracking |
+
+---
+
+## 13. Parked — To Discuss Later
 
 The following topics were raised but explicitly deferred during the discussion.
 
