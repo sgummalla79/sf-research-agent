@@ -713,12 +713,12 @@ No `slot` field needed in the `agents` table. SKILL.md stays on disk and is load
 
 ---
 
-### P6. Draft / publish lifecycle — additional details
+### P6. ~~Draft / publish lifecycle — additional details~~ ✅ Resolved
 
-High-level versioning model is agreed (draft → published, pointer-based, no archived). Finer details not yet discussed:
-- UI behaviour when user edits while a draft already exists (update in place)
-- Bulk publish (all agents at once) vs per-agent publish
-- Whether publishing affects any in-flight conversations (it should not — snapshots are frozen)
+- **Per-agent publish** — each agent has its own publish button. Granular control. Creates a new snapshot.
+- **Publish All** — sits at the skill level. Enabled when at least one draft exists across any agent in the skill. Publishes all current drafts in one action. Creates a new snapshot.
+- Editing while a draft exists → updates the existing draft row in place (no new row created).
+- Publishing never affects in-flight conversations — `conversation_skill_agents` snapshots are frozen at the time the skill was added to the conversation.
 
 ---
 
