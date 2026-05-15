@@ -109,7 +109,9 @@ def _run_migrations(database_url: str) -> None:
 
     backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     alembic_cfg = Config(os.path.join(backend_dir, "alembic.ini"))
-    alembic_cfg.set_main_option("sqlalchemy.url", database_url)
+    alembic_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    alembic_url = alembic_url.replace("postgres://", "postgresql+psycopg://", 1)
+    alembic_cfg.set_main_option("sqlalchemy.url", alembic_url)
     alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
 
     log.info("Running Alembic migrations …")
