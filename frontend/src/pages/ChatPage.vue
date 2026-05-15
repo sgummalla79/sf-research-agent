@@ -76,10 +76,6 @@
             </button>
           </div>
         </div>
-        <div v-if="conv.isComplete && !completionBannerDismissed" class="banner ok">
-          <span>🎉 Document approved and finalised. Continue chatting below, or type / to start a new skill.</span>
-          <button class="banner-dismiss" @click="completionBannerDismissed = true">✕</button>
-        </div>
         <div v-if="conv.isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
         <div v-if="conv.isInvalidInput" class="banner err">❌ Input doesn't appear to be architecture-related.</div>
         <div v-if="conv.error" class="banner err">
@@ -91,7 +87,7 @@
         <div class="cp-bottom">
           <Transition name="slide-up">
             <ConfirmPanel
-              v-if="conv.pendingConfirmation && !conv.isComplete"
+              v-if="conv.pendingConfirmation"
               :content="conv.pendingConfirmation"
               :is-streaming="conv.isStreaming"
               class="cp-interrupt"
@@ -101,7 +97,7 @@
 
           <Transition name="slide-up">
             <DiscoveryForm
-              v-if="conv.pendingQuestions.length && !conv.isComplete && !conv.isInvalidInput"
+              v-if="conv.pendingQuestions.length && !conv.isInvalidInput"
               :questions="conv.pendingQuestions"
               :is-streaming="conv.isStreaming"
               class="cp-interrupt"
@@ -121,16 +117,14 @@
           </Transition>
 
           <ChatInput
-            v-if="!conv.isPipelineRunning || conv.isComplete"
+            v-if="!conv.isPipelineRunning"
             ref="chatInputRef"
             :chat-models="chatModels"
             :skills="skills"
             :is-pipeline-running="false"
             :is-streaming="conv.isStreaming"
             :no-providers="noProviders"
-            :placeholder="conv.isComplete
-              ? 'Ask a question about your document, or type / to start a new skill…'
-              : 'How can I help you today?'"
+            placeholder="How can I help you today?"
             @submit="onSubmit"
             @upload="onUpload"
             @show-palette="showPalette"
@@ -264,9 +258,6 @@ const noProviders   = computed(() => modelsLoaded.value && chatModels.value.leng
 const activeSkillId = ref(null)
 const activeSkill   = computed(() => skills.value.find(s => s.id === activeSkillId.value) ?? null)
 
-// Banner state
-const completionBannerDismissed = ref(false)
-
 // Empty = no messages and not mid-pipeline
 const isEmpty = computed(() =>
   !conv.messages.length && !conv.isStreaming && !conv.isPipelineRunning
@@ -370,7 +361,7 @@ async function onSkillSelect(skillId) {
   hidePalette()
   chatInputRef.value?.clear()
   activeSkillId.value             = skillId
-  completionBannerDismissed.value = false
+
   conv.reset()
   sidebar.load()
   await conv.invokeSkill(skillId, '')
@@ -389,7 +380,7 @@ async function onUpload(file, opts) {
   const skillId = skills.value[0]?.id
   if (!skillId) { conv.error = 'No skills installed. Go to Settings → Providers.'; return }
   activeSkillId.value             = skillId
-  completionBannerDismissed.value = false
+
   await conv.uploadAndInvoke(file, skillId, { chatProvider: opts.provider, chatModel: opts.model })
   sidebar.load()
 }

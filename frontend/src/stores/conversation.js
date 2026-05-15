@@ -50,7 +50,6 @@ export const useConversationStore = defineStore('conversation', () => {
   const currentStage      = ref(null)
   const isPipelineRunning = ref(false)   // true only during a skill pipeline
   const isStreaming       = ref(false)   // true for chat SSE + pipeline SSE
-  const isComplete        = ref(false)
   const isHalted          = ref(false)
   const isInvalidInput    = ref(false)
 
@@ -84,7 +83,6 @@ export const useConversationStore = defineStore('conversation', () => {
     currentStage.value         = null
     isPipelineRunning.value    = false
     isStreaming.value          = false
-    isComplete.value           = false
     isHalted.value             = false
     isInvalidInput.value       = false
     pendingQuestions.value     = []
@@ -188,8 +186,7 @@ export const useConversationStore = defineStore('conversation', () => {
         if (currentMsgHolder.msg) { currentMsgHolder.msg.isStreaming = false; currentMsgHolder.msg = null }
         currentStage.value      = null
         isPipelineRunning.value = false
-        if (event.status === 'complete')           isComplete.value     = true
-        else if (event.status === 'halted')        isHalted.value       = true
+        if (event.status === 'halted')             isHalted.value       = true
         else if (event.status === 'invalid_input') isInvalidInput.value = true
         break
       }
@@ -271,7 +268,6 @@ export const useConversationStore = defineStore('conversation', () => {
   async function invokeSkill(skillId, brief = '', opts = {}) {
     error.value            = null
     providerConflict.value = null
-    isComplete.value       = false
     isHalted.value         = false
     isInvalidInput.value   = false
 
@@ -450,7 +446,7 @@ export const useConversationStore = defineStore('conversation', () => {
     conversationId, executionId, conversationSkillId,
     messages, currentStage,
     isPipelineRunning, isStreaming,
-    isComplete, isHalted, isInvalidInput,
+    isHalted, isInvalidInput,
     pendingQuestions, pendingConfirmation,
     error, providerConflict,
     // Computed
