@@ -701,15 +701,15 @@ Fully resolved in §10 and §11. AgentState final definition, execution start fl
 
 ---
 
-### P4. Per-agent trigger — interrupt mechanism for mid-pipeline model invalidity
+### P4. ~~Per-agent trigger — interrupt mechanism~~ ✅ Resolved
 
-If a model becomes invalid while the pipeline is running (e.g. during research), the pipeline needs to surface the banner and pause. The user updates `conversation_skill_agents`, then retries. The mechanism for pausing the pipeline at the node level and resuming needs design. Deferred.
+Resolved via P3 execution flow. Node tries to call LLM → provider disconnected → error propagates to `_stream_graph` → caught → banner SSE emitted → user updates `conversation_skill_agents` → execution retries from last LangGraph checkpoint (same `execution_id` / `thread_id`). Same error propagation pattern as the existing code.
 
 ---
 
-### P5. `slot` field in `agents` table
+### P5. ~~`slot` field in `agents` table~~ ✅ Resolved
 
-Each agent maps to a slot (e.g. `"researcher_search"`, `"reviewer"`) which drives smart suggest logic. Open question: is this populated from `SKILL.md` at deployment time (static), or derived dynamically at runtime? Deferred.
+No `slot` field needed in the `agents` table. SKILL.md stays on disk and is loaded at startup. `skill.manifest.agent_slot_map` already provides `{agent_key → slot}` at runtime. Smart suggest reads slot preference from there — no DB storage needed.
 
 ---
 
@@ -722,22 +722,23 @@ High-level versioning model is agreed (draft → published, pointer-based, no ar
 
 ---
 
-### P7. `skills` and `agents` table population tooling
+### P7. ~~`skills` and `agents` table population tooling~~ 🔧 Implementation Detail
 
-Deployment concern — not server startup. Actual tooling (migration script, admin CLI, CI/CD step) not yet designed.
-
----
-
-### P8. Skill invocation UX
-
-When a conversation has multiple skills and user wants to invoke one — the system asks which skill. The exact mechanism (structured UI with buttons/cards vs free text vs command) not yet decided. Affects whether this is a LangGraph interrupt or a frontend-side pre-pipeline decision.
+Design decision already made: deployment concern, not server startup. Actual tooling (migration script, admin CLI, CI/CD step) to be designed during implementation phase — not a design discussion.
 
 ---
 
-### P9. Post-skill-completion behaviour
+### P8. ~~Skill invocation UX~~ ✅ Resolved (backend)
 
-After a skill pipeline completes (approved or halted) within a conversation:
-- Can user invoke a different skill from the same conversation?
-- Can user switch back to regular free-form chat?
-- Can user invoke the same skill again (yes, decided) — what does the conversation UI show for multiple executions of the same skill?
-Not yet fully designed.
+Resolved by the invocation endpoint design: `POST /conversation/{conversation_id}/skill/{skill_id}/invoke`. The `skill_id` is explicit in the URL — the frontend knows which skill to invoke before calling the backend. This is a frontend UI decision (buttons/cards per skill in the conversation), not a LangGraph interrupt. Backend design is complete.
+
+---
+
+### P9. Post-skill-completion behaviour — 🔲 Partially Open
+
+Decided:
+- Regular chat resumes after skill completes ✅
+- Same skill can be re-invoked — always a completely fresh start ✅
+
+Still open:
+- Can user invoke a **different skill** from the same conversation after one completes?
