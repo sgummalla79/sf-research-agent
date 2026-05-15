@@ -1,8 +1,9 @@
 <template>
-  <div class="shell" :class="{ dark: isDark }">
+  <div class="shell" :class="{ dark: isDark }" ref="shellRef">
 
   <!-- ══════════════════ SETTINGS PAGE (full-page overlay) ══════════════════ -->
-  <SettingsPage v-if="appView === 'settings'" @back="appView = 'chat'" />
+  <SettingsPage       v-if="appView === 'settings'"       @back="appView = 'chat'" />
+  <ConfigurationPage  v-else-if="appView === 'configuration'" @back="appView = 'chat'" />
 
   <!-- ══════════════════ MAIN CHAT SHELL ══════════════════ -->
   <div v-else class="shell-chat">
@@ -17,7 +18,8 @@
 
         <!-- Brand header -->
         <div class="sb-header">
-          <span class="sb-app-name">Salesforce Architect Agent</span>
+          <SudarshanChakra :size="22" color="var(--pri)" />
+          <span class="sb-app-name">Pragna</span>
           <button class="sb-collapse-btn" title="Collapse sidebar" @click="sidebar.open = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
               <rect x="2" y="2" width="20" height="20" rx="5"/>
@@ -52,17 +54,35 @@
             <div class="sb-section-hdr">📌 Pinned</div>
             <div v-for="s in sidebar.pinned.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase()))"
               :key="s.thread_id"
-              class="sb-row" :class="{ active: s.thread_id === sessionId }"
+              class="sb-row" :class="{ active: s.thread_id === sessionId, 'menu-open': menuOpenId === s.thread_id }"
               @click="editingId !== s.thread_id && restoreSession(s.thread_id)">
               <input v-if="editingId === s.thread_id" class="rename-input"
                 v-model="editingTitle" ref="renameInputRef"
                 @blur="saveRename(s.thread_id)" @keydown.enter.prevent="saveRename(s.thread_id)"
                 @keydown.esc="editingId = null" @click.stop />
               <span v-else class="sb-row-title">{{ s.brief_snippet || 'New conversation' }}</span>
-              <div v-if="editingId !== s.thread_id" class="sb-row-actions" @click.stop>
-                <button class="sa-btn" title="Unpin" @click="unpinSession(s.thread_id)">📌</button>
-                <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
-                <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+              <div v-if="editingId !== s.thread_id" class="sb-row-menu" @click.stop>
+                <button class="sb-more-btn" :class="{ active: menuOpenId === s.thread_id }"
+                  @click="toggleMenu(s.thread_id)">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                    <circle cx="12" cy="5"  r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                  </svg>
+                </button>
+                <div v-if="menuOpenId === s.thread_id" class="sb-ctx-menu">
+                  <button class="ctx-item" @click="unpinSession(s.thread_id); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    Unpin
+                  </button>
+                  <button class="ctx-item" @click="startRename(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Rename
+                  </button>
+                  <div class="ctx-divider"/>
+                  <button class="ctx-item ctx-delete" @click="confirmDelete(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </template>
@@ -73,17 +93,35 @@
             <div class="sb-section-hdr">Recent</div>
             <div v-for="s in sidebar.recent.filter(s => !searchQuery || (s.brief_snippet||'').toLowerCase().includes(searchQuery.toLowerCase()))"
               :key="s.thread_id"
-              class="sb-row" :class="{ active: s.thread_id === sessionId }"
+              class="sb-row" :class="{ active: s.thread_id === sessionId, 'menu-open': menuOpenId === s.thread_id }"
               @click="editingId !== s.thread_id && restoreSession(s.thread_id)">
               <input v-if="editingId === s.thread_id" class="rename-input"
                 v-model="editingTitle"
                 @blur="saveRename(s.thread_id)" @keydown.enter.prevent="saveRename(s.thread_id)"
                 @keydown.esc="editingId = null" @click.stop />
               <span v-else class="sb-row-title">{{ s.brief_snippet || 'New conversation' }}</span>
-              <div v-if="editingId !== s.thread_id" class="sb-row-actions" @click.stop>
-                <button class="sa-btn" title="Pin" @click="pinSession(s.thread_id)">📍</button>
-                <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
-                <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+              <div v-if="editingId !== s.thread_id" class="sb-row-menu" @click.stop>
+                <button class="sb-more-btn" :class="{ active: menuOpenId === s.thread_id }"
+                  @click="toggleMenu(s.thread_id)">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                    <circle cx="12" cy="5"  r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                  </svg>
+                </button>
+                <div v-if="menuOpenId === s.thread_id" class="sb-ctx-menu">
+                  <button class="ctx-item" @click="pinSession(s.thread_id); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    Pin
+                  </button>
+                  <button class="ctx-item" @click="startRename(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    Rename
+                  </button>
+                  <div class="ctx-divider"/>
+                  <button class="ctx-item ctx-delete" @click="confirmDelete(s); menuOpenId = null">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
           </template>
@@ -94,9 +132,10 @@
 
       <!-- ── COLLAPSED ────────────────────────────────────── -->
       <template v-else>
-        <button class="col-icon-btn brand" title="Salesforce Architect Agent" @click="sidebar.open = true">
+        <button class="col-icon-btn brand" title="Pragna" @click="sidebar.open = true">
           <div class="sf-logo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
               <rect x="2" y="2" width="20" height="20" rx="5"/>
               <line x1="9" y1="2" x2="9" y2="22"/>
             </svg>
@@ -133,26 +172,43 @@
       </div>
 
       <!-- Subtitle -->
-      <div class="cp-subtitle">Your chats with Salesforce Architect Agent</div>
+      <div class="cp-subtitle">Your conversations</div>
 
       <!-- Chat list -->
       <div class="cp-list">
         <div v-if="!filteredChats.length" class="cp-empty">No conversations found</div>
 
         <div v-for="s in filteredChats" :key="s.thread_id"
-          class="cp-row" :class="{ active: s.thread_id === sessionId }"
+          class="cp-row" :class="{ active: s.thread_id === sessionId, 'menu-open': menuOpenId === s.thread_id }"
           @click="selectChat(s.thread_id)">
           <div class="cp-row-body">
             <div class="cp-row-title">{{ s.brief_snippet || 'New conversation' }}</div>
             <div class="cp-row-meta">{{ relativeTime(s.last_modified || s.created_at) }}</div>
           </div>
           <div class="cp-row-actions" @click.stop>
-            <button class="sa-btn" :title="s.pinned ? 'Unpin' : 'Pin'"
-              @click="s.pinned ? unpinSession(s.thread_id) : pinSession(s.thread_id)">
-              {{ s.pinned ? '📌' : '📍' }}
-            </button>
-            <button class="sa-btn" title="Rename" @click="startRename(s)">✏️</button>
-            <button class="sa-btn del" title="Delete" @click="confirmDelete(s)">🗑</button>
+            <div class="sb-row-menu">
+              <button class="sb-more-btn cp-more-btn" :class="{ active: menuOpenId === s.thread_id }"
+                @click="toggleMenu(s.thread_id)">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="15" height="15">
+                  <circle cx="12" cy="5"  r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+                </svg>
+              </button>
+              <div v-if="menuOpenId === s.thread_id" class="sb-ctx-menu cp-ctx-menu">
+                <button class="ctx-item" @click="s.pinned ? unpinSession(s.thread_id) : pinSession(s.thread_id); menuOpenId = null">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                  {{ s.pinned ? 'Unpin' : 'Pin' }}
+                </button>
+                <button class="ctx-item" @click="startRename(s); menuOpenId = null">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Rename
+                </button>
+                <div class="ctx-divider"/>
+                <button class="ctx-item ctx-delete" @click="confirmDelete(s); menuOpenId = null">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  Delete
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -168,11 +224,20 @@
         <span class="p-text">{{ stageLabels[currentStage] }} is working…</span>
       </div>
 
+      <!-- Active agent flow indicator (locked once session starts) -->
+      <div v-if="sessionFlow && sessionId" class="session-flow-bar">
+        <span class="sfb-icon">{{ sessionFlow.icon }}</span>
+        <span class="sfb-name">{{ sessionFlow.name }}</span>
+        <span class="sfb-label">active</span>
+      </div>
+
       <!-- Messages -->
       <div class="messages" ref="messagesEl">
         <div v-if="!messages.length && !isStreaming" class="empty-state">
-          <div class="empty-icon">🏗️</div>
-          <p class="empty-sub">Write a project brief or upload a document to begin.</p>
+          <div class="greeting-row">
+            <SudarshanChakra :size="48" color="var(--pri)" />
+            <h1 class="greeting-text">{{ greeting }}{{ firstName ? ', ' + firstName : '' }}</h1>
+          </div>
         </div>
 
         <div v-for="(msg, i) in messages" :key="i" class="message" :class="msg.role">
@@ -260,9 +325,11 @@
           </div>
         </template>
         <template v-else>
-          <div v-for="(q, i) in pendingQuestions" :key="i" class="multi-item">
-            <label class="multi-label">{{ i + 1 }}. {{ q }}</label>
-            <textarea v-model="replyAnswers[i]" class="ta" :placeholder="`Answer ${i + 1}…`" rows="2" />
+          <div class="multi-scroll">
+            <div v-for="(q, i) in pendingQuestions" :key="i" class="multi-item">
+              <label class="multi-label">{{ i + 1 }}. {{ q }}</label>
+              <textarea v-model="replyAnswers[i]" class="ta" :placeholder="`Answer ${i + 1}…`" rows="2" />
+            </div>
           </div>
           <div class="action-row">
             <button class="btn-primary" @click="submitReplies"
@@ -271,51 +338,32 @@
         </template>
       </div>
 
-      <!-- Initial input -->
-      <div v-if="!sessionId && !isStreaming" class="input-panel">
-        <div class="mode-toggle">
-          <button class="mode-btn" :class="{ active: inputMode === 'brief' }" @click="inputMode = 'brief'">✏️ Write Brief</button>
-          <button class="mode-btn" :class="{ active: inputMode === 'upload' }" @click="inputMode = 'upload'">📎 Upload File</button>
-        </div>
-        <template v-if="inputMode === 'brief'">
-          <textarea v-model="briefText" class="ta brief-ta" rows="5" placeholder="Describe your project…" />
-          <div class="action-row">
-            <button class="btn-primary" @click="submitBrief" :disabled="!briefText.trim()">Start Session →</button>
-          </div>
-        </template>
-        <template v-else>
-          <div class="drop-zone" :class="{ over: isDragging, filled: !!selectedFile }"
-            @dragover.prevent="isDragging = true" @dragleave.prevent="isDragging = false"
-            @drop.prevent="onDrop" @click="fileInputRef.click()">
-            <input ref="fileInputRef" type="file" style="display:none"
-              accept=".pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg,.gif,.webp" @change="onFileChange" />
-            <template v-if="selectedFile && imagePreviewUrl">
-              <img :src="imagePreviewUrl" class="img-prev" :alt="selectedFile.name" />
-              <span class="fname">{{ selectedFile.name }}</span><span class="fmeta">{{ fmtSize(selectedFile.size) }}</span>
-            </template>
-            <template v-else-if="selectedFile">
-              <span style="font-size:26px">📄</span>
-              <span class="fname">{{ selectedFile.name }}</span><span class="fmeta">{{ fmtSize(selectedFile.size) }}</span>
-            </template>
-            <template v-else>
-              <span style="font-size:24px">⬆</span>
-              <span class="drop-lbl">Drop a file or click to browse</span>
-              <span class="drop-hint">PDF, DOCX, TXT, MD · PNG, JPG, WebP · max {{ MAX_MB }} MB</span>
-            </template>
-          </div>
-          <div v-if="uploadError" class="upload-err">{{ uploadError }}</div>
-          <div class="action-row">
-            <button class="btn-primary" @click="submitUpload" :disabled="!selectedFile">Upload &amp; Start →</button>
-          </div>
-        </template>
-      </div>
-
       <!-- Banners -->
-      <div v-if="isResumable" class="banner warn">
+      <div v-if="providerConflict" class="banner provider-conflict">
+        <span class="pc-icon">⚠️</span>
+        <span class="pc-text">
+          <strong>Provider unavailable</strong> —
+          {{ providerConflictMessage }}
+        </span>
+        <div class="pc-actions">
+          <button class="retry-btn" :disabled="isStreaming" @click="appView = 'settings'">Configure Providers</button>
+          <button v-if="providerConflict.canSmartPick" class="retry-btn smart-pick-btn" :disabled="isStreaming" @click="retryWithSmartPick">
+            {{ isStreaming ? 'Retrying…' : 'Use Smart Config' }}
+          </button>
+        </div>
+      </div>
+      <div v-else-if="isResumable" class="banner warn">
         <span>⚡ This session was interrupted mid-run.</span>
         <button class="retry-btn" @click="retrySession">↺ Resume Session</button>
       </div>
-      <div v-if="isComplete"     class="banner ok">🎉 Document approved and finalised.</div>
+      <div v-if="isComplete && !messages.length" class="banner warn">
+        <span>This session's data is no longer available.</span>
+        <button class="retry-btn" @click="newChat()">Start new chat</button>
+      </div>
+      <div v-else-if="isComplete && !completionBannerDismissed" class="banner ok">
+        <span>🎉 Document approved and finalised. Continue chatting below, or add a new skill to start a follow-up session.</span>
+        <button class="banner-dismiss" @click="completionBannerDismissed = true" title="Dismiss">✕</button>
+      </div>
       <div v-if="isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
       <div v-if="isInvalidInput" class="banner err">❌ Image doesn't appear to be architecture-related.</div>
       <div v-if="error" class="banner err">
@@ -324,6 +372,71 @@
           ↺ Retry
         </button>
       </div>
+
+      <!-- Chat input — shown for new sessions AND for follow-up chat on completed sessions -->
+      <ChatInput
+        v-if="!sessionId || isComplete || isRegularChat"
+        :chat-models="chatModels"
+        :flows="flows"
+        :pending-flow="isComplete ? null : pendingFlow"
+        :hint="isComplete ? 'Ask a question about your document, or use + to add a new skill…' : undefined"
+        :model-locked="!!sessionId && !isComplete"
+        :no-providers="flowsLoaded && chatModels.length === 0"
+        :streaming="isStreaming"
+        @submit="handleChatSubmit"
+        @open-settings="openSettings()"
+        @upload="handleChatUpload"
+        @flow-select="startWithFlow"
+        @cancel-flow="pendingFlow = null"
+        @manage-skills="appView = 'configuration'"
+      />
+
+      <!-- Mid-session flow selection popup -->
+      <transition name="fade">
+        <div v-if="flowPopup.show" class="del-overlay" @click.self="flowPopup.show = false">
+          <div class="del-dialog">
+            <div class="del-dialog-body">
+              <p class="del-title">Switch to {{ flowPopup.flow?.name }}?</p>
+              <p class="del-body">Your current conversation will be saved. You'll describe your project in the new chat before the skill starts.</p>
+            </div>
+            <div class="del-dialog-footer">
+              <button class="del-cancel" @click="flowPopup.show = false">Cancel</button>
+              <button class="del-confirm" style="background:var(--pri);color:#fff"
+                @click="confirmFlowStart">Start new chat</button>
+            </div>
+          </div>
+        </div>
+      </transition>
+
+      <!-- Fork confirmation — new skill or file on a completed session -->
+      <transition name="fade">
+        <div v-if="forkConfirm.show" class="del-overlay" @click.self="forkConfirm.show = false">
+          <div class="del-dialog">
+            <div class="del-dialog-body">
+              <template v-if="forkConfirm.type === 'skill'">
+                <p class="del-title">Continue with {{ forkConfirm.flow?.name }}?</p>
+                <p class="del-body">
+                  Your approved document will be used as a starting reference.
+                  The full skill pipeline will run — discovery, research, review, and approval —
+                  producing a new document in a separate session.
+                </p>
+              </template>
+              <template v-else>
+                <p class="del-title">Start a new session with this file?</p>
+                <p class="del-body">
+                  Your current document is preserved. This file will be used as the basis
+                  for a new session and will not modify your existing work.
+                </p>
+              </template>
+            </div>
+            <div class="del-dialog-footer">
+              <button class="del-cancel" @click="forkConfirm.show = false">Cancel</button>
+              <button class="del-confirm" style="background:var(--pri);color:#fff"
+                @click="executeFork">Continue</button>
+            </div>
+          </div>
+        </div>
+      </transition>
 
     </div><!-- /chat-pane -->
 
@@ -365,15 +478,24 @@
     <!-- Avatar area — matches sidebar width -->
     <div class="sf-avatar-area" :class="{ collapsed: !sidebar.open }">
       <button class="avatar-btn" @click="userMenuOpen = !userMenuOpen">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+        <img v-if="user?.picture" :src="user.picture" class="avatar-photo" />
+        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
           <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
         </svg>
+        <div v-if="sidebar.open && user" class="avatar-user-info">
+          <span class="avatar-user-name">{{ user.name || user.email }}</span>
+          <span class="avatar-user-email">{{ user.email }}</span>
+        </div>
       </button>
       <transition name="um-pop">
         <div v-if="userMenuOpen" class="user-menu">
           <button class="um-item" @click="openSettings(); userMenuOpen = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             Settings
+          </button>
+          <button class="um-item" @click="appView = 'configuration'; userMenuOpen = false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            Configuration
           </button>
           <button class="um-item" @click="openUsage(); userMenuOpen = false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -385,6 +507,31 @@
             <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
             <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             {{ isDark ? 'Light mode' : 'Dark mode' }}
+          </button>
+          <!-- Theme colour swatches -->
+          <div class="um-theme-row">
+            <button
+              v-for="t in THEMES" :key="t.id"
+              class="um-swatch"
+              :class="{ active: activeThemeId === t.id }"
+              :style="{ background: isDark ? t.dark : t.light }"
+              :title="t.label"
+              @click.stop="_save(t.id, isDark)"
+            >
+              <svg v-if="activeThemeId === t.id" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" width="10" height="10">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+          </div>
+          <div class="um-divider"></div>
+          <div class="um-about-row">
+            <span class="um-about-app">Pragna</span>
+            <span class="um-about-ver">{{ appVersion ? `v${appVersion}` : '' }}</span>
+          </div>
+          <div class="um-divider"></div>
+          <button class="um-item um-signout" @click="handleLogout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign out
           </button>
         </div>
       </transition>
@@ -528,10 +675,12 @@
     <transition name="fade">
       <div v-if="deleteConfirm.show" class="del-overlay" @click.self="deleteConfirm.show = false">
         <div class="del-dialog">
-          <p class="del-title">Delete conversation?</p>
-          <p class="del-body">"{{ deleteConfirm.title }}"</p>
-          <p class="del-warn">This cannot be undone.</p>
-          <div class="del-btns">
+          <div class="del-dialog-body">
+            <p class="del-title">Delete conversation?</p>
+            <p class="del-body">"{{ deleteConfirm.title }}"</p>
+            <p class="del-warn">This cannot be undone.</p>
+          </div>
+          <div class="del-dialog-footer">
             <button class="del-cancel" @click="deleteConfirm.show = false">Cancel</button>
             <button class="del-confirm" @click="executeDelete">Delete</button>
           </div>
@@ -546,22 +695,108 @@
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { marked } from 'marked'
 import { useAgentChat } from '../composables/useAgentChat.js'
+import { useAuth }      from '../composables/useAuth.js'
+import { apiFetch }     from '../composables/useFetch.js'
+import { useTheme, THEMES } from '../composables/useTheme.js'
 import SettingsPage from './SettingsPage.vue'
+import ConfigurationPage from './ConfigurationPage.vue'
+import ChatInput from './ChatInput.vue'
+import SudarshanChakra from './SudarshanChakra.vue'
 
 const {
   sessionId, messages, currentStage, pendingQuestions, pendingConfirmation,
-  isStreaming, isComplete, isHalted, isInvalidInput, isResumable, error,
+  isStreaming, isComplete, isHalted, isInvalidInput, isResumable, isRegularChat, error,
+  providerConflict,
   documentPanel, sidebar, sessionUsage,
   loadSessions, newChat, restoreSession,
   pinSession, unpinSession, deleteSession, renameSession,
-  startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
+  startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession, retryWithSmartPick,
+  continueRegularChat, sendMessage, forkSession,
   openDocumentPanel, closeDocumentPanel, downloadMD,
 } = useAgentChat()
 
+const router = useRouter()
+const { user, logout } = useAuth()
+
+const _GREETINGS = {
+  morning: [
+    'Good morning',       // English
+    'Suprabhat',          // Sanskrit / Hindi
+    'Bonjour',            // French
+    'Buenos días',        // Spanish
+    'Guten Morgen',       // German
+    'Buongiorno',         // Italian
+    'Bom dia',            // Portuguese
+    'Günaydın',           // Turkish
+    'Kalimera',           // Greek
+    'Ohayou gozaimasu',   // Japanese
+    'Subah bakhair',      // Urdu
+    'Sabah alkhayr',      // Arabic
+    'Dobroe utro',        // Russian
+    'Selamat pagi',       // Malay/Indonesian
+  ],
+  afternoon: [
+    'Good afternoon',
+    'Shubh dopahar',      // Hindi
+    'Bon après-midi',     // French
+    'Buenas tardes',      // Spanish
+    'Guten Nachmittag',   // German
+    'Buon pomeriggio',    // Italian
+    'Boa tarde',          // Portuguese
+    'İyi öğleden sonralar', // Turkish
+    'Konnichiwa',         // Japanese
+    'Masa alkhayr',       // Arabic
+    'Selamat siang',      // Malay
+  ],
+  evening: [
+    'Good evening',
+    'Shubh sandhya',      // Sanskrit
+    'Bonsoir',            // French
+    'Buenas noches',      // Spanish
+    'Guten Abend',        // German
+    'Buona sera',         // Italian
+    'Boa noite',          // Portuguese
+    'İyi akşamlar',       // Turkish
+    'Konbanwa',           // Japanese
+    'Masa alkhayr',       // Arabic
+    'Selamat malam',      // Malay
+  ],
+}
+
+// Extract a clean human-readable message from the raw backend error string.
+// "API key not configured for 'openai'. Open Settings…" → "The 'openai' provider is not connected."
+const providerConflictMessage = computed(() => {
+  const raw = providerConflict.value?.detail || ''
+  const match = raw.match(/API key not configured for '([^']+)'/)
+  if (match) return `The '${match[1]}' provider is not connected.`
+  if (raw.includes('No LLM providers are configured')) return 'No LLM providers are configured.'
+  return raw
+})
+
+const greeting = computed(() => {
+  const h = new Date().getHours()
+  const bucket = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  const list = _GREETINGS[bucket]
+  return list[Math.floor(Math.random() * list.length)]
+})
+
+const firstName = computed(() => {
+  const name = user.value?.name || ''
+  // Never use email — if name looks like an email or is empty, return nothing
+  if (!name || name.includes('@')) return ''
+  return name.split(/\s+/)[0]
+})
+
+async function handleLogout() {
+  await logout()
+  router.push('/login')
+}
+
 // App-level view
-const appView      = ref('chat')   // 'chat' | 'settings'
+const appView      = ref('chat')   // 'chat' | 'settings' | 'configuration'
 
 // View state
 const currentView  = ref('chat')   // 'chat' | 'chats'
@@ -572,6 +807,13 @@ const renameInputRef = ref(null)
 
 // Delete confirmation state
 const deleteConfirm = ref({ show: false, threadId: null, title: '' })
+
+// Three-dot context menu — tracks which row has its menu open
+const menuOpenId = ref(null)
+function toggleMenu(id) { menuOpenId.value = menuOpenId.value === id ? null : id }
+
+// Fork confirmation — shown when user picks a new skill/file on a completed session
+const forkConfirm = reactive({ show: false, flow: null, file: null, type: 'skill' })
 
 function confirmDelete(s) {
   deleteConfirm.value = { show: true, threadId: s.thread_id, title: s.brief_snippet || 'this conversation' }
@@ -607,8 +849,16 @@ async function saveRename(threadId) {
   if (title) await renameSession(threadId, title)
 }
 
-const isDark          = ref(true)
-const userMenuOpen    = ref(false)
+const isDark    = ref(true)
+const shellRef  = ref(null)
+const { activeThemeId, applyTheme, loadTheme, saveTheme } = useTheme()
+
+// Wrap applyTheme/loadTheme/saveTheme to always target the shell element
+const _apply = (id, dark) => applyTheme(id, dark, shellRef.value)
+const _load  = (dark)     => loadTheme(dark, shellRef.value)
+const _save  = (id, dark) => saveTheme(id, dark, shellRef.value)
+const userMenuOpen             = ref(false)
+const completionBannerDismissed = ref(false)
 const settingsOpen    = ref(false)
 const sessionModelsOpen  = ref(false)
 const sessionModelConfig = ref(null)
@@ -627,27 +877,25 @@ const keysConfigured  = reactive({ anthropic: false, perplexity: false, google: 
 const settingsSaving   = ref(false)
 const settingsSaveMsg  = ref(null)
 const settingsKeyErrors = reactive({ anthropic: '', perplexity: '', google: '' })
-const briefText       = ref('')
 const correctionText  = ref('')
 const replyAnswers    = ref([])
 const messagesEl      = ref(null)
-const inputMode       = ref('brief')
-const selectedFile    = ref(null)
-const isDragging      = ref(false)
-const fileInputRef    = ref(null)
-const uploadError     = ref(null)
-const imagePreviewUrl = ref(null)
 
-const MAX_MB   = 10
-const IMG_EXTS = new Set(['.png','.jpg','.jpeg','.gif','.webp'])
-const ALL_EXTS = ['.pdf','.docx','.doc','.txt','.md',...IMG_EXTS]
+// Chat model + flow state (passed to ChatInput as props)
+const chatModels  = ref([])
+const flowsLoaded = ref(false)
+const flows       = ref([])
+const pendingFlow = ref(null)   // flow selected, session not yet started (cancellable)
+const sessionFlow = ref(null)   // flow locked for the active session
+const flowPopup   = reactive({ show: false, flow: null })
+
 
 const stageLabels = {
-  intake:     'Intake Agent',
-  discovery:  'Discovery Agent',
-  researcher: 'Research Agent',
-  reviewer:   'Review Agent',
-  approver:   'Approver Gate',
+  intake:    'Intake Agent',
+  discovery: 'Discovery Agent',
+  research:  'Research Agent',
+  review:    'Review Agent',
+  approval:  'Approver Gate',
 }
 
 // Flat sorted list: pinned first, then recent — filtered by search query
@@ -659,7 +907,7 @@ const filteredChats = computed(() => {
 
 async function fetchKeyStatus() {
   try {
-    const res = await fetch('/api/settings/keys')
+    const res = await apiFetch('/api/settings/keys')
     if (res.ok) {
       const data = await res.json()
       keysConfigured.anthropic  = !!data.anthropic
@@ -673,7 +921,7 @@ async function openUsage() {
   usageOpen.value   = true
   globalUsage.loading = true
   try {
-    const res  = await fetch('/api/usage/summary')
+    const res  = await apiFetch('/api/usage/summary')
     if (res.ok) {
       const data = await res.json()
       globalUsage.totals        = data.totals        ?? { input_tokens: 0, output_tokens: 0, cost_usd: 0 }
@@ -730,20 +978,86 @@ async function saveSettings() {
   }
 }
 
+async function fetchFlows() {
+  try {
+    const res = await apiFetch('/api/flows')
+    if (res.ok) {
+      const data = await res.json()
+      flows.value      = data.flows       || []
+      chatModels.value = data.chat_models || []
+      // Apply theme from the same response — no extra round trip
+      if (data.theme) _apply(data.theme, isDark.value)
+    }
+  } catch (_) {}
+  finally {
+    flowsLoaded.value = true
+  }
+}
+
+function startWithFlow(flow) {
+  if (isComplete.value) {
+    // Session finished — ask before forking into a new session
+    forkConfirm.flow = flow
+    forkConfirm.file = null
+    forkConfirm.type = 'skill'
+    forkConfirm.show = true
+    return
+  }
+  if (sessionId.value) {
+    // Mid-session: ask user to confirm new chat first
+    flowPopup.flow = flow
+    flowPopup.show = true
+  } else {
+    // No session: arm the pending flow, wait for user to type description
+    pendingFlow.value = flow
+    currentView.value = 'chat'
+  }
+}
+
+function confirmFlowStart() {
+  const flow = flowPopup.flow
+  flowPopup.show = false
+  sessionFlow.value = null
+  newChat()
+  currentView.value = 'chat'
+  pendingFlow.value = flow   // arm — session starts only when user submits
+}
+
+const appVersion = ref('')
+
+async function fetchAbout() {
+  try {
+    const res = await apiFetch('/api/about')
+    if (res.ok) {
+      const data = await res.json()
+      appVersion.value = data.version || ''
+    }
+  } catch (_) {}
+}
+
 onMounted(() => {
   loadSessions()
   fetchKeyStatus()
-  document.addEventListener('click', () => { userMenuOpen.value = false })
+  fetchFlows()   // theme is loaded inside fetchFlows after auth is confirmed
+  fetchAbout()
+  document.addEventListener('click', () => { userMenuOpen.value = false; menuOpenId.value = null })
 })
+
+// Re-apply theme when dark/light mode toggles
+watch(isDark, (dark) => _apply(activeThemeId.value, dark))
+
+// Re-fetch flows when returning to chat so newly installed skills appear immediately
+watch(appView, (view) => { if (view === 'chat') fetchFlows() })
 watch(pendingQuestions, qs => { replyAnswers.value = qs.map(() => '') })
 
 // Fetch the session's locked model config whenever the session changes
 watch(() => sessionId.value, async (id) => {
-  sessionModelConfig.value = null
-  sessionModelsOpen.value  = false
-  if (!id) return
+  sessionModelConfig.value        = null
+  sessionModelsOpen.value         = false
+  completionBannerDismissed.value = false   // reset dismiss on every session switch
+  if (!id) { sessionFlow.value = null; return }
   try {
-    const res = await fetch(`/api/chat/session-config/${id}`)
+    const res = await apiFetch(`/api/chat/session-config/${id}`)
     if (res.ok) {
       const data = await res.json()
       sessionModelConfig.value = data.config || null
@@ -782,39 +1096,73 @@ function modelLabel(m) { return MODEL_NAMES[m] || m }
 function fmtTokens(n) { return n >= 1000 ? `${(n/1000).toFixed(1)}K` : String(n) }
 function fmtCost(c)   { return c < 0.01 ? `$${(c).toFixed(4)}` : `$${c.toFixed(3)}` }
 
-async function handleNewChat() {
-  const missing = Object.entries(keysConfigured).filter(([, v]) => !v).map(([k]) => k)
-  if (missing.length) {
-    openSettings()
-    settingsSaveMsg.value = { type: 'err', text: `Please save your API keys before starting a session. Missing: ${missing.join(', ')}.` }
-    return
-  }
+function handleNewChat() {
+  pendingFlow.value = null
+  sessionFlow.value = null
   newChat()
   currentView.value = 'chat'
 }
 function openChatsView()       { searchQuery.value = ''; currentView.value = 'chats' }
 function selectChat(threadId)  { restoreSession(threadId); currentView.value = 'chat' }
-async function submitBrief()        { if (!briefText.value.trim()) return; await startSession(briefText.value.trim()); briefText.value = '' }
-async function submitConfirmation() { await confirmUnderstanding(correctionText.value); correctionText.value = '' }
-async function submitReplies()      { if (replyAnswers.value.some(a => !a?.trim())) return; await sendReply(replyAnswers.value.map(a => a.trim())); replyAnswers.value = [] }
-async function submitUpload() {
-  if (!selectedFile.value) return
-  await uploadDocument(selectedFile.value)
-  if (imagePreviewUrl.value) { URL.revokeObjectURL(imagePreviewUrl.value); imagePreviewUrl.value = null }
-  selectedFile.value = null
+// ChatInput event handlers
+async function handleChatSubmit(text, opts) {
+  if (isRegularChat.value && sessionId.value) {
+    // Continue an active regular chat — goes through graph to preserve history
+    await continueRegularChat(text, opts.model, opts.provider)
+    return
+  }
+  if (isComplete.value) {
+    completionBannerDismissed.value = true   // hide banner once user starts chatting
+    await sendMessage(text, opts.model, opts.provider)
+    return
+  }
+  if (pendingFlow.value) {
+    // Lock the flow for this session, then start
+    sessionFlow.value = pendingFlow.value
+    pendingFlow.value = null
+    await startSession(text, { sessionType: 'agent_flow', flowId: sessionFlow.value.id })
+  } else {
+    await startSession(text, {
+      sessionType:      'chat',
+      chatModel:        opts.model,
+      chatProvider:     opts.provider,
+      extendedThinking: opts.extendedThinking,
+    })
+  }
+}
+async function handleChatUpload(file) {
+  if (isComplete.value) {
+    // File upload on a completed session → fork into a new session
+    forkConfirm.file = file
+    forkConfirm.flow = null
+    forkConfirm.type = 'file'
+    forkConfirm.show = true
+    return
+  }
+  await uploadDocument(file)
 }
 
-function setFile(file) {
-  uploadError.value = null; imagePreviewUrl.value = null
-  const ext = '.' + file.name.split('.').pop().toLowerCase()
-  if (!ALL_EXTS.includes(ext)) { uploadError.value = 'Unsupported type.'; return }
-  if (file.size > MAX_MB * 1048576) { uploadError.value = `Max ${MAX_MB} MB.`; return }
-  selectedFile.value = file
-  if (IMG_EXTS.has(ext)) imagePreviewUrl.value = URL.createObjectURL(file)
+async function executeFork() {
+  const prevId = sessionId.value
+  const flow   = forkConfirm.flow
+  const file   = forkConfirm.file
+  forkConfirm.show = false
+
+  if (forkConfirm.type === 'file' && file) {
+    // File fork: start a completely fresh session with the uploaded file
+    sessionFlow.value = null
+    await uploadDocument(file)
+    return
+  }
+
+  // Skill fork: new session seeded with the existing document
+  if (!flow) return
+  sessionFlow.value = flow
+  await forkSession(prevId, flow)
 }
-function onFileChange(e) { const f = e.target.files?.[0]; if (f) setFile(f) }
-function onDrop(e)       { isDragging.value = false; const f = e.dataTransfer?.files?.[0]; if (f) setFile(f) }
-function fmtSize(b)      { return b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB` }
+
+async function submitConfirmation() { await confirmUnderstanding(correctionText.value); correctionText.value = '' }
+async function submitReplies()      { if (replyAnswers.value.some(a => !a?.trim())) return; await sendReply(replyAnswers.value.map(a => a.trim())); replyAnswers.value = [] }
 
 function doPDF() {
   if (!documentPanel.content) return
@@ -826,7 +1174,7 @@ function doPDF() {
   p{margin:.45em 0}ul,ol{padding-left:1.5em;margin:.4em 0}li{margin:.2em 0}
   table{border-collapse:collapse;width:100%;margin:.7em 0;font-size:10pt;page-break-inside:avoid}th,td{border:1px solid #bbb;padding:6px 10px;text-align:left;vertical-align:top}th{background:#f2f2f2;font-weight:600}
   code{background:#f5f5f5;padding:1px 4px;border-radius:3px;font-size:9.5pt;font-family:'Courier New',monospace}pre{background:#f5f5f5;padding:10px 12px;border-radius:5px;overflow-x:auto;font-size:9.5pt;page-break-inside:avoid;margin:.6em 0}
-  blockquote{border-left:3px solid #2563eb;padding-left:12px;color:#444;margin:.5em 0}strong{font-weight:600}
+  blockquote{border-left:3px solid var(--pri);padding-left:12px;color:var(--muted);margin:.5em 0}strong{font-weight:600}
   @media print{body{print-color-adjust:exact;-webkit-print-color-adjust:exact}}</style></head><body>${html}</body></html>`)
   win.document.close()
   setTimeout(() => { win.focus(); win.print() }, 400)
@@ -835,34 +1183,70 @@ function doPDF() {
 
 <style scoped>
 /* ── Variables ───────────────────────────────────────────────────────────────── */
+/* ── Light mode (default) ─────────────────────────────────────────────────── */
 .shell {
-  --bg:       #f1f5f9; --surf:    #fff;  --surf2:  #f8fafc; --bdr:   #e2e8f0;
-  --tx:       #0f172a; --muted:   #64748b;
-  --pri:      #2563eb; --pri-h:   #1d4ed8; --pri-fg: #fff;
-  --ub:       #2563eb; --uf:      #fff;
-  --ab:       #fff;    --abdr:    #e2e8f0;
-  --sbg:      #eff6ff; --stx:     #1d4ed8; --sbdr:  #bfdbfe;
-  --hbg:      #1e293b; --hfg:     #f8fafc;
-  --cbg:      #f1f5f9; --ibdr:    #cbd5e1; --ifocus: #2563eb;
-  --pass-bg:  #f0fdf4; --pass-bdr:#bbf7d0; --pass-tx:#15803d;
-  --fail-bg:  #fef2f2; --fail-bdr:#fecaca; --fail-tx:#b91c1c;
-  --sb-bg:    #1a2535;   /* sidebar background */
-  --sb-hover: #243044;
-  --sb-active:#2d3f5a;
-  --sb-tx:    #c8d4e6;
-  --sb-muted: #6b7f99;
-  --c-intake:#3b82f6;--c-discovery:#6366f1;--c-researcher:#8b5cf6;--c-reviewer:#f59e0b;--c-approver:#10b981;
-  --inp: #f8fafc; --hover: #f1f5f9; --active-nav: #eff6ff; --sidebar: #f8fafc;
+  /* Surfaces */
+  --bg:    #f5f5f4; --surf: #ffffff; --surf2: #fafafa; --bdr: #e5e5e3;
+  /* Text */
+  --tx:    #1a1a1a; --muted: #737373;
+  /* Brand primary — deeper saffron for light bg readability */
+  --pri:   #b85c2a; --pri-h: #a04e22; --pri-fg: #fff;
+  --ub:    #b85c2a; --uf: #fff;
+  --ab:    #fff;    --abdr: #e5e5e3;
+  /* Selection / highlight */
+  --sbg: rgba(184,92,42,0.08); --stx: #9a4a1e; --sbdr: rgba(184,92,42,0.25);
+  /* Inputs / focus */
+  --inp: #ffffff; --ibdr: #d4d4d2; --ifocus: #b85c2a;
+  /* Hover / nav */
+  --hover: #f0efee; --active-nav: rgba(184,92,42,0.1);
+  /* Overlay */
+  --hbg: #1a1a1a; --hfg: #f5f5f4; --cbg: #f5f5f4;
+  /* Semantic: pass / fail */
+  --pass-bg: #f0fdf4; --pass-bdr: #bbf7d0; --pass-tx: #15803d;
+  --fail-bg: #fef2f2; --fail-bdr: #fecaca; --fail-tx: #b91c1c;
+  /* Semantic: danger */
+  --danger: #ef4444; --danger-h: rgba(239,68,68,0.1); --danger-tx: #dc2626;
+  /* Semantic: draft badge */
+  --draft-bg: #fef3c7; --draft-tx: #92400e;
+  /* Semantic: success */
+  --success-tx: #15803d; --success-bdr: rgba(34,197,94,0.35);
+  /* Sidebar — light in light mode */
+  --sb-bg:    #f0efee; --sb-hover: #e8e7e5; --sb-active: rgba(184,92,42,0.1);
+  --sb-tx:    #1a1a1a; --sb-muted: #737373;
+  --sidebar:  #ffffff;
 }
+
+/* ── Dark mode ────────────────────────────────────────────────────────────── */
 .shell.dark {
-  --bg:#0f172a;--surf:#1e293b;--surf2:#0f172a;--bdr:#334155;
-  --tx:#f1f5f9;--muted:#94a3b8;--pri:#3b82f6;--pri-h:#2563eb;
-  --ub:#3b82f6;--ab:#1e293b;--abdr:#334155;
-  --sbg:#172554;--stx:#93c5fd;--sbdr:#1e40af;
-  --hbg:#020617;--hfg:#f1f5f9;--cbg:#0f172a;--ibdr:#475569;--ifocus:#3b82f6;
-  --pass-bg:#052e16;--pass-bdr:#166534;--pass-tx:#86efac;
-  --fail-bg:#1f0000;--fail-bdr:#991b1b;--fail-tx:#fca5a5;
-  --inp:#0f172a;--hover:#1e293b;--active-nav:#172554;--sidebar:#0f172a;
+  /* Surfaces */
+  --bg: #1a1a1a; --surf: #212121; --surf2: #181818; --bdr: rgba(255,255,255,0.09);
+  /* Text */
+  --tx: #ececea; --muted: #888888;
+  /* Brand primary */
+  --pri: #c97040; --pri-h: #b5602e; --pri-fg: #fff;
+  --ub: #c97040; --ab: #212121; --abdr: rgba(255,255,255,0.09);
+  /* Selection */
+  --sbg: rgba(201,112,64,0.12); --stx: #d4945a; --sbdr: rgba(201,112,64,0.28);
+  /* Inputs / focus */
+  --inp: #111111; --ibdr: rgba(255,255,255,0.14); --ifocus: #c97040;
+  /* Hover / nav */
+  --hover: #282828; --active-nav: rgba(255,255,255,0.06);
+  /* Overlay */
+  --hbg: #0e0e0e; --hfg: #ececea; --cbg: #1a1a1a;
+  --ab: #212121; --abdr: rgba(255,255,255,0.09);
+  /* Semantic: pass / fail */
+  --pass-bg: #0d1f10; --pass-bdr: #1a4620; --pass-tx: #86efac;
+  --fail-bg: #1f0d0d; --fail-bdr: #4a1a1a; --fail-tx: #fca5a5;
+  /* Semantic: danger */
+  --danger: #ef4444; --danger-h: rgba(239,68,68,0.15); --danger-tx: #fca5a5;
+  /* Semantic: draft badge */
+  --draft-bg: #1c1400; --draft-tx: #fcd34d;
+  /* Semantic: success */
+  --success-tx: #86efac; --success-bdr: rgba(34,197,94,0.2);
+  /* Sidebar — dark */
+  --sb-bg: #111111; --sb-hover: #1e1e1e; --sb-active: #252525;
+  --sb-tx: #d9d9d7; --sb-muted: #5e5e5e;
+  --sidebar: #141414;
 }
 
 /* ── Privacy banner ──────────────────────────────────────────────────────────── */
@@ -871,12 +1255,12 @@ function doPDF() {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   height: 28px; padding: 0 20px;
   background: var(--sb-bg);
-  border-top: 1px solid rgba(255,255,255,0.06);
-  font-size: 11px; color: #a8bdd4; letter-spacing: 0.01em;
+  border-top: 1px solid var(--bdr);
+  font-size: 11px; color: var(--sb-muted); letter-spacing: 0.01em;
   white-space: nowrap; overflow: hidden;
 }
 .privacy-banner svg { flex-shrink: 0; opacity: 0.8; }
-.privacy-banner strong { font-weight: 700; color: #d0e2f4; }
+.privacy-banner strong { font-weight: 700; color: var(--sb-tx); }
 
 /* ── Shell ───────────────────────────────────────────────────────────────────── */
 
@@ -905,11 +1289,10 @@ function doPDF() {
 .sf-avatar-area {
   width: 240px; flex-shrink: 0;
   display: flex; align-items: center;
-  padding: 8px 10px; position: relative;
-  transition: width 0.22s ease;
+  padding: 6px 8px; position: relative;
   border-right: 1px solid rgba(255,255,255,0.06);
 }
-.sf-avatar-area.collapsed { width: 52px; justify-content: center; padding: 8px 0; }
+.sf-avatar-area.collapsed { width: 52px; justify-content: center; padding: 6px 0; }
 .usage-bar-empty { flex: 1; }
 
 /* ═══════════════════════ SIDEBAR ═══════════════════════ */
@@ -995,15 +1378,8 @@ function doPDF() {
 }
 .cp-row-meta { font-size: 13px; color: var(--muted); }
 .cp-row-actions {
-  display: none; align-items: center; gap: 2px; flex-shrink: 0; margin-left: 12px;
+  display: flex; align-items: center; flex-shrink: 0; margin-left: 12px;
 }
-.cp-row:hover .cp-row-actions,
-.cp-row.active .cp-row-actions { display: flex; }
-
-/* Action buttons inside chats page use theme colours, not sidebar colours */
-.cp-row .sa-btn        { color: var(--muted); }
-.cp-row .sa-btn:hover  { background: var(--bdr); color: var(--tx); }
-.cp-row .sa-btn.del:hover { background: rgba(220,38,38,.15); color: #dc2626; }
 
 /* ═══════════════════════ SETTINGS MODAL ════════════════════ */
 .settings-dialog {
@@ -1055,7 +1431,7 @@ function doPDF() {
 /* ── Session usage bar ───────────────────────────────────────────────────── */
 .usage-bar {
   flex: 1; display: flex; align-items: stretch;
-  background: var(--surf2);
+  background: var(--bg);
   font-size: 11px;
 }
 .ub-cell {
@@ -1063,8 +1439,7 @@ function doPDF() {
   align-items: center; justify-content: center;
   padding: 5px 6px; gap: 1px; min-width: 0;
 }
-.ub-total { background: rgba(37,99,235,0.05); }
-.dark .ub-total { background: rgba(59,130,246,0.08); }
+.ub-total { background: transparent; }
 .ub-sep   { width: 1px; background: var(--bdr); flex-shrink: 0; margin: 5px 0; }
 .ub-name  { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); white-space: nowrap; }
 .ub-tokens{ color: var(--tx); font-weight: 500; white-space: nowrap; }
@@ -1100,30 +1475,43 @@ function doPDF() {
 /* ═══════════════════ DELETE CONFIRMATION ══════════════════ */
 .del-overlay {
   position: absolute; inset: 0; z-index: 100;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(3px);
+  padding: 24px;
 }
 .del-dialog {
   background: var(--surf); border: 1px solid var(--bdr);
-  border-radius: 14px; padding: 24px 28px;
-  width: 340px; max-width: 90%;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  border-radius: 16px;
+  width: 400px; max-width: 100%;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.35);
+  overflow: hidden;
 }
-.del-title { font-size: 16px; font-weight: 700; color: var(--tx); margin: 0 0 8px; }
-.del-body  { font-size: 14px; color: var(--tx); margin: 0 0 6px; font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.del-warn  { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+.del-dialog-body {
+  padding: 28px 28px 24px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.del-dialog-footer {
+  padding: 16px 28px;
+  border-top: 1px solid var(--bdr);
+  background: var(--inp);
+  display: flex; gap: 10px; justify-content: flex-end;
+}
+.del-title { font-size: 17px; font-weight: 700; color: var(--tx); margin: 0; line-height: 1.3; }
+.del-body  { font-size: 14px; color: var(--muted); margin: 0; line-height: 1.6; }
+.del-warn  { font-size: 13px; color: var(--muted); margin: 0; }
 .del-btns  { display: flex; gap: 10px; justify-content: flex-end; }
 .del-cancel {
-  padding: 8px 18px; border: 1px solid var(--bdr);
-  border-radius: 8px; background: transparent; color: var(--tx);
-  font-size: 14px; cursor: pointer; transition: background .12s;
+  padding: 9px 20px; border: 1px solid var(--bdr);
+  border-radius: 9px; background: transparent; color: var(--tx);
+  font-size: 14px; font-weight: 500; cursor: pointer; transition: background .12s;
 }
-.del-cancel:hover { background: var(--surf2); }
+.del-cancel:hover { background: var(--hover); }
 .del-confirm {
-  padding: 8px 18px; border: none;
-  border-radius: 8px; background: #dc2626; color: #fff;
-  font-size: 14px; font-weight: 600; cursor: pointer; transition: background .12s;
+  padding: 9px 20px; border: none;
+  border-radius: 9px; background: #dc2626; color: #fff;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: background .12s, opacity .12s;
 }
 .del-confirm:hover { background: #b91c1c; }
 .fade-enter-active, .fade-leave-active { transition: opacity .2s; }
@@ -1135,7 +1523,8 @@ function doPDF() {
   padding: 13px 10px 8px; flex-shrink: 0;
 }
 .sb-app-name {
-  flex: 1; font-size: 13px; font-weight: 600; color: var(--sb-tx);
+  flex: 1; font-size: 26px; font-weight: 700; color: var(--sb-tx);
+  font-family: 'Martel', serif; letter-spacing: -0.3px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 .sb-collapse-btn {
@@ -1174,7 +1563,6 @@ function doPDF() {
   display: flex; align-items: center;
   padding: 7px 8px; border-radius: 8px;
   cursor: pointer; min-width: 0; gap: 0;
-  transition: background .12s;
 }
 .sb-row:hover  { background: var(--sb-hover); }
 .sb-row.active { background: var(--sb-active); }
@@ -1188,20 +1576,45 @@ function doPDF() {
   border: 1px solid rgba(255,255,255,0.25); border-radius: 5px;
   padding: 2px 6px; outline: none; min-width: 0; color: var(--sb-tx);
 }
-.sb-row-actions {
-  display: none; align-items: center; gap: 1px; flex-shrink: 0; margin-left: 4px;
-}
-.sb-row:hover .sb-row-actions,
-.sb-row.active .sb-row-actions { display: flex; }
-.sa-btn {
-  width: 22px; height: 22px; border: none; border-radius: 4px;
-  background: transparent; color: var(--sb-muted);
-  cursor: pointer; font-size: 11px;
+/* ── Three-dot context menu (sidebar + chats-page) ───────────────────────── */
+.sb-row-menu { position: relative; flex-shrink: 0; margin-left: 4px; }
+
+.sb-more-btn {
   display: flex; align-items: center; justify-content: center;
-  transition: background .1s, color .1s;
+  width: 24px; height: 24px; border: none; border-radius: 5px;
+  background: transparent; color: var(--sb-muted);
+  cursor: pointer; opacity: 0;
 }
-.sa-btn:hover     { background: rgba(255,255,255,0.1); color: var(--sb-tx); }
-.sa-btn.del:hover { background: rgba(239,68,68,0.2);   color: #f87171; }
+.sb-row:hover .sb-more-btn,
+.sb-row.menu-open .sb-more-btn,
+.sb-more-btn.active { opacity: 1; }
+.sb-more-btn:hover,
+.sb-more-btn.active { background: rgba(255,255,255,0.12); color: var(--sb-tx); }
+
+.sb-ctx-menu {
+  position: absolute; right: 0; top: calc(100% + 4px);
+  width: 164px; background: var(--surf);
+  border: 1px solid var(--bdr); border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.22);
+  z-index: 600; padding: 4px 0;
+}
+.ctx-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 8px 12px;
+  background: none; border: none; cursor: pointer;
+  font-size: 13px; color: var(--tx); text-align: left;
+}
+.ctx-item:hover { background: var(--hover); }
+.ctx-item svg { flex-shrink: 0; color: var(--muted); }
+.ctx-divider { height: 1px; background: var(--bdr); margin: 4px 0; }
+.ctx-delete { color: #ef4444; }
+.ctx-delete svg { color: #ef4444; }
+.ctx-delete:hover { background: rgba(239,68,68,.12); }
+
+/* chats-page overrides — button always visible, menu opens upward */
+.cp-more-btn { display: flex !important; color: var(--muted); }
+.cp-more-btn:hover, .cp-more-btn.active { background: var(--hover); color: var(--tx); }
+.cp-ctx-menu { top: auto; bottom: calc(100% + 4px); }
 
 /* ── COLLAPSED icon buttons ──────────────────────────────── */
 .col-icon-btn {
@@ -1216,20 +1629,44 @@ function doPDF() {
 .col-icon-btn.brand .sf-logo { pointer-events: none; }
 
 /* ── User footer (expanded) ──────────────────────────────── */
-.avatar-btn {
-  width: 36px; height: 36px; border-radius: 50%;
-  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.15);
-  color: var(--sb-tx); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: background .15s, border-color .15s;
+.avatar-photo {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; object-fit: cover;
 }
-.avatar-btn:hover { background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.28); }
+.avatar-user-info {
+  display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: left;
+}
+.avatar-user-name {
+  font-size: 14px; font-weight: 600; color: var(--sb-tx);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.avatar-user-email {
+  font-size: 12px; color: var(--sb-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.avatar-btn {
+  width: 100%; border-radius: 8px; border: none;
+  background: transparent; color: var(--sb-tx); cursor: pointer;
+  display: flex; align-items: center; gap: 9px;
+  padding: 5px 6px;
+  transition: background .13s;
+}
+.avatar-btn:hover { background: var(--sb-hover); }
+/* When sidebar is collapsed, shrink back to icon-only circle */
+.sf-avatar-area.collapsed .avatar-btn {
+  width: 36px; height: 36px; border-radius: 50%; padding: 0;
+  justify-content: center;
+  background: rgba(255,255,255,0.1); border: 1.5px solid rgba(255,255,255,0.15);
+}
+.sf-avatar-area.collapsed .avatar-btn:hover {
+  background: rgba(255,255,255,0.18);
+}
 
 /* User menu popup */
 .user-menu {
   position: absolute; bottom: calc(100% + 6px); left: 8px;
   width: calc(100% - 16px);
-  background: #1e2d42; border: 1px solid rgba(255,255,255,0.12);
+  background: var(--surf); border: 1px solid var(--bdr);
   border-radius: 10px; padding: 6px;
   box-shadow: 0 8px 28px rgba(0,0,0,0.4);
   z-index: 200;
@@ -1247,7 +1684,39 @@ function doPDF() {
   cursor: pointer; text-align: left;
   transition: background .12s;
 }
-.um-item:hover { background: var(--sb-hover); }
+.um-item:hover { background: var(--hover); }
+.um-signout { color: var(--sb-tx); }
+.um-signout:hover { background: var(--pri); color: var(--pri-fg); }
+.um-theme-row {
+  display: flex; gap: 8px; padding: 6px 10px 8px;
+  justify-content: center;
+}
+.um-swatch {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: transform .15s, border-color .15s;
+  flex-shrink: 0;
+}
+.um-swatch:hover  { transform: scale(1.2); }
+.um-swatch.active { border-color: var(--sb-tx); }
+.um-swatch svg    { stroke: rgba(255,255,255,0.9); }
+
+.um-about-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px; gap: 8px;
+}
+.um-about-app { font-size: 12px; font-weight: 600; color: var(--sb-muted); }
+.um-about-ver { font-size: 11px; color: var(--sb-muted); font-variant-numeric: tabular-nums; }
+
+.um-user-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px 6px;
+}
+.um-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+.um-user-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.um-user-name { font-size: 13px; font-weight: 600; color: var(--sb-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.um-user-email { font-size: 11px; color: var(--sb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Menu pop transition */
 .um-pop-enter-active { transition: opacity .15s ease, transform .15s ease; }
@@ -1272,57 +1741,74 @@ function doPDF() {
 }
 .progress-strip.visible { height: 32px; opacity: 1; }
 
-/* Track tint — per agent, very subtle */
-.progress-strip.intake     { background: rgba(59,  130, 246, 0.07); }
-.progress-strip.discovery  { background: rgba(99,  102, 241, 0.07); }
-.progress-strip.researcher { background: rgba(239, 68, 68, 0.07); }
-.progress-strip.reviewer   { background: rgba(245, 158,  11, 0.07); }
-.progress-strip.approver   { background: rgba(16,  185, 129, 0.07); }
+/* Active agent flow indicator bar */
+.session-flow-bar {
+  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  padding: 5px 20px; background: var(--sbg);
+  border-bottom: 1px solid var(--sbdr);
+  font-size: 12.5px; font-weight: 500; color: var(--stx);
+}
+.sfb-icon  { font-size: 14px; }
+.sfb-name  { font-weight: 600; }
+.sfb-label {
+  margin-left: 2px; font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: 1px 6px; border-radius: 10px;
+  background: var(--sbdr); color: var(--stx); opacity: 0.8;
+}
 
-/* Slow shimmer — per agent, muted opacity */
+/* Track tint — per agent, very subtle */
+/* All stages use Pragna brand gold */
+.progress-strip.intake,
+.progress-strip.discovery,
+.progress-strip.research,
+.progress-strip.review,
+.progress-strip.approval { background: rgba(255, 208, 128, 0.07); }
+
+/* Shimmer */
 .progress-strip::after {
   content: '';
   position: absolute; top: 0; bottom: 0;
   width: 55%;
   animation: p-sweep 3.5s linear infinite;
+  background: linear-gradient(90deg, transparent, rgba(255, 208, 128, 0.45), transparent);
 }
-.intake::after     { background: linear-gradient(90deg, transparent, rgba(59,  130, 246, 0.5), transparent); }
-.discovery::after  { background: linear-gradient(90deg, transparent, rgba(99,  102, 241, 0.5), transparent); }
-.researcher::after { background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.5), transparent); }
-.reviewer::after   { background: linear-gradient(90deg, transparent, rgba(245, 158,  11, 0.5), transparent); }
-.approver::after   { background: linear-gradient(90deg, transparent, rgba(16,  185, 129, 0.5), transparent); }
 
 @keyframes p-sweep {
   0%   { left: -55%; }
   100% { left: 100%; }
 }
 
-/* Dot + label — per agent colour */
-.p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite; }
-.intake .p-dot    { background: #3b82f6; }
-.discovery .p-dot { background: #6366f1; }
-.researcher .p-dot{ background: #ef4444; }
-.reviewer .p-dot  { background: #f59e0b; }
-.approver .p-dot  { background: #10b981; }
+/* Dot + label */
+.p-dot { position:relative;z-index:1;width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:p-pulse 2s ease-in-out infinite;background:var(--pri); }
 @keyframes p-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.75)}}
 
-.p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap; }
-.intake .p-text    { color: #2563eb; } .discovery .p-text { color: #4f46e5; }
-.researcher .p-text{ color: #dc2626; } .reviewer .p-text  { color: #b45309; }
-.approver .p-text  { color: #059669; }
-.dark .intake .p-text    { color: #93c5fd; } .dark .discovery .p-text { color: #a5b4fc; }
-.dark .researcher .p-text{ color: #fca5a5; } .dark .reviewer .p-text  { color: #fcd34d; }
-.dark .approver .p-text  { color: #6ee7b7; }
+.p-text { position:relative;z-index:1;font-size:12px;font-weight:500;letter-spacing:.02em;white-space:nowrap;color:var(--pri); }
+.p-text { color: var(--pri); }
 
 /* Messages */
 .messages { flex:1;overflow-y:auto;padding:20px 28px;display:flex;flex-direction:column;gap:14px;min-height:0; }
-.empty-state{margin:auto;text-align:center;color:var(--muted);padding:40px 20px}
-.empty-icon{font-size:42px;margin-bottom:12px}.empty-title{font-size:16px;font-weight:600;color:var(--tx);margin:0 0 6px}.empty-sub{font-size:14px;margin:0}
+.empty-state {
+  margin: auto; display: flex; align-items: center; justify-content: center;
+  padding: 40px 20px;
+}
+.greeting-row {
+  display: flex; align-items: center; gap: 18px;
+}
+.greeting-text {
+  font-family: 'Martel', serif;
+  font-size: clamp(28px, 3.5vw, 44px);
+  font-weight: 400;
+  color: var(--tx);
+  letter-spacing: -0.2px;
+  margin: 0;
+  line-height: 1.2;
+}
 .message{display:flex;flex-direction:column;max-width:82%}
 .message.user{align-self:flex-end;align-items:flex-end}.message.agent{align-self:flex-start;align-items:flex-start}
 .stage-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:99px;margin-bottom:5px;background:var(--sbg);color:var(--stx)}
-.stage-tag.discovery{background:#dbeafe;color:#1e40af}.stage-tag.researcher{background:#fee2e2;color:#991b1b}.stage-tag.reviewer{background:#ffedd5;color:#9a3412}.stage-tag.approver{background:#dcfce7;color:#166534}
-.dark .stage-tag.discovery{background:#1e3a5f;color:#93c5fd}.dark .stage-tag.researcher{background:#450a0a;color:#fca5a5}.dark .stage-tag.reviewer{background:#431407;color:#fdba74}.dark .stage-tag.approver{background:#052e16;color:#86efac}
+.stage-tag.discovery{background:#fef3c7;color:#92400e}.stage-tag.research{background:#fef3c7;color:#92400e}.stage-tag.review{background:#ffedd5;color:#9a3412}.stage-tag.approval{background:#dcfce7;color:#166534}
+.dark .stage-tag.discovery{background:#2a1a00;color:#fcd34d}.dark .stage-tag.research{background:#2a1a00;color:#fcd34d}.dark .stage-tag.review{background:#431407;color:#fdba74}.dark .stage-tag.approval{background:#052e16;color:#86efac}
 .bubble{padding:11px 15px;border-radius:14px;font-size:14px;line-height:1.65;word-break:break-word}
 .message.user .bubble{background:var(--ub);color:var(--uf);border-radius:14px 14px 3px 14px}
 .message.agent .bubble{background:var(--ab);color:var(--tx);border:1px solid var(--abdr);border-radius:3px 14px 14px 14px}
@@ -1355,6 +1841,8 @@ function doPDF() {
 
 /* Input panel */
 .input-panel{flex-shrink:0;padding:15px 28px;background:var(--surf);border-top:1px solid var(--bdr);display:flex;flex-direction:column;gap:10px}
+.multi-scroll{max-height:50vh;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-right:4px}
+.multi-scroll::-webkit-scrollbar{width:4px}.multi-scroll::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:99px}
 .multi-item{display:flex;flex-direction:column;gap:5px}.multi-label{font-size:13px;font-weight:500;color:var(--tx);line-height:1.4}
 .input-row{display:flex;gap:10px;align-items:flex-end}
 .ta{width:100%;box-sizing:border-box;padding:10px 13px;border:1px solid var(--ibdr);border-radius:10px;font-size:14px;font-family:inherit;resize:vertical;outline:none;background:var(--surf2);color:var(--tx);transition:border-color .15s;line-height:1.5}
@@ -1378,10 +1866,19 @@ function doPDF() {
 
 /* Banners */
 .banner{flex-shrink:0;padding:12px 28px;font-size:13px;font-weight:500;text-align:center;display:flex;align-items:center;justify-content:center;gap:12px}
+.banner-dismiss{background:none;border:none;cursor:pointer;font-size:13px;opacity:.6;padding:0;line-height:1;color:inherit;flex-shrink:0}
+.banner-dismiss:hover{opacity:1}
 .retry-btn{padding:5px 14px;border-radius:7px;border:1.5px solid currentColor;background:transparent;color:inherit;font-size:13px;font-weight:600;cursor:pointer;opacity:0.85;transition:opacity .15s}
 .retry-btn:hover{opacity:1}
 .banner.ok{background:#dcfce7;color:#166534}.banner.warn{background:#fef3c7;color:#92400e}.banner.err{background:#fee2e2;color:#991b1b}
 .dark .banner.ok{background:#052e16;color:#86efac}.dark .banner.warn{background:#1c1400;color:#fcd34d}.dark .banner.err{background:#1f0000;color:#fca5a5}
+.banner.provider-conflict{background:#fff7ed;color:#7c2d12;flex-direction:row;align-items:center;justify-content:flex-start;text-align:left;gap:8px;padding:10px 20px;flex-wrap:wrap}
+.dark .banner.provider-conflict{background:#1c0f00;color:#fdba74}
+.pc-icon{font-size:15px;flex-shrink:0;line-height:1}
+.pc-text{flex:1;font-size:13px;line-height:1.4;min-width:0}
+.pc-text strong{font-weight:700}
+.pc-actions{display:flex;gap:8px;flex-shrink:0;margin-left:auto}
+.smart-pick-btn{background:rgba(0,0,0,.07)}
 
 /* ── Document right panel ──────────────────────────────────────────────────── */
 .doc-panel {
@@ -1433,4 +1930,6 @@ function doPDF() {
 .messages::-webkit-scrollbar,.doc-panel-body::-webkit-scrollbar,.sb-content::-webkit-scrollbar{width:4px}
 .messages::-webkit-scrollbar-thumb,.doc-panel-body::-webkit-scrollbar-thumb,.sb-content::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:99px}
 .sb-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+
+/* ChatInput component handles its own styles */
 </style>

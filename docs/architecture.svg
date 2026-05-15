@@ -34,7 +34,7 @@
   <rect width="1000" height="700" fill="url(#dots)" rx="14"/>
 
   <!-- ═══ TITLE ════════════════════════════════════════════════════════════ -->
-  <text x="500" y="38" text-anchor="middle" fill="#e6edf3" font-size="21" font-weight="700" letter-spacing="-0.5">SF Research Agent</text>
+  <text x="500" y="38" text-anchor="middle" fill="#e6edf3" font-size="21" font-weight="700" letter-spacing="-0.5">Technical Architecture Agent</text>
   <text x="500" y="60" text-anchor="middle" fill="#484f58" font-size="12.5">Multi-Agent Architecture — 5-Stage Pipeline</text>
 
   <!-- ═══ FRONTEND ══════════════════════════════════════════════════════════ -->

@@ -1,4 +1,5 @@
 import { ref, reactive } from 'vue'
+import { apiFetch } from './useFetch.js'
 
 const API_BASE = '/api/chat'
 
@@ -13,7 +14,9 @@ export function useAgentChat() {
   const isHalted            = ref(false)
   const isInvalidInput      = ref(false)
   const isResumable         = ref(false)   // restored session stuck mid-run
+  const isRegularChat       = ref(false)   // session_type === 'chat'
   const error               = ref(null)
+  const providerConflict    = ref(null)    // { detail, canSmartPick } when resume fails due to missing provider
 
   // Document panel
   const documentPanel = reactive({ open: false, content: '', version: 0, loading: false })
@@ -45,7 +48,8 @@ export function useAgentChat() {
     let   buffer  = ''
     let   currentMsg = null
 
-    isStreaming.value = true
+    isStreaming.value      = true
+    providerConflict.value = null   // clear on each new stream attempt
     try {
       while (true) {
         const { done, value } = await reader.read()
@@ -71,9 +75,9 @@ export function useAgentChat() {
 
       case 'stage_start': {
         currentStage.value = event.stage
-        if (['researcher', 'reviewer', 'approver'].includes(event.stage)) {
-          const typeMap = { researcher: 'preparing', reviewer: 'reviewing', approver: 'approving' }
-          const m = _addMessage('agent', event.stage === 'researcher' ? 'Preparing your architecture document…' : '', event.stage, typeMap[event.stage])
+        if (['research', 'review', 'approval'].includes(event.stage)) {
+          const typeMap = { research: 'preparing', review: 'reviewing', approval: 'approving' }
+          const m = _addMessage('agent', event.stage === 'research' ? 'Preparing your architecture document…' : '', event.stage, typeMap[event.stage])
           m.isStreaming = true
           setCurrentMsg(m)
         } else {
@@ -102,15 +106,16 @@ export function useAgentChat() {
 
       case 'document_ready': {
         if (currentMsg) {
-          currentMsg.isStreaming = false
-          currentMsg.type        = 'document'
-          currentMsg.content     = ''
-          currentMsg.docVersion  = event.version
+          currentMsg.isStreaming  = false
+          currentMsg.type         = 'document'
+          currentMsg.content      = ''
+          currentMsg.docVersion   = event.version
           currentMsg.docSessionId = event.session_id || sessionId.value
           setCurrentMsg(null)
         }
         currentStage.value = null
         if (!sessionId.value && event.session_id) sessionId.value = event.session_id
+        if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
       }
 
@@ -124,6 +129,7 @@ export function useAgentChat() {
           setCurrentMsg(null)
         }
         currentStage.value = null
+        if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
       }
 
@@ -137,6 +143,7 @@ export function useAgentChat() {
           setCurrentMsg(null)
         }
         currentStage.value = null
+        if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
       }
 
@@ -163,6 +170,7 @@ export function useAgentChat() {
         if (event.status === 'complete')           isComplete.value     = true
         else if (event.status === 'halted')        isHalted.value       = true
         else if (event.status === 'invalid_input') isInvalidInput.value = true
+        else if (event.status === 'chat')          isRegularChat.value  = true
         loadSessions()
         if (sessionId.value) fetchSessionUsage(sessionId.value)
         break
@@ -173,6 +181,18 @@ export function useAgentChat() {
         error.value = event.message
         break
       }
+
+      case 'provider_error': {
+        // Intentionally leave currentMsg.isStreaming = true so retrySession's
+        // cleanup filter removes the incomplete card on the next retry attempt.
+        setCurrentMsg(null)
+        providerConflict.value = {
+          detail:       event.message,
+          canSmartPick: event.can_smart_pick,
+        }
+        isResumable.value = true
+        break
+      }
     }
   }
 
@@ -181,7 +201,7 @@ export function useAgentChat() {
   async function fetchSessionUsage(sid) {
     if (!sid) return
     try {
-      const res  = await fetch(`/api/usage/session/${sid}`)
+      const res  = await apiFetch(`/api/usage/session/${sid}`)
       if (!res.ok) return
       const data = await res.json()
       sessionUsage.input_tokens  = data.totals?.input_tokens  ?? 0
@@ -203,7 +223,9 @@ export function useAgentChat() {
     isHalted.value            = false
     isInvalidInput.value      = false
     isResumable.value         = false
+    isRegularChat.value       = false
     error.value               = null
+    providerConflict.value    = null
     documentPanel.open        = false
     documentPanel.content     = ''
     documentPanel.version     = 0
@@ -219,7 +241,7 @@ export function useAgentChat() {
   async function loadSessions() {
     sidebar.loading = true
     try {
-      const res  = await fetch(`${API_BASE}/sessions`)
+      const res  = await apiFetch(`${API_BASE}/sessions`)
       const data = await res.json()
       sidebar.pinned = data.pinned  || []
       sidebar.recent = data.recent  || []
@@ -233,7 +255,7 @@ export function useAgentChat() {
   }
 
   async function pinSession(threadId) {
-    const res = await fetch(`${API_BASE}/session/${threadId}/pin`, { method: 'POST' })
+    const res = await apiFetch(`${API_BASE}/session/${threadId}/pin`, { method: 'POST' })
     if (!res.ok) {
       const err = await res.json()
       alert(err.detail || 'Could not pin')
@@ -243,19 +265,19 @@ export function useAgentChat() {
   }
 
   async function unpinSession(threadId) {
-    await fetch(`${API_BASE}/session/${threadId}/pin`, { method: 'DELETE' })
+    await apiFetch(`${API_BASE}/session/${threadId}/pin`, { method: 'DELETE' })
     await loadSessions()
   }
 
   async function deleteSession(threadId) {
-    await fetch(`${API_BASE}/session/${threadId}`, { method: 'DELETE' })
+    await apiFetch(`${API_BASE}/session/${threadId}`, { method: 'DELETE' })
     if (sessionId.value === threadId) _resetChat()
     await loadSessions()
   }
 
   async function renameSession(threadId, title) {
     if (!title.trim()) return
-    await fetch(`${API_BASE}/session/${threadId}`, {
+    await apiFetch(`${API_BASE}/session/${threadId}`, {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ title: title.trim() }),
@@ -267,7 +289,7 @@ export function useAgentChat() {
     _resetChat()
     sessionId.value = sid
 
-    const res  = await fetch(`${API_BASE}/session/${sid}/restore`)
+    const res  = await apiFetch(`${API_BASE}/session/${sid}/restore`)
     const data = await res.json()
     if (data.error) { error.value = data.error; return }
 
@@ -275,7 +297,7 @@ export function useAgentChat() {
       if (m.content?.trim()) _addMessage(m.role, m.content, m.stage || null, 'text')
     }
     if (data.has_document) {
-      const card       = _addMessage('agent', '', 'researcher', 'document')
+      const card       = _addMessage('agent', '', 'research', 'document')
       card.docVersion   = data.document_version
       card.docSessionId = sid
     }
@@ -285,21 +307,31 @@ export function useAgentChat() {
       const qs = data.pending_questions
       _addMessage('agent', qs.map((q, i) => `${i+1}. ${q}`).join('\n\n'), 'discovery')
       pendingQuestions.value = qs
-    } else if (data.current_stage === 'complete')     isComplete.value  = true
-    else if (data.current_stage === 'halted')         isHalted.value    = true
-    else if (!terminal.includes(data.current_stage))  isResumable.value = true
+    // session_type from DB is source of truth — takes priority over current_stage
+    } else if (data.session_type === 'chat')                                  isRegularChat.value = true
+    else if (data.current_stage === 'complete')                               isComplete.value    = true
+    else if (data.current_stage === 'halted')                                 isHalted.value      = true
+    else if (data.current_stage && !terminal.includes(data.current_stage))    isResumable.value   = true
 
     fetchSessionUsage(sid)
   }
 
   // ── Sessions API ──────────────────────────────────────────────────────────
 
-  async function startSession(brief) {
+  // opts: { sessionType, flowId, chatModel, chatProvider, extendedThinking }
+  async function startSession(brief, opts = {}) {
     _resetChat()
     _addMessage('user', brief)
-    const response = await fetch(`${API_BASE}/start`, {
+    const response = await apiFetch(`${API_BASE}/start`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ brief }),
+      body: JSON.stringify({
+        brief,
+        session_type:      opts.sessionType      ?? 'agent_flow',
+        flow_id:           opts.flowId           ?? 'architect',
+        chat_model:        opts.chatModel        ?? 'claude-sonnet-4-6',
+        chat_provider:     opts.chatProvider     ?? 'anthropic',
+        extended_thinking: opts.extendedThinking ?? false,
+      }),
     })
     const sid = response.headers.get('X-Session-Id')
     if (sid) sessionId.value = sid
@@ -312,7 +344,7 @@ export function useAgentChat() {
     _addMessage('user', `Uploaded: ${file.name}`)
     const formData = new FormData()
     formData.append('file', file)
-    const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData })
+    const response = await apiFetch(`${API_BASE}/upload`, { method: 'POST', body: formData })
     if (!response.ok) {
       const err = await response.json().catch(() => ({ detail: 'Upload failed' }))
       error.value = err.detail || 'Upload failed'; return
@@ -327,24 +359,94 @@ export function useAgentChat() {
     if (!sessionId.value) return
     pendingConfirmation.value = null
     _addMessage('user', correction.trim() ? `Correction: ${correction.trim()}` : 'Confirmed — looks right.')
-    const response = await fetch(`${API_BASE}/reply/${sessionId.value}`, {
+    const response = await apiFetch(`${API_BASE}/reply/${sessionId.value}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ answers: [correction.trim()] }),
     })
     await _readStream(response)
   }
 
-  async function retrySession() {
-    if (!sessionId.value) return
-    error.value       = null
-    isResumable.value = false
-    const response = await fetch(`${API_BASE}/retry/${sessionId.value}`, { method: 'POST' })
+  async function retrySession(forcedSmartPick = false) {
+    if (!sessionId.value || isStreaming.value) return
+    error.value           = null
+    providerConflict.value = null
+    isResumable.value     = false
+    // Remove any messages that are still mid-stream from a previous failed attempt
+    messages.value = messages.value.filter(m => !m.isStreaming)
+    const url = `${API_BASE}/retry/${sessionId.value}${forcedSmartPick ? '?smart_pick=true' : ''}`
+    const response = await apiFetch(url, { method: 'POST' })
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
+      if (response.status === 409 && (data.error === 'provider_unavailable' || data.error === 'no_providers')) {
+        providerConflict.value = { detail: data.detail, canSmartPick: data.can_smart_pick }
+        isResumable.value = true   // keep session resumable so user can still act
+        return
+      }
       error.value = data.detail || 'Retry failed.'
       return
     }
     await _readStream(response)
+  }
+
+  async function retryWithSmartPick() {
+    await retrySession(true)
+  }
+
+  // ── Post-completion chat ───────────────────────────────────────────────────
+
+  async function continueRegularChat(text, model = 'claude-sonnet-4-6', provider = 'anthropic') {
+    if (!sessionId.value) return
+    _addMessage('user', text)
+    const response = await apiFetch(`${API_BASE}/continue/${sessionId.value}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, chat_model: model, chat_provider: provider }),
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      error.value = err.detail || 'Message failed.'
+      return
+    }
+    await _readStream(response)
+  }
+
+  async function sendMessage(text, model = 'claude-sonnet-4-6', provider = 'anthropic') {
+    if (!sessionId.value) return
+    _addMessage('user', text)
+    const response = await apiFetch(`${API_BASE}/message/${sessionId.value}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, chat_model: model, chat_provider: provider }),
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      error.value = err.detail || 'Message failed.'
+      return
+    }
+    await _readStream(response)
+    // Restore complete flag — _readStream's done handler will re-set it since
+    // the backend echoes status:"complete" for every post-completion turn.
+  }
+
+  async function forkSession(fromSessionId, flow, opts = {}) {
+    _resetChat()
+    _addMessage('user', `Starting new session with **${flow.name}**, using your existing document as reference.`)
+    const response = await apiFetch(`${API_BASE}/fork/${fromSessionId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        flow_id:           flow.id,
+        chat_model:        opts.chatModel        ?? 'claude-sonnet-4-6',
+        chat_provider:     opts.chatProvider     ?? 'anthropic',
+        extended_thinking: opts.extendedThinking ?? false,
+      }),
+    })
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      error.value = err.detail || 'Fork failed.'
+      return
+    }
+    const sid = response.headers.get('X-Session-Id')
+    if (sid) sessionId.value = sid
+    await _readStream(response)
+    loadSessions()
   }
 
   async function sendReply(answers) {
@@ -355,7 +457,7 @@ export function useAgentChat() {
       ? answers[0]
       : qs.map((q, i) => `**Q${i+1}:** ${q}\n**A:** ${answers[i] || '—'}`).join('\n\n')
     _addMessage('user', userText)
-    const response = await fetch(`${API_BASE}/reply/${sessionId.value}`, {
+    const response = await apiFetch(`${API_BASE}/reply/${sessionId.value}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ answers }),
     })
@@ -368,7 +470,7 @@ export function useAgentChat() {
     documentPanel.loading = true
     documentPanel.open    = true
     try {
-      const res  = await fetch(`${API_BASE}/document/${sid || sessionId.value}`)
+      const res  = await apiFetch(`${API_BASE}/document/${sid || sessionId.value}`)
       const data = await res.json()
       documentPanel.content = data.content
       documentPanel.version = data.version ?? version
@@ -397,13 +499,15 @@ export function useAgentChat() {
   return {
     sessionId, messages, currentStage,
     pendingQuestions, pendingConfirmation,
-    isStreaming, isComplete, isHalted, isInvalidInput, isResumable, error,
+    isStreaming, isComplete, isHalted, isInvalidInput, isResumable, isRegularChat, error,
+    providerConflict,
     documentPanel, sidebar, sessionUsage,
     // session ops
     loadSessions, newChat, restoreSession,
     pinSession, unpinSession, deleteSession, renameSession,
     // chat ops
-    startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession,
+    startSession, uploadDocument, confirmUnderstanding, sendReply, retrySession, retryWithSmartPick,
+    continueRegularChat, sendMessage, forkSession,
     // doc panel
     openDocumentPanel, closeDocumentPanel, downloadMD, downloadPDF,
   }

@@ -1,6 +1,6 @@
-# SF Research Agent
+# Pragna
 
-A multi-agent AI system that produces formal Salesforce Architecture Recommendation Documents through a structured 5-stage pipeline: intake → discovery → research → review → approval.
+A multi-agent AI system that produces formal Architecture Recommendation Documents through a structured 5-stage pipeline: intake → discovery → research → review → approval. Platform-agnostic — works with any enterprise or SaaS technology stack.
 
 ---
 
@@ -19,7 +19,7 @@ A multi-agent AI system that produces formal Salesforce Architecture Recommendat
 
 ## Overview
 
-The agent conducts a dynamic discovery session, runs parallel research using Perplexity (current Salesforce documentation) and Gemini (architectural patterns), writes a structured document via Claude, and passes it through a peer review and final approval loop before delivery.
+The agent conducts a platform-adaptive discovery session, runs parallel research using Perplexity (current platform documentation, limits, and release notes) and Gemini (architectural patterns and design guidance), writes a structured document via Claude, and passes it through a peer review and final approval loop before delivery.
 
 **Supported input types:** typed brief, uploaded document (PDF, DOCX, TXT, MD), or architecture diagram/image.
 
@@ -98,18 +98,14 @@ Uses **SQLite** — no Docker or database server required.
 
 ### Step 1 — Install pnpm (if not already installed)
 
-pnpm is used to run both servers with one command. Install it once:
-
 **Mac / Linux**
 ```bash
 npm install -g pnpm
-# or via Homebrew:  brew install pnpm
 ```
 
 **Windows (PowerShell)**
 ```powershell
 npm install -g pnpm
-# or via winget:  winget install pnpm.pnpm
 ```
 
 Verify: `pnpm --version`
@@ -144,16 +140,9 @@ rem Edit .env: set DB_BACKEND=sqlite and generate SETTINGS_SECRET (see above)
 
 Go back to the **project root** and run:
 
-**Mac / Linux**
 ```bash
 pnpm install   # first time only
-pnpm dev
-```
-
-**Windows**
-```cmd
-pnpm install
-pnpm dev:win
+pnpm dev       # works on Mac and Windows
 ```
 
 Both processes start in parallel with colour-coded output:
@@ -175,8 +164,8 @@ curl http://localhost:8000/health
 # {"status":"ok","graph":"ready"}
 ```
 
-> **Without pnpm?** You can still run the two processes manually in separate terminals:
-> - Terminal 1: `cd backend && .venv/bin/uvicorn api.app:app --reload --port 8000` (Mac/Linux) or `.venv\Scripts\uvicorn ...` (Windows)
+> **Without pnpm?** Run the two processes manually in separate terminals:
+> - Terminal 1: `cd backend && .venv/bin/uvicorn api.app:app --reload --port 8000`
 > - Terminal 2: `cd frontend && npm run dev`
 
 ---
@@ -187,17 +176,17 @@ curl http://localhost:8000/health
 
 ```bash
 # Local Docker
-docker run --name sf-agent-db \
+docker run --name arch-agent-db \
   -e POSTGRES_USER=agent \
   -e POSTGRES_PASSWORD=agent \
-  -e POSTGRES_DB=research_agent \
+  -e POSTGRES_DB=arch_agent \
   -p 5432:5432 -d postgres:16
 ```
 
 ```bash
 # backend/.env
 DB_BACKEND=postgres
-POSTGRES_URI=postgresql://agent:agent@localhost:5432/research_agent
+POSTGRES_URI=postgresql://agent:agent@localhost:5432/arch_agent
 ALLOWED_ORIGINS=https://yourdomain.com
 SETTINGS_SECRET=<your-fernet-key>
 ```
@@ -226,7 +215,7 @@ gunicorn api.app:app \
 
 ```nginx
 server {
-    root /path/to/sf-research-agent/frontend/dist;
+    root /path/to/pragna/frontend/dist;
 
     location / { try_files $uri $uri/ /index.html; }
 
@@ -253,43 +242,60 @@ server {
 ## Project Structure
 
 ```
-sf-research-agent/
-├── backend/                    # Python API + AI agents
-│   ├── agents/                 # LangGraph nodes (intake, discovery, researcher, reviewer, approver)
+pragna/
+├── backend/                        # Python API + AI agents
+│   ├── agents/                     # LangGraph nodes
+│   │   ├── base.py                 # BaseAgent — single-LLM-call skeleton
+│   │   ├── intake.py               # Stage 1 — document/image intake
+│   │   ├── discovery.py            # Stage 2 — dynamic discovery Q&A
+│   │   ├── researcher.py           # Stage 3 — parallel search + reasoning + writing
+│   │   ├── reviewer.py             # Stage 4 — peer review gate
+│   │   ├── approver.py             # Stage 5 — strategic approval gate
+│   │   └── chat.py                 # Free-form chat node
+│   ├── flows/
+│   │   ├── registry.py             # FlowConfig, FLOWS dict, CHAT_MODELS
+│   │   └── architect.py            # Default prompts for Technical Architect flow
 │   ├── api/
 │   │   ├── routes/
-│   │   │   ├── chat.py         # SSE streaming endpoints
-│   │   │   ├── settings.py     # API key management (GET/POST /api/settings/keys)
-│   │   │   └── usage.py        # Token usage endpoints (GET /api/usage/*)
-│   │   └── app.py              # FastAPI app, lifespan, CORS
-│   ├── graph/                  # LangGraph StateGraph builder + conditional edges
-│   ├── persistence/            # SQLite / PostgreSQL checkpointer + session/usage/settings tables
+│   │   │   ├── chat.py             # SSE streaming endpoints
+│   │   │   ├── flows.py            # GET /api/flows — available flows + chat models
+│   │   │   ├── prompts.py          # Agent prompt versioning CRUD
+│   │   │   ├── providers.py        # Provider management
+│   │   │   ├── settings.py         # API key management
+│   │   │   └── usage.py            # Token usage endpoints
+│   │   └── app.py                  # FastAPI app, lifespan, seeding, CORS
+│   ├── graph/                      # LangGraph StateGraph builder + conditional edges
+│   ├── persistence/                # SQLite / PostgreSQL checkpointer + all DB tables
 │   ├── utils/
-│   │   ├── api_keys.py         # Fernet encryption, in-memory key cache
-│   │   ├── key_validator.py    # Live API key validation (Anthropic, Perplexity, Google)
-│   │   ├── pricing.py          # Model pricing constants + cost calculation
-│   │   ├── file_parser.py      # PDF/DOCX/TXT/MD text extraction
-│   │   ├── file_storage.py     # Upload save/delete
-│   │   └── llm_retry.py        # Tenacity retry wrapper for all LLM calls
-│   ├── state.py                # AgentState schema (includes usage_records)
-│   ├── config.py               # Environment variable loading
-│   ├── requirements.txt        # Python dependencies
-│   └── .env.example            # Environment variable template
-├── frontend/                   # Vue 3 chat UI
+│   │   ├── api_keys.py             # Fernet encryption, in-memory key cache
+│   │   ├── key_validator.py        # Live API key validation per provider
+│   │   ├── pricing.py              # Model pricing constants + cost calculation
+│   │   ├── file_parser.py          # PDF/DOCX/TXT/MD text extraction
+│   │   ├── file_storage.py         # Upload save/delete
+│   │   └── llm_retry.py            # Tenacity retry wrapper for all LLM calls
+│   ├── state.py                    # AgentState schema
+│   ├── config.py                   # Environment variable loading
+│   ├── requirements.txt
+│   └── .env.example
+├── frontend/                       # Vue 3 chat UI
 │   └── src/
 │       ├── components/
-│       │   └── ChatWindow.vue  # Main UI (sidebar, chat pane, doc panel, modals)
+│       │   ├── ChatWindow.vue      # Main shell (sidebar, chat pane, doc panel)
+│       │   ├── ChatInput.vue       # Input box component (model picker, + menu, flows)
+│       │   ├── ConfigurationPage.vue  # Agent prompts + agent models config
+│       │   ├── SettingsPage.vue    # Providers + usage settings
+│       │   └── settings/
+│       │       ├── AgentPromptsSettings.vue   # Versioned prompt editor
+│       │       ├── AgentConfigSettings.vue    # Per-agent model assignment
+│       │       ├── ProvidersSettings.vue      # API key management
+│       │       └── UsageSettings.vue
 │       └── composables/
-│           └── useAgentChat.js # SSE stream handler, session state, usage fetching
-├── docs/                       # Design and requirements documents
+│           └── useAgentChat.js     # SSE stream handler, session state
+├── scripts/
+│   └── dev.js                      # Cross-platform dev runner (port cleanup + health poll)
+├── docs/                           # Design and requirements documents
 └── README.md
 ```
-
----
-
-## Architecture Diagram
-
-![SF Research Agent Architecture](docs/architecture.svg)
 
 ---
 
@@ -297,7 +303,6 @@ sf-research-agent/
 
 | Document | Description |
 |---|---|
-| [Architecture Diagram](docs/architecture.svg) | Full-color multi-agent pipeline and component diagram |
-| [UI Design](docs/UI_DESIGN.md) | Layout, shell structure, sidebar, modals, color system |
-| [Functional Requirements](docs/FUNCTIONAL_REQUIREMENTS.md) | Feature spec, user flows, agent pipeline, settings, usage |
-| [Technical Requirements](docs/TECHNICAL_REQUIREMENTS.md) | Architecture, API endpoints, DB schema, security, infrastructure |
+| [UI Design](docs/UI_DESIGN.md) | Layout, shell structure, input component, agent flow UX |
+| [Functional Requirements](docs/FUNCTIONAL_REQUIREMENTS.md) | Feature spec, user flows, agent pipeline, prompt versioning |
+| [Technical Requirements](docs/TECHNICAL_REQUIREMENTS.md) | Architecture, API endpoints, DB schema, security |

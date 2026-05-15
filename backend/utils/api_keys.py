@@ -1,82 +1,70 @@
 """
-API key management — Fernet encryption at rest, in-memory cache for agents.
+API key encryption — per-user Fernet keys derived from master SETTINGS_SECRET.
 
-Keys are stored encrypted in the app_settings DB table.
-A module-level cache holds decrypted values so agent nodes can read synchronously.
+Each user gets a unique encryption key via HKDF(master, info=user_id).
+Knowing one user's encrypted blob does not help decrypt another's.
 
 Generate SETTINGS_SECRET once with:
     python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 """
 
 import os
+import base64
+
 from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives.hashes import SHA256
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
 from utils.provider_registry import PROVIDER_ORDER, PROVIDERS
 
-# All supported provider IDs — drives key storage and UI display
-KEY_NAMES: list[str] = PROVIDER_ORDER
+KEY_NAMES:  list[str]       = PROVIDER_ORDER
+KEY_LABELS: dict[str, str]  = {pid: PROVIDERS[pid]["key_label"] for pid in PROVIDER_ORDER}
 
-KEY_LABELS: dict[str, str] = {pid: PROVIDERS[pid]["key_label"] for pid in PROVIDER_ORDER}
-
-_cache: dict[str, str] = {}
-_config_cache: dict[str, str] = {}
+_APP_SALT = b"pragna-api-keys-v1"
 
 
-def _fernet() -> Fernet:
+def _master_bytes() -> bytes:
     secret = os.environ.get("SETTINGS_SECRET", "")
     if not secret:
         raise RuntimeError(
             "SETTINGS_SECRET env var is not set. "
             "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
         )
-    return Fernet(secret.encode() if isinstance(secret, str) else secret)
+    # Fernet key is 32 bytes URL-safe base64 (44 chars padded). Re-add padding if stripped.
+    padded = secret + "=" * (-len(secret) % 4)
+    return base64.urlsafe_b64decode(padded)
 
 
-def encrypt(value: str) -> str:
-    return _fernet().encrypt(value.encode()).decode()
+def _derive_fernet(user_id: str) -> Fernet:
+    """Return a Fernet instance keyed uniquely to this user_id."""
+    derived = HKDF(
+        algorithm=SHA256(),
+        length=32,
+        salt=_APP_SALT,
+        info=user_id.encode(),
+    ).derive(_master_bytes())
+    return Fernet(base64.urlsafe_b64encode(derived))
 
 
-def decrypt(token: str) -> str:
-    return _fernet().decrypt(token.encode()).decode()
+def encrypt(value: str, user_id: str) -> str:
+    return _derive_fernet(user_id).encrypt(value.encode()).decode()
 
 
-def populate_cache(decrypted: dict[str, str]) -> None:
-    """Load plain-text keys into the in-memory cache. Called on startup and after every save."""
-    _cache.clear()
-    _cache.update({k: v for k, v in decrypted.items() if v})
-
-
-def populate_config_cache(config: dict[str, str]) -> None:
-    """Load plain-text config values into the in-memory config cache."""
-    _config_cache.update({k: v for k, v in config.items() if v is not None})
-
-
-def get_anthropic_mode() -> str:
-    """Return 'bedrock' or 'direct' (default) for the active Anthropic auth mode."""
-    return _config_cache.get("anthropic_mode", "direct")
-
-
-def get_keys() -> dict[str, str]:
-    """Return all available plain-text keys (no validation — agents use get_key instead)."""
-    return dict(_cache)
+def decrypt(token: str, user_id: str) -> str:
+    return _derive_fernet(user_id).decrypt(token.encode()).decode()
 
 
 def get_key(provider: str) -> str:
-    """Return a single decrypted API key. Raises RuntimeError with user-friendly message if missing."""
-    value = _cache.get(provider)
-    if not value:
-        label = KEY_LABELS.get(provider, provider)
-        raise RuntimeError(
-            f"API key not configured: {label}. "
-            "Open Settings → Providers and connect this provider before starting a session."
-        )
-    return value
+    """Return decrypted API key for the current request's user (via ContextVar)."""
+    from utils.user_context import get_user_key
+    return get_user_key(provider)
+
+
+def get_anthropic_mode() -> str:
+    from utils.user_context import get_anthropic_mode as _m
+    return _m()
 
 
 def is_configured(provider: str) -> bool:
-    """Return True if the given provider has a key in the cache."""
-    return bool(_cache.get(provider))
-
-
-def all_configured() -> bool:
-    """Return True only if ALL providers have keys (rarely needed — use is_configured per provider)."""
-    return all(_cache.get(k) for k in KEY_NAMES)
+    from utils.user_context import has_key
+    return has_key(provider)

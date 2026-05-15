@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import operator
 from typing import Annotated, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
 
@@ -13,6 +13,15 @@ class DiscoveryQuestion(BaseModel):
     question: str
     answer: Optional[str] = None
     satisfied: bool = False   # True once the agent deems the answer sufficient
+
+
+# ── Discovery structured output ───────────────────────────────────────────────
+
+class DiscoveryOutput(BaseModel):
+    next_questions:     list[str]
+    updated_questions:  list[DiscoveryQuestion]
+    discovery_complete: bool
+    reasoning:          str
 
 
 # ── Reviewer structured output ─────────────────────────────────────────────────
@@ -41,7 +50,7 @@ class AgentState(BaseModel):
     # ── Stage tracking ────────────────────────────────────────────────────────
     current_stage: Literal[
         "intake", "discovery", "research", "review", "approval",
-        "complete", "halted", "invalid_input"
+        "complete", "halted", "invalid_input", "chat"
     ] = "intake"
     revision_count: int = 0   # increments each time Approver rejects
 
@@ -72,10 +81,27 @@ class AgentState(BaseModel):
     # ── Token usage (append-only — each agent appends its records) ────────────
     usage_records: Annotated[list[dict], operator.add] = Field(default_factory=list)
 
+    # ── Session type ──────────────────────────────────────────────────────────
+    # "chat"       → free-form LLM conversation, no pipeline
+    # "agent_flow" → structured LangGraph pipeline identified by flow_id
+    session_type: Literal["chat", "agent_flow"] = "agent_flow"
+
+    # ── Agent flow fields (used when session_type == "agent_flow") ────────────
+    flow_id: str = "architect"
+    # System prompts for the active flow, loaded at session start from the registry.
+    # Agents read from here — never import prompts directly from agent files.
+    flow_config: dict = Field(default_factory=dict)
+
+    # ── Chat fields (used when session_type == "chat") ────────────────────────
+    chat_model:        str  = "claude-sonnet-4-6"
+    chat_provider:     str  = "anthropic"
+    extended_thinking: bool = False
+
+    # ── Prompt snapshot — frozen at session start ────────────────────────────
+    flow_snapshot_id:      int | None = None   # row id in flow_prompt_snapshots
+    flow_snapshot_version: int | None = None   # human-readable version number
+
     # ── LLM config snapshot — frozen at session start, never mutated ─────────
-    # Keys are agent slot names; values are {provider, model} dicts.
-    # Agents read from here so changing global config never affects running sessions.
     session_agent_config: dict = Field(default_factory=dict)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)

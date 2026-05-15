@@ -2,7 +2,7 @@
 LLM call retry wrapper using tenacity.
 
 All three providers (Claude, Perplexity, Gemini) share the same retry policy:
-  - Retry on rate limits (429), timeouts, and transient network errors
+  - Retry on rate limits (429), 500/503 errors, timeouts, and transient network errors
   - Exponential backoff: 2s → 4s → 8s → 16s → 32s (max 5 attempts)
   - Raises the original exception after all retries are exhausted
 
@@ -31,12 +31,15 @@ def _is_retryable(exc: BaseException) -> bool:
     retryable_signals = [
         "rate limit",
         "429",
+        "500",
         "503",
         "timeout",
         "connection",
         "overloaded",
         "temporarily unavailable",
         "resource exhausted",
+        "internal server error",
+        "api_error",
     ]
     return any(signal in msg for signal in retryable_signals)
 

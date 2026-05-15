@@ -1,0 +1,192 @@
+name: Build and Push
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+
+env:
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      # ── Version ─────────────────────────────────────────────────────────────
+
+      - name: Bump version
+        id: version
+        run: |
+          current=$(cat VERSION | tr -d '[:space:]')
+          major=$(echo $current | cut -d. -f1)
+          minor=$(echo $current | cut -d. -f2)
+          patch=$(echo $current | cut -d. -f3)
+
+          case "${{ inputs.bump }}" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+
+          new="$major.$minor.$patch"
+          echo "$new" > VERSION
+          echo "new=$new" >> $GITHUB_OUTPUT
+          echo "previous=$current" >> $GITHUB_OUTPUT
+          echo "Bumped $current → $new"
+
+      - name: Generate release notes
+        run: |
+          version="${{ steps.version.outputs.new }}"
+          previous="${{ steps.version.outputs.previous }}"
+          date=$(date -u +"%Y-%m-%d")
+
+          last_bump=$(git log --oneline | grep -m1 "chore: bump version to ${previous}" | awk '{print $1}')
+
+          if [ -z "$last_bump" ]; then
+            commits=$(git log --no-merges --format="%s" -100)
+          else
+            commits=$(git log --no-merges --format="%s" "${last_bump}..HEAD")
+          fi
+
+          features=$(echo "$commits" | grep -E "^feat:"          | sed 's/^feat: /- /'     || true)
+          fixes=$(echo "$commits"    | grep -E "^(fix|hotfix):"  | sed 's/^\(fix\|hotfix\): /- /' || true)
+          docs=$(echo "$commits"     | grep -E "^docs:"          | sed 's/^docs: /- /'     || true)
+          refactor=$(echo "$commits" | grep -E "^refactor:"      | sed 's/^refactor: /- /' || true)
+
+          {
+            echo "# v${version} — ${date}"
+            echo ""
+            if [ -n "$features" ];  then echo "## Features";      echo "$features";  echo ""; fi
+            if [ -n "$fixes" ];     then echo "## Bug Fixes";     echo "$fixes";     echo ""; fi
+            if [ -n "$refactor" ];  then echo "## Refactoring";   echo "$refactor";  echo ""; fi
+            if [ -n "$docs" ];      then echo "## Documentation"; echo "$docs";      echo ""; fi
+            if [ -z "$features" ] && [ -z "$fixes" ] && [ -z "$refactor" ] && [ -z "$docs" ]; then
+              echo "No notable changes."; echo ""
+            fi
+          } > "release-notes/v${version}.md"
+
+          echo "Generated release-notes/v${version}.md"
+          cat "release-notes/v${version}.md"
+
+      - name: Commit version bump and release notes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION release-notes/
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new }}"
+          git push
+
+      # ── Build & push images ──────────────────────────────────────────────────
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push pragna-ui
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.ui
+          push: true
+          no-cache: true
+          tags: |
+            ghcr.io/${{ env.OWNER }}/pragna-ui:${{ steps.version.outputs.new }}
+            ghcr.io/${{ env.OWNER }}/pragna-ui:latest
+
+      - name: Build and push pragna-api
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.api
+          push: true
+          no-cache: true
+          tags: |
+            ghcr.io/${{ env.OWNER }}/pragna-api:${{ steps.version.outputs.new }}
+            ghcr.io/${{ env.OWNER }}/pragna-api:latest
+
+      # ── Deploy to cluster ────────────────────────────────────────────────────
+
+      - name: Deploy to cluster
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -e
+            VERSION="${{ steps.version.outputs.new }}"
+
+            echo "=== Pulling latest code ==="
+            cd ${{ secrets.VPS_REPO_PATH }}
+            git pull
+
+            echo "=== Updating pod images to v${VERSION} ==="
+            kubectl set image deployment/pragna-api \
+              pragna-api=ghcr.io/${{ github.repository_owner }}/pragna-api:${VERSION} \
+              -n pragna
+
+            kubectl set image deployment/pragna-ui \
+              pragna-ui=ghcr.io/${{ github.repository_owner }}/pragna-ui:${VERSION} \
+              -n pragna
+
+            echo "=== Waiting for rollout ==="
+            kubectl rollout status deployment/pragna-api -n pragna --timeout=120s
+            kubectl rollout status deployment/pragna-ui  -n pragna --timeout=120s
+
+            echo "=== Pod status ==="
+            kubectl get pods -n pragna
+
+            echo "=== Probe check ==="
+            STATUS="000"
+            for i in $(seq 1 12); do
+              STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" \
+                https://pragna.sgummallaworks.com/health 2>/dev/null || echo "000")
+              if [ "$STATUS" = "200" ] && [ -s /tmp/health.json ]; then
+                echo "✓ Health check passed (attempt $i)"
+                python3 -m json.tool /tmp/health.json || cat /tmp/health.json
+                break
+              fi
+              echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
+              sleep 10
+            done
+            if [ "$STATUS" != "200" ]; then
+              echo "⚠ Health check did not return 200 after 12 attempts (HTTP $STATUS)"
+              echo "  Deployment completed — pods are running. Check logs if needed."
+              cat /tmp/health.json 2>/dev/null || true
+            fi
+
+      # ── Summary ──────────────────────────────────────────────────────────────
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Version ${{ steps.version.outputs.new }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          cat "release-notes/v${{ steps.version.outputs.new }}.md" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

@@ -355,7 +355,7 @@ onMounted(load)
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ac-meta-line { font-size: 11px; color: var(--muted); }
-.ac-meta-cost { color: #a78bfa; font-weight: 600; }
+.ac-meta-cost { color: var(--pri); font-weight: 600; }
 .ac-meta-dim  { font-size: 11px; color: var(--muted); }
 
 /* Footer */
@@ -367,8 +367,8 @@ onMounted(load)
 .ac-footer-right { display: flex; align-items: center; gap: 14px; }
 
 .ac-msg { font-size: 13px; font-weight: 500; }
-.ac-msg.ok  { color: #4ade80; }
-.ac-msg.err { color: #ef4444; }
+.ac-msg.ok  { color: var(--success-tx); }
+.ac-msg.err { color: var(--danger); }
 
 .ac-btn-clear {
   padding: 9px 18px; background: transparent; color: var(--muted);
@@ -380,12 +380,12 @@ onMounted(load)
 .ac-btn-clear:disabled { opacity: .4; cursor: not-allowed; }
 
 .ac-btn-suggest {
-  padding: 9px 18px; background: #7c3aed22; color: #a78bfa;
-  border: 1.5px solid #7c3aed55; border-radius: 10px;
+  padding: 9px 18px; background: rgba(201,112,64,0.08); color: var(--pri);
+  border: 1.5px solid rgba(201,112,64,0.3); border-radius: 10px;
   font-size: 13px; font-weight: 600; cursor: pointer;
   transition: background .15s, border-color .15s;
 }
-.ac-btn-suggest:hover:not(:disabled) { background: #7c3aed33; border-color: #a78bfa; }
+.ac-btn-suggest:hover:not(:disabled) { background: rgba(201,112,64,0.12); border-color: var(--pri); }
 .ac-btn-suggest:disabled { opacity: .4; cursor: not-allowed; }
 
 .ac-save-btn {
