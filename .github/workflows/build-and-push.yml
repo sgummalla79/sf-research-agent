@@ -159,14 +159,29 @@ jobs:
             echo "=== Running migrations on staging ==="
             DB_URL=$(kubectl get secret pragna-staging-secrets -n pragna-staging \
               -o jsonpath='{.data.DATABASE_URL}' | base64 --decode)
-            kubectl run alembic-staging-${SHA} \
+            MIGRATION_POD="alembic-staging-${SHA}"
+            kubectl run "${MIGRATION_POD}" \
               --image=ghcr.io/${{ github.repository_owner }}/pragna-api:${TAG} \
               --restart=Never \
-              --rm \
-              --attach \
               -n pragna-staging \
               --env="DATABASE_URL=${DB_URL}" \
               -- python -m alembic upgrade head
+            echo "Waiting for migration pod to complete..."
+            for i in $(seq 1 60); do
+              PHASE=$(kubectl get pod "${MIGRATION_POD}" -n pragna-staging \
+                -o jsonpath='{.status.phase}' 2>/dev/null || echo "Pending")
+              echo "  attempt $i: phase=${PHASE}"
+              if [ "${PHASE}" = "Succeeded" ]; then break; fi
+              if [ "${PHASE}" = "Failed" ]; then
+                kubectl logs "${MIGRATION_POD}" -n pragna-staging || true
+                kubectl delete pod "${MIGRATION_POD}" -n pragna-staging --ignore-not-found
+                exit 1
+              fi
+              sleep 5
+            done
+            kubectl logs "${MIGRATION_POD}" -n pragna-staging || true
+            kubectl delete pod "${MIGRATION_POD}" -n pragna-staging --ignore-not-found
+            echo "=== Migrations complete ==="
 
             echo "=== Deploying staging images ==="
             kubectl set image deployment/pragna-api \

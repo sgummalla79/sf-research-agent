@@ -82,14 +82,28 @@ kubectl rollout status deployment/pragna-api-${NEW_SLOT} \
 echo "=== Running Alembic migrations ==="
 DB_URL=$(kubectl get secret pragna-secrets -n "$NS" \
   -o jsonpath='{.data.DATABASE_URL}' | base64 --decode)
-kubectl run alembic-migrate-${VERSION//\./-} \
+MIGRATION_POD="alembic-migrate-${VERSION//\./-}"
+kubectl run "${MIGRATION_POD}" \
   --image="${IMAGE_API}" \
   --restart=Never \
-  --rm \
-  --attach \
   -n "$NS" \
   --env="DATABASE_URL=${DB_URL}" \
   -- python -m alembic upgrade head
+echo "Waiting for migration pod to complete..."
+for i in $(seq 1 60); do
+  PHASE=$(kubectl get pod "${MIGRATION_POD}" -n "$NS" \
+    -o jsonpath='{.status.phase}' 2>/dev/null || echo "Pending")
+  echo "  attempt $i: phase=${PHASE}"
+  if [ "${PHASE}" = "Succeeded" ]; then break; fi
+  if [ "${PHASE}" = "Failed" ]; then
+    kubectl logs "${MIGRATION_POD}" -n "$NS" || true
+    kubectl delete pod "${MIGRATION_POD}" -n "$NS" --ignore-not-found
+    exit 1
+  fi
+  sleep 5
+done
+kubectl logs "${MIGRATION_POD}" -n "$NS" || true
+kubectl delete pod "${MIGRATION_POD}" -n "$NS" --ignore-not-found
 echo "=== Migrations complete ==="
 
 # ── 5. Health-check the new slot directly before switching ────────────────────
