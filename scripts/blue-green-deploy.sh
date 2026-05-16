@@ -88,6 +88,7 @@ kubectl run "${MIGRATION_POD}" \
   --restart=Never \
   -n "$NS" \
   --env="DATABASE_URL=${DB_URL}" \
+  --overrides='{"spec":{"imagePullSecrets":[{"name":"ghcr-pull-secret"}]}}' \
   -- python -m alembic upgrade head
 echo "Waiting for migration pod to complete..."
 for i in $(seq 1 60); do
@@ -99,6 +100,10 @@ for i in $(seq 1 60); do
     kubectl logs "${MIGRATION_POD}" -n "$NS" || true
     kubectl delete pod "${MIGRATION_POD}" -n "$NS" --ignore-not-found
     exit 1
+  fi
+  if [ "$i" = "6" ]; then
+    echo "--- pod describe (diagnosing pending) ---"
+    kubectl describe pod "${MIGRATION_POD}" -n "$NS" || true
   fi
   sleep 5
 done
