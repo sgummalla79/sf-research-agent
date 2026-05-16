@@ -233,8 +233,10 @@ async def send_message(
         from framework.defaults import smart_pick, available_providers
         from utils.user_context import _user_keys
         connected = available_providers(_user_keys.get() or {})
+        raw_models = await db.llm_models.get_active(current_user.sub)
+        active_models = [{"provider": m.provider_key, "model_id": m.model_id} for m in raw_models]
         try:
-            pick     = smart_pick("default", connected)
+            pick     = smart_pick("default", connected, active_models)
             provider = provider or pick["provider"]
             model    = model    or pick["model"]
         except ValueError:

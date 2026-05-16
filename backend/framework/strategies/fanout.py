@@ -66,10 +66,11 @@ class FanoutStrategy(ExecutionStrategy):
             # keyed by session_id that _stream_graph populates before streaming starts.
             # This is the only mechanism guaranteed to survive LangGraph's internal
             # asyncio.create_task(context=...) boundaries and nested ThreadPoolExecutor threads.
-            from utils.user_context import get_execution_keys, get_execution_mode, set_user_context
-            _eid           = state.execution_id
-            _captured_keys = get_execution_keys(_eid)
-            _captured_mode = get_execution_mode(_eid)
+            from utils.user_context import get_execution_keys, get_execution_mode, get_execution_active_models, set_user_context, set_active_models
+            _eid             = state.execution_id
+            _captured_keys   = get_execution_keys(_eid)
+            _captured_mode   = get_execution_mode(_eid)
+            _captured_models = get_execution_active_models(_eid)
 
             # ── Step 1: run all branches in parallel ──────────────────────────
             branch_outputs: list[tuple[str, str, dict]] = []  # (label, text, urec)
@@ -78,6 +79,8 @@ class FanoutStrategy(ExecutionStrategy):
                 # Re-establish user context at the start of each thread so get_user_key works.
                 if _captured_keys:
                     set_user_context(_captured_keys, _captured_mode)
+                if _captured_models:
+                    set_active_models(_captured_models)
                 llm      = get_llm_for_agent(branch.agent, state.session_agent_config)
                 prompt   = state.flow_config.get(branch.agent, "")
                 response = invoke_with_retry(llm, [

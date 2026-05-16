@@ -59,24 +59,47 @@ def available_providers(user_keys: dict) -> set[str]:
     return providers
 
 
-def smart_pick(slot: str, connected: set[str]) -> dict:
+def smart_pick(slot: str, connected: set[str], active_models: list[dict] | None = None) -> dict:
     """
     Pick the best available provider/model for a slot from connected providers.
+
+    Resolution order per preferred provider:
+      1. Slot-specific recommended model — if user has it active
+      2. Any other active model the user has for that provider
+      3. Hardcoded static default (last resort, no active_models info)
+
     Raises ValueError if no providers are connected.
     """
     preference = _SLOT_PREFERENCE.get(slot, _DEFAULT_PREFERENCE)
+
+    def _pick_for_provider(provider: str) -> dict | None:
+        if provider not in connected:
+            return None
+        if active_models:
+            provider_models = [m for m in active_models if m["provider"] == provider]
+            if provider_models:
+                # Try the slot-recommended model first, then provider default, then any active
+                hints = _PROVIDER_SLOT_MODEL.get(provider, {})
+                preferred_id = hints.get(slot) or hints.get("default")
+                if preferred_id:
+                    match = next((m for m in provider_models if m["model_id"] == preferred_id), None)
+                    if match:
+                        return {"provider": provider, "model": match["model_id"]}
+                return {"provider": provider, "model": provider_models[0]["model_id"]}
+        # No active model info — fall back to static defaults
+        hints = _PROVIDER_SLOT_MODEL.get(provider, {})
+        model = hints.get(slot) or hints.get("default", "")
+        return {"provider": provider, "model": model} if model else None
+
     for provider in preference:
-        if provider in connected:
-            models = _PROVIDER_SLOT_MODEL.get(provider, {})
-            model  = models.get(slot) or models.get("default", "")
-            if model:
-                return {"provider": provider, "model": model}
+        result = _pick_for_provider(provider)
+        if result:
+            return result
 
     for provider in connected:
-        models = _PROVIDER_SLOT_MODEL.get(provider, {})
-        model  = models.get("default", "")
-        if model:
-            return {"provider": provider, "model": model}
+        result = _pick_for_provider(provider)
+        if result:
+            return result
 
     raise ValueError(
         "No LLM providers are configured. "
@@ -84,15 +107,16 @@ def smart_pick(slot: str, connected: set[str]) -> dict:
     )
 
 
-def smart_pick_for_agent(agent_key: str, slot: str, connected: set[str]) -> dict:
+def smart_pick_for_agent(agent_key: str, slot: str, connected: set[str], active_models: list[dict] | None = None) -> dict:
     """Smart pick for a specific agent using its slot's preference order."""
-    return smart_pick(slot, connected)
+    return smart_pick(slot, connected, active_models)
 
 
 def resolve_agent_config(
-    agent_slot_map: dict[str, str],   # {agent_key: slot} from skill manifest
-    snapshot_cfg:   dict[str, dict],  # {agent_key: {provider, model}} from conversation_skill_agents
+    agent_slot_map: dict[str, str],    # {agent_key: slot} from skill manifest
+    snapshot_cfg:   dict[str, dict],   # {agent_key: {provider, model}} from conversation_skill_agents
     connected:      set[str],
+    active_models:  list[dict] | None = None,
 ) -> dict[str, dict]:
     """
     Resolve the final per-agent config for an execution.
@@ -110,6 +134,6 @@ def resolve_agent_config(
         if provider and model and provider in connected:
             resolved[agent_key] = {"provider": provider, "model": model}
         else:
-            resolved[agent_key] = smart_pick(slot, connected)
+            resolved[agent_key] = smart_pick(slot, connected, active_models)
 
     return resolved

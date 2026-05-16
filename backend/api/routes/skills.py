@@ -69,9 +69,12 @@ async def classify_skill_choice(
     from utils.llm_factory import build_llm
     from langchain_core.messages import SystemMessage, HumanMessage
 
+    db        = request.app.state.db
     connected = connected_providers()
+    raw_models = await db.llm_models.get_active(current_user.sub)
+    active_models = [{"provider": m.provider_key, "model_id": m.model_id} for m in raw_models]
     try:
-        pick = smart_pick("default", connected)
+        pick = smart_pick("default", connected, active_models)
         llm  = build_llm(pick["provider"], pick["model"])
     except ValueError:
         return {"skill_id": "none"}
@@ -124,8 +127,10 @@ async def validate_brief(
     from langchain_core.messages import SystemMessage, HumanMessage
 
     connected = connected_providers()
+    raw_models = await db.llm_models.get_active(current_user.sub)
+    active_models = [{"provider": m.provider_key, "model_id": m.model_id} for m in raw_models]
     try:
-        pick = smart_pick("default", connected)
+        pick = smart_pick("default", connected, active_models)
         llm  = build_llm(pick["provider"], pick["model"])
     except ValueError:
         return {"valid": True, "reason": "ok", "message": ""}

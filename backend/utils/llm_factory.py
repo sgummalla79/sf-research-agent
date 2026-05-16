@@ -65,9 +65,9 @@ def get_llm_for_agent(agent_key: str, session_agent_config: dict):
 
     if not provider or not model:
         from framework.defaults import smart_pick
-        from utils.user_context import connected_providers
+        from utils.user_context import connected_providers, get_active_models
         slot   = cfg.get("slot", "default")
-        picked = smart_pick(slot, connected_providers())
+        picked = smart_pick(slot, connected_providers(), get_active_models())
         provider = picked["provider"]
         model    = picked["model"]
         cfg["provider"] = provider
