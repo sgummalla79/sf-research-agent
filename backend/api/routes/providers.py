@@ -24,7 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from utils.auth import AuthUser, get_current_user
-from utils.user_api_keys import encrypt
+from utils.key_encryption import encrypt
 from utils.provider_registry import PROVIDERS, PROVIDER_ORDER
 
 log    = logging.getLogger(__name__)
@@ -270,7 +270,7 @@ async def refresh_provider_models(
     if provider_id not in statuses:
         raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not connected.")
 
-    from utils.user_api_keys import decrypt
+    from utils.key_encryption import decrypt
     enc_keys = await db.users.get_all_llm_provider_keys(current_user.sub)
     enc_key  = enc_keys.get(provider_id)
     if not enc_key:

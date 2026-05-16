@@ -33,7 +33,7 @@ async def test_migration_applies_cleanly():
         # Verify all 16 tables exist
         expected_tables = {
             "skills", "agents",
-            "users", "user_api_keys", "user_config", "user_skills",
+            "users", "user_llm_providers", "user_config", "user_skills",
             "user_agents", "user_agents_versions",
             "conversations", "conversation_skills", "conversation_skill_agents",
             "conversation_skill_executions", "conversation_skill_execution_stages",

@@ -17,7 +17,7 @@ _MISTRAL_API_BASE = "https://api.mistral.ai/v1"
 
 def build_llm(provider: str, model: str):
     """Return a configured LangChain chat model for the given provider and model."""
-    from utils.user_api_keys import get_key, get_anthropic_mode
+    from utils.key_encryption import get_key, get_anthropic_mode
 
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic

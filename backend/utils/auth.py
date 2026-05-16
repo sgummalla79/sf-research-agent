@@ -86,7 +86,7 @@ async def _inject_user_keys(request: Request, user: AuthUser) -> None:
     try:
         db = request.app.state.db
         encrypted_keys = await db.users.get_all_llm_provider_keys(user.sub)
-        from utils.user_api_keys import decrypt
+        from utils.key_encryption import decrypt
         from utils.user_context import set_user_context
         decrypted: dict[str, str] = {}
         for key_name, enc_val in encrypted_keys.items():

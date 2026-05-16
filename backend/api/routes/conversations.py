@@ -215,7 +215,7 @@ async def send_message(
     from langchain_core.messages import HumanMessage as HM, AIMessage, SystemMessage
     from utils.llm_factory import build_llm
     from utils.pricing import usage_record
-    from utils.user_api_keys import get_key
+    from utils.key_encryption import get_key
 
     db   = request.app.state.db
     conv = await db.conversations.get_by_id(conversation_id)
