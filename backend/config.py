@@ -1,7 +1,15 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
+# Step 1: load .env to get APP_ENV (the environment selector)
 load_dotenv()
+
+# Step 2: load the environment-specific file (.env.dev, .env.test, etc.)
+_app_env  = os.getenv("APP_ENV", "dev")
+_env_file = Path(__file__).parent / f".env.{_app_env}"
+if _env_file.exists():
+    load_dotenv(_env_file, override=True)
 
 # ── Database (PostgreSQL only) ────────────────────────────────────────────────
 DATABASE_URL: str = os.getenv("DATABASE_URL", "")

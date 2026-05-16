@@ -14,7 +14,14 @@ htmlcov/
 .coverage
 
 # ── Environment & secrets (NEVER commit) ──────────────────
-.env
+# .env          — committed (APP_ENV selector only)
+# .env.dev      — committed (dev concrete values)
+# .env.test     — committed (test concrete values)
+# .env.staging  — NEVER commit (real staging secrets)
+# .env.prod     — NEVER commit (real prod secrets)
+.env.staging
+.env.prod
+.env.production
 .env.local
 .env.*.local
 
