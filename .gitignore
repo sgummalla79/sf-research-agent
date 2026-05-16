@@ -52,3 +52,6 @@ Desktop.ini
 logs/
 k8s/pragna/secret.yaml
 k8s/pragna-staging/secret.yaml
+
+# ── Local dev scripts (personal, not shared) ──────────────
+scripts/local-db.sh
