@@ -480,6 +480,7 @@ async function runSkill(skillId, originalText, brief, opts) {
     originalMessage: originalText,
   })
   sidebar.load()
+  setTimeout(() => sidebar.load(), 3000)
 }
 
 // ── Chat input events ──────────────────────────────────────────────────────────
@@ -537,6 +538,9 @@ async function resolvePendingSelection(text, opts) {
   } else {
     await conv.sendMessage(text, { chatProvider: opts.provider, chatModel: opts.model })
     sidebar.load()
+    // Auto-title is generated async on the backend after the stream ends — reload
+    // again after a short delay so the sidebar picks up the name without a refresh
+    setTimeout(() => sidebar.load(), 3000)
   }
 }
 

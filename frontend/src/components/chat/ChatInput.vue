@@ -64,23 +64,23 @@
               @change="onFileChange" />
 
             <!-- Skills — hover to open flyout submenu to the right -->
-            <template v-if="props.skills.length">
-              <div class="cpm-divider" />
-              <div class="cpm-skills-wrap"
-                @mouseenter="skillsOpen = true"
-                @mouseleave="skillsOpen = false">
-                <button class="cpm-item">
-                  <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-                  </svg>
-                  <span style="flex:1; text-align:left">Skills</span>
-                  <svg class="cpm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="11" height="11">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                </button>
+            <div class="cpm-divider" />
+            <div class="cpm-skills-wrap"
+              @mouseenter="skillsOpen = true"
+              @mouseleave="skillsOpen = false">
+              <button class="cpm-item">
+                <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                </svg>
+                <span style="flex:1; text-align:left">Skills</span>
+                <svg class="cpm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="11" height="11">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
 
-                <!-- Flyout submenu — appears to the right -->
-                <div v-if="skillsOpen" class="cpm-flyout">
+              <!-- Flyout submenu — appears to the right -->
+              <div v-if="skillsOpen" class="cpm-flyout">
+                <template v-if="props.skills.length">
                   <button v-for="skill in props.skills" :key="skill.id"
                     class="cpm-item"
                     @click="$emit('skill-select', skill.id); plusMenuOpen = false; skillsOpen = false">
@@ -88,16 +88,16 @@
                     {{ skill.name }}
                   </button>
                   <div class="cpm-divider" />
-                  <button class="cpm-item cpm-manage"
-                    @click="app.openConfiguration(); plusMenuOpen = false; skillsOpen = false">
-                    <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
-                      <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-                    </svg>
-                    Manage skills
-                  </button>
-                </div>
+                </template>
+                <button class="cpm-item cpm-manage"
+                  @click="app.openConfiguration(); plusMenuOpen = false; skillsOpen = false">
+                  <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
+                    <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                  </svg>
+                  Manage skills
+                </button>
               </div>
-            </template>
+            </div>
           </div>
         </div>
 
@@ -118,7 +118,7 @@
               :groups="modelGroups"
               :open="modelPickerOpen"
               :direction="props.isEmptyChat ? 'below' : 'above'"
-              @select="m => { selectedModel = m }"
+              @select="m => { selectedModel = m; userHasSelectedModel = true }"
               @close="modelPickerOpen = false"
             />
           </div>
@@ -172,6 +172,7 @@ const app  = useAppStore()
 // ── State ─────────────────────────────────────────────────────────────────────
 const text                  = ref('')
 const selectedModel         = ref({ model: 'claude-sonnet-4-6', display: 'Sonnet 4.6', description: 'Responsive everyday work', provider: 'anthropic' })
+const userHasSelectedModel  = ref(false)
 const extendedThinking      = ref(true)
 const plusMenuOpen          = ref(false)
 const skillsOpen            = ref(false)
@@ -208,9 +209,9 @@ const canSend = computed(() =>
   (!!selectedFile.value || !!text.value.trim())
 )
 
-// Sync default model when chatModels arrive (async from parent)
+// Sync default model when chatModels arrive — skip if user already picked one
 watch(() => props.chatModels, (models) => {
-  if (!models.length) return
+  if (!models.length || userHasSelectedModel.value) return
   const def = models.find(m => m.default) || models[0]
   if (def) selectedModel.value = def
 }, { immediate: true })
