@@ -12,57 +12,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-PROVIDER_ORDER = ["anthropic", "openai", "google", "perplexity", "groq"]
-
-PROVIDERS: dict[str, dict] = {
-    "anthropic": {
-        "name":        "Anthropic",
-        "description": "Claude Opus, Sonnet, Haiku",
-        "placeholder": "sk-ant-api03-…",
-        "key_label":   "Anthropic API Key",
-        "auth_modes": [
-            {
-                "id":    "direct",
-                "label": "Direct API",
-                "fields": [
-                    {"key": "anthropic", "label": "API Key", "placeholder": "sk-ant-api03-…"},
-                ],
-            },
-            {
-                "id":    "bedrock",
-                "label": "AWS Bedrock",
-                "fields": [
-                    {"key": "anthropic_bedrock_url",   "label": "Bedrock Base URL", "placeholder": "https://…"},
-                    {"key": "anthropic_bedrock_token", "label": "Auth Token",       "placeholder": "…"},
-                ],
-            },
-        ],
-    },
-    "openai": {
-        "name":        "OpenAI",
-        "description": "GPT-4o, o3, o4-mini and more",
-        "placeholder": "sk-proj-…",
-        "key_label":   "OpenAI API Key",
-    },
-    "google": {
-        "name":        "Google",
-        "description": "Gemini models",
-        "placeholder": "AIza…",
-        "key_label":   "Google API Key",
-    },
-    "perplexity": {
-        "name":        "Perplexity",
-        "description": "Sonar search-grounded models",
-        "placeholder": "pplx-…",
-        "key_label":   "Perplexity API Key",
-    },
-    "groq": {
-        "name":        "Groq",
-        "description": "Fast inference — Llama, Mixtral, Gemma",
-        "placeholder": "gsk_…",
-        "key_label":   "Groq API Key",
-    },
-}
 
 # OpenAI non-chat model prefixes to exclude
 _OPENAI_EXCLUDE_PREFIXES = (

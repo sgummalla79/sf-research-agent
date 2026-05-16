@@ -26,7 +26,6 @@ from pydantic import BaseModel
 
 from utils.auth import AuthUser, get_current_user
 from utils.key_encryption import encrypt
-from utils.provider_registry import PROVIDERS, PROVIDER_ORDER
 
 log    = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/providers")
@@ -83,17 +82,19 @@ async def list_providers(request: Request, current_user: AuthUser = Depends(get_
     db           = request.app.state.db
     key_statuses = await db.users.get_llm_provider_key_statuses(current_user.sub)
 
+    registry  = await db.provider_registry.get_all()
     providers = []
-    for pid in PROVIDER_ORDER:
-        info     = PROVIDERS.get(pid, {})
+    for entry in registry:
+        pid      = entry.provider_key
         has_key  = pid in key_statuses
         isactive = key_statuses.get(pid, False)
         providers.append({
             "id":          pid,
-            "name":        info.get("name", pid),
+            "name":        entry.name,
             "connected":   has_key,
             "isactive":    isactive,
-            "description": info.get("description", ""),
+            "description": entry.description,
+            "auth_config": entry.auth_config,
         })
 
     # AWS Bedrock virtual tile
@@ -182,9 +183,10 @@ async def connect_provider(
     request:      Request,
     current_user: AuthUser = Depends(get_current_user),
 ):
-    if provider_id not in PROVIDERS:
+    db    = request.app.state.db
+    entry = await db.provider_registry.get_by_key(provider_id)
+    if not entry:
         raise HTTPException(status_code=404, detail=f"Unknown provider: {provider_id}")
-    db  = request.app.state.db
     # Ensure user row exists before any FK-referencing inserts
     await db.users.upsert(current_user.sub, current_user.email, current_user.name, None)
     enc = encrypt(body.api_key, current_user.sub)
