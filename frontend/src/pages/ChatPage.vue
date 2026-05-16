@@ -42,7 +42,7 @@
 
           <ChatInput
             ref="chatInputRef"
-            :chat-models="chatModels"
+            :chat-models="filteredChatModels"
             :skills="skills"
             :is-pipeline-running="false"
             :is-streaming="conv.isStreaming"
@@ -138,7 +138,7 @@
           <ChatInput
             v-if="!conv.isPipelineRunning"
             ref="chatInputRef"
-            :chat-models="chatModels"
+            :chat-models="filteredChatModels"
             :skills="skills"
             :is-pipeline-running="false"
             :is-streaming="conv.isStreaming"
@@ -298,9 +298,14 @@ const firstName = computed(() => {
 
 // ── Skills + models ────────────────────────────────────────────────────────────
 const skills        = ref([])
-const chatModels    = ref([])
-const modelsLoaded  = ref(false)
-const noProviders   = computed(() => modelsLoaded.value && chatModels.value.length === 0)
+const chatModels         = ref([])
+const modelsLoaded       = ref(false)
+const noProviders        = computed(() => modelsLoaded.value && chatModels.value.length === 0)
+const filteredChatModels = computed(() =>
+  conv.lockedProvider
+    ? chatModels.value.filter(m => m.provider === conv.lockedProvider)
+    : chatModels.value
+)
 
 // The skill currently being run (for the session flow bar)
 const activeSkillId = ref(null)

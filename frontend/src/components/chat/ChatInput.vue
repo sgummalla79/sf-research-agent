@@ -118,7 +118,7 @@
               :groups="modelGroups"
               :open="modelPickerOpen"
               :direction="props.isEmptyChat ? 'below' : 'above'"
-              @select="m => { selectedModel = m; userHasSelectedModel = true }"
+              @select="m => { selectedModel = m }"
               @close="modelPickerOpen = false"
             />
           </div>
@@ -172,7 +172,6 @@ const app  = useAppStore()
 // ── State ─────────────────────────────────────────────────────────────────────
 const text                  = ref('')
 const selectedModel         = ref({ model: 'claude-sonnet-4-6', display: 'Sonnet 4.6', description: 'Responsive everyday work', provider: 'anthropic' })
-const userHasSelectedModel  = ref(false)
 const extendedThinking      = ref(true)
 const plusMenuOpen          = ref(false)
 const skillsOpen            = ref(false)
@@ -209,11 +208,11 @@ const canSend = computed(() =>
   (!!selectedFile.value || !!text.value.trim())
 )
 
-// Sync default model when chatModels arrive — skip if user already picked one
+// Sync selected model when chatModels list changes (provider lock narrows the list)
 watch(() => props.chatModels, (models) => {
-  if (!models.length || userHasSelectedModel.value) return
-  const def = models.find(m => m.default) || models[0]
-  if (def) selectedModel.value = def
+  if (!models.length) return
+  const still = models.find(m => m.model === selectedModel.value.model)
+  if (!still) selectedModel.value = models.find(m => m.default) || models[0]
 }, { immediate: true })
 
 // Keep Adaptive Thinking in sync with chosen provider

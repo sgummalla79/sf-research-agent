@@ -43,6 +43,7 @@ export const useConversationStore = defineStore('conversation', () => {
   const executionId          = ref(null)
   const conversationSkillId  = ref(null)   // snapshot id for the active skill
   const conversationTitle    = ref(null)   // set when backend emits session_titled
+  const lockedProvider       = ref(null)   // provider locked once first message is sent
 
   // ── Messages ───────────────────────────────────────────────────────────────
   const messages = ref([])
@@ -122,6 +123,8 @@ export const useConversationStore = defineStore('conversation', () => {
     sessionUsage.cost_usd      = 0
     sessionUsage.breakdown     = []
     sessionUsage.loaded        = false
+    lockedProvider.value       = null
+    conversationTitle.value    = null
   }
 
   async function _refreshUsage() {
@@ -286,6 +289,7 @@ export const useConversationStore = defineStore('conversation', () => {
     })
     const data = await res.json()
     conversationId.value = data.id
+    lockedProvider.value = chatProvider
     return data.id
   }
 
@@ -475,6 +479,8 @@ export const useConversationStore = defineStore('conversation', () => {
 
     const data = await res.json()
 
+    lockedProvider.value = data.chat_provider || null
+
     // Rebuild messages from DB — only visible ones
     for (const m of (data.messages || [])) {
       if (m.message_state !== 'visible') continue
@@ -506,7 +512,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
   return {
     // State
-    conversationId, executionId, conversationSkillId, conversationTitle,
+    conversationId, executionId, conversationSkillId, conversationTitle, lockedProvider,
     messages, currentStage,
     isPipelineRunning, isStreaming,
     isHalted, isInvalidInput,
