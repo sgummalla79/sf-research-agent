@@ -225,10 +225,8 @@ const app = useAppStore()
 const openSettings      = (tab) => app.openSettings(tab)
 const openConfiguration = ()    => app.openConfiguration()
 
-function pollSidebarTitle() {
-  // Auto-title is generated async on the backend — poll a few times to pick it up
-  [2000, 5000, 10000].forEach(ms => setTimeout(() => sidebar.load(), ms))
-}
+// Reload sidebar when backend emits session_titled — no polling needed
+watch(() => conv.conversationTitle, (title) => { if (title) sidebar.load() })
 
 // ── Stage labels ───────────────────────────────────────────────────────────────
 const stageLabels = {
@@ -485,7 +483,6 @@ async function runSkill(skillId, originalText, brief, opts) {
     originalMessage: originalText,
   })
   sidebar.load()
-  pollSidebarTitle()
 }
 
 // ── Chat input events ──────────────────────────────────────────────────────────
@@ -507,7 +504,6 @@ async function onSubmit(text, opts) {
   } else {
     await conv.sendMessage(text, { chatProvider: opts.provider, chatModel: opts.model })
     sidebar.load()
-    pollSidebarTitle()
   }
 }
 
@@ -544,7 +540,6 @@ async function resolvePendingSelection(text, opts) {
   } else {
     await conv.sendMessage(text, { chatProvider: opts.provider, chatModel: opts.model })
     sidebar.load()
-    pollSidebarTitle()
   }
 }
 

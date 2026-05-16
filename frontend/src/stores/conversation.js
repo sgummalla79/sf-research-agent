@@ -42,6 +42,7 @@ export const useConversationStore = defineStore('conversation', () => {
   const conversationId       = ref(null)
   const executionId          = ref(null)
   const conversationSkillId  = ref(null)   // snapshot id for the active skill
+  const conversationTitle    = ref(null)   // set when backend emits session_titled
 
   // ── Messages ───────────────────────────────────────────────────────────────
   const messages = ref([])
@@ -234,6 +235,11 @@ export const useConversationStore = defineStore('conversation', () => {
         isPipelineRunning.value = false
         if (event.status === 'halted')             isHalted.value       = true
         else if (event.status === 'invalid_input') isInvalidInput.value = true
+        break
+      }
+
+      case 'session_titled': {
+        conversationTitle.value = event.title
         break
       }
 
@@ -500,7 +506,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
   return {
     // State
-    conversationId, executionId, conversationSkillId,
+    conversationId, executionId, conversationSkillId, conversationTitle,
     messages, currentStage,
     isPipelineRunning, isStreaming,
     isHalted, isInvalidInput,

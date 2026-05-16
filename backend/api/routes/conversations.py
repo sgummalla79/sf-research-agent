@@ -253,13 +253,8 @@ async def send_message(
     )
     await db.conversations.touch(conversation_id)
 
-    # Auto-title on first message
-    if not conv.title:
-        from utils.user_context import _user_keys, get_anthropic_mode
-        asyncio.create_task(_auto_title(
-            db, conversation_id, body.text, provider, model,
-            _user_keys.get() or {}, get_anthropic_mode(),
-        ))
+    needs_title = not conv.title
+    title_text  = body.text
 
     # Load recent conversation history
     history = await db.messages.list_for_conversation(conversation_id, limit=50, visible_only=False)
@@ -299,6 +294,15 @@ async def send_message(
             await db.usage.record(conversation_id, provider, model, input_tokens, output_tokens)
 
             yield _sse("done", {"status": "complete"})
+
+            if needs_title:
+                try:
+                    title = await _generate_title(title_text, provider, model)
+                    await db.conversations.rename(conversation_id, title)
+                    yield _sse("session_titled", {"title": title})
+                except Exception as exc:
+                    log.debug("Auto-title failed for %s: %s", conversation_id, exc)
+
         except Exception as exc:
             log.error("Chat stream error: %s", exc)
             yield _sse("error", {"message": str(exc)})
