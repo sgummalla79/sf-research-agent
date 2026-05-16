@@ -1,1035 +1,621 @@
-# Deploying Pragna to Hostinger KVM 2 — Docker + K3s
+# Deployment Guide — Pragna on Hostinger K3s
 
 ## Architecture
 
 ```
-Your Mac
-  └── git push → GitHub repo
-                    └── Actions (manual trigger, version input)
-                          ├── test-backend (pytest, ephemeral Postgres)
+Developer Mac
+  └── git push → GitHub
+                    └── Actions (manual trigger)
+                          ├── test-backend (pytest)
                           ├── test-frontend (vitest)
-                          └── build (only if both pass)
-                                ├── Build ghcr.io/you/pragna-ui:1.0.0
-                                └── Build ghcr.io/you/pragna-api:1.0.0
-                                              ↓
-                                  GitHub Container Registry (GHCR)
+                          └── deploy to: staging | production
 
-Browser → Traefik (443, TLS)  ← runs inside K3s on KVM 2
-              ├── /api/*   →  pragna-api pod  (FastAPI, has all secrets)
-              ├── /auth/*  →  pragna-api pod
-              └── /*       →  pragna-ui pod   (Caddy static files, zero secrets)
+Staging (pragna-staging namespace)
+─────────────────────────────────
+Browser → Traefik (443 TLS)     pragna-staging.sgummallaworks.com
+            ├── /api/*  → pragna-api pod
+            ├── /auth/* → pragna-api pod
+            └── /*      → pragna-ui pod
+                              ↓
+                        postgres pod (own DB, isolated)
 
-Inside the cluster (ClusterIP only, not exposed to internet):
-              pragna-api pod  →  postgres pod (StatefulSet, PVC-backed)
+Production (pragna namespace) — blue-green
+──────────────────────────────────────────
+Browser → Traefik (443 TLS)     pragna.sgummallaworks.com
+            ├── /api/*  → Service pragna-api (slot: blue OR green)
+            ├── /auth/* → Service pragna-api
+            └── /*      → pragna-ui pod
+                              ↓
+              pragna-api-blue   pragna-api-green
+              (one live, one    (other at 0 replicas
+               serving traffic)  until next deploy)
 ```
 
-**Why two containers:**
-- `pragna-ui` holds only the built HTML/CSS/JS — no secrets, no DB access
-- `pragna-api` holds all secrets (DB, Auth0, JWT) and is never directly reachable from the internet
-- Compromising the frontend container gives an attacker nothing useful
-
-**Stack:**
-- **K3s** — lightweight Kubernetes, single-node, ~512MB overhead
-- **Traefik** — built into K3s, handles routing and automatic TLS
-- **cert-manager** — manages Let's Encrypt certificates the Kubernetes-native way
-- **GHCR** — GitHub Container Registry, free, no pull rate limits
-- **PostgreSQL** — runs as a StatefulSet inside the cluster; data is persisted on a PVC backed by K3s local-path storage
+**Blue-green explained:** Both `pragna-api-blue` and `pragna-api-green` Deployments exist permanently.
+The `pragna-api` Service has a `slot` selector that points to whichever is live.
+Deploying = update the inactive slot → wait for ready → flip the selector → scale down old.
+Rollback = flip the selector back. Takes ~1 second.
 
 ---
 
-## What you need before starting
-
-| Thing | Where to get it |
-|---|---|
-| VPS IP address | Hostinger dashboard → VPS → Manage |
-| VPS root password | Hostinger dashboard → VPS → Manage |
-| Domain name | You should already have this |
-| GitHub repo URL | GitHub → your repo → green Code button → HTTPS URL |
-| GitHub username | Your GitHub profile |
-
----
-
-## Files this guide creates in your repo
+## Repository structure (infra files)
 
 ```
-pragna/
-├── docker/
-│   ├── Dockerfile.ui               ← builds the Vue frontend image
-│   ├── Dockerfile.api              ← builds the FastAPI backend image
-│   ├── Caddyfile.ui                ← Caddy config for static file serving
-│   └── .dockerignore               ← excludes node_modules, .env etc from build
-├── k8s/
-│   └── pragna/
-│       ├── namespace.yaml
-│       ├── secret.template.yaml        ← template only, real secret never committed
-│       ├── postgres-secret.template.yaml
-│       ├── postgres-pvc.yaml
-│       ├── postgres-statefulset.yaml
-│       ├── postgres-service.yaml
-│       ├── deployment-ui.yaml
-│       ├── deployment-api.yaml
-│       ├── service-ui.yaml
-│       ├── service-api.yaml
-│       ├── ingress.yaml
-│       └── cluster-issuer.yaml         ← Let's Encrypt issuer (one per cluster)
-└── .github/
-    └── workflows/
-        └── build-and-push.yml
+.github/workflows/build-and-push.yml   ← CI/CD pipeline
+k8s/
+  pragna/                              ← production manifests
+    namespace.yaml
+    deployment-api-blue.yaml
+    deployment-api-green.yaml
+    deployment-ui.yaml
+    service-api.yaml                   ← selector: slot: blue (patched on each deploy)
+    service-ui.yaml
+    ingress.yaml
+    cluster-issuer.yaml
+    secret.template.yaml
+  pragna-staging/                      ← staging manifests
+    namespace.yaml
+    postgres.yaml                      ← Deployment + PVC + Service
+    deployment-api.yaml
+    deployment-ui.yaml
+    service-api.yaml
+    service-ui.yaml
+    ingress.yaml
+    secret.template.yaml
+scripts/
+  blue-green-deploy.sh                 ← runs on VPS during production deploy
 ```
 
 ---
 
-## Part 1 — Project files (do this on your Mac first)
+## GitHub Actions secrets required
 
-### 1.1 — Docker ignore
+Add these in **GitHub repo → Settings → Secrets and variables → Actions**:
 
-Create `docker/.dockerignore`. This file tells Docker what to exclude from the
-build so images stay small and your `.env` is never baked in:
+| Secret | Value |
+|--------|-------|
+| `VPS_HOST` | Your VPS IP address |
+| `VPS_SSH_KEY` | Private SSH key that can log in as root |
+| `VPS_REPO_PATH` | Absolute path to the repo on VPS (e.g. `/root/pragna`) |
 
-```
-node_modules
-frontend/node_modules
-backend/.venv
-backend/__pycache__
-**/__pycache__
-**/*.pyc
-.git
-.env
-*.env
-docs
-```
-
-> Place this at `docker/.dockerignore`. For the build to pick it up you will
-> pass it explicitly in the GitHub Actions step (shown later).
-
-### 1.2 — Caddy config for the UI container
-
-Create `docker/Caddyfile.ui`:
-
-```
-:80 {
-    root * /usr/share/caddy
-    try_files {path} /index.html
-    file_server
-}
-```
-
-This is all Caddy needs to serve a Vue SPA — it falls back to `index.html` for
-client-side routes.
-
-### 1.3 — Dockerfile for the frontend
-
-Create `docker/Dockerfile.ui`:
-
-```dockerfile
-# Stage 1 — build the Vue app
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY frontend/package*.json ./
-RUN npm install
-COPY frontend/ .
-RUN npm run build
-
-# Stage 2 — serve with Caddy (no Node, no Python, no secrets)
-FROM caddy:alpine
-COPY --from=build /app/dist /usr/share/caddy
-COPY docker/Caddyfile.ui /etc/caddy/Caddyfile
-EXPOSE 80
-```
-
-### 1.4 — Dockerfile for the backend
-
-Create `docker/Dockerfile.api`:
-
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-
-# Install dependencies first (cached layer — rebuilds only when requirements change)
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -r requirements.txt
-
-# Copy application code
-COPY backend/ .
-
-EXPOSE 8000
-CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
-```
-
-### 1.5 — GitHub Actions workflow
-
-Create `.github/workflows/build-and-push.yml`:
-
-```yaml
-name: Build and Push
-
-on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version tag  (e.g.  1.0.0)'
-        required: true
-        type: string
-
-env:
-  REGISTRY: ghcr.io
-  OWNER: ${{ github.repository_owner }}
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push pragna-ui
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile.ui
-          push: true
-          tags: |
-            ghcr.io/${{ env.OWNER }}/pragna-ui:${{ inputs.version }}
-            ghcr.io/${{ env.OWNER }}/pragna-ui:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push pragna-api
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile.api
-          push: true
-          tags: |
-            ghcr.io/${{ env.OWNER }}/pragna-api:${{ inputs.version }}
-            ghcr.io/${{ env.OWNER }}/pragna-api:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Summary
-        run: |
-          echo "### Images published" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-ui:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- \`ghcr.io/${{ env.OWNER }}/pragna-api:${{ inputs.version }}\`" >> $GITHUB_STEP_SUMMARY
-```
-
-> **`GITHUB_TOKEN` is automatic** — GitHub injects it into every Actions run.
-> You do not need to create any secrets for this workflow.
-
-### 1.6 — Kubernetes manifests
-
-Create each file below inside `k8s/pragna/`.
-
-**`namespace.yaml`**
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: pragna
-```
+`GITHUB_TOKEN` is injected automatically — no setup needed.
 
 ---
 
-**`postgres-secret.template.yaml`** — commit this template, fill in and apply the real one on the cluster
+## Part 1 — One-time VPS setup
 
-```yaml
-# TEMPLATE ONLY — do not commit with real values
-apiVersion: v1
-kind: Secret
-metadata:
-  name: postgres-secret
-  namespace: pragna
-type: Opaque
-stringData:
-  POSTGRES_USER:     pragna
-  POSTGRES_PASSWORD: "REPLACE_WITH_STRONG_PASSWORD"
-  POSTGRES_DB:       pragna
-```
+Do this once when you first get the server. SSH in as root.
 
----
-
-**`postgres-pvc.yaml`** — 5 GB persistent volume for the database files
-
-```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-pvc
-  namespace: pragna
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: local-path   # K3s built-in; data lives on the VPS disk
-  resources:
-    requests:
-      storage: 5Gi
-```
-
----
-
-**`postgres-statefulset.yaml`**
-
-```yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: postgres
-  namespace: pragna
-spec:
-  serviceName: postgres
-  replicas: 1
-  selector:
-    matchLabels:
-      app: postgres
-  template:
-    metadata:
-      labels:
-        app: postgres
-    spec:
-      containers:
-        - name: postgres
-          image: postgres:16-alpine
-          ports:
-            - containerPort: 5432
-          envFrom:
-            - secretRef:
-                name: postgres-secret
-          volumeMounts:
-            - name: postgres-data
-              mountPath: /var/lib/postgresql/data
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
-          readinessProbe:
-            exec:
-              command: ["pg_isready", "-U", "pragna"]
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            failureThreshold: 5
-      volumes:
-        - name: postgres-data
-          persistentVolumeClaim:
-            claimName: postgres-pvc
-```
-
----
-
-**`postgres-service.yaml`** — ClusterIP only; Postgres is never exposed outside the cluster
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: postgres
-  namespace: pragna
-spec:
-  selector:
-    app: postgres
-  ports:
-    - port: 5432
-      targetPort: 5432
-  type: ClusterIP
-```
-
----
-
-**`secret.template.yaml`** — commit this template, but never commit the real secret
-
-```yaml
-# TEMPLATE ONLY — do not commit with real values
-# DATABASE_URL points at the in-cluster Postgres service defined above.
-apiVersion: v1
-kind: Secret
-metadata:
-  name: pragna-env
-  namespace: pragna
-type: Opaque
-stringData:
-  SETTINGS_SECRET: "REPLACE"
-  DATABASE_URL: "postgresql://pragna:REPLACE_WITH_STRONG_PASSWORD@postgres:5432/pragna"
-  JWT_SECRET: "REPLACE"
-  FRONTEND_URL: "https://yourdomain.com"
-  ALLOWED_ORIGINS: "https://yourdomain.com"
-  AUTH0_DOMAIN: "REPLACE"
-  AUTH0_CLIENT_ID: "REPLACE"
-  AUTH0_CLIENT_SECRET: "REPLACE"
-  AUTH0_CALLBACK_URL: "https://yourdomain.com/auth/callback"
-```
-
-> The secret is named `pragna-env` (not `pragna-secrets`) — this matches the
-> `--env-from=secret/pragna-env` reference in the CI migration job.
-
----
-
-**`deployment-ui.yaml`** — replace `YOUR_GITHUB_USERNAME`
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: pragna-ui
-  namespace: pragna
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: pragna-ui
-  template:
-    metadata:
-      labels:
-        app: pragna-ui
-    spec:
-      imagePullSecrets:
-        - name: ghcr-pull-secret
-      containers:
-        - name: pragna-ui
-          image: ghcr.io/YOUR_GITHUB_USERNAME/pragna-ui:latest
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 80
-          resources:
-            requests:
-              memory: "64Mi"
-              cpu: "50m"
-            limits:
-              memory: "128Mi"
-              cpu: "200m"
-```
-
----
-
-**`deployment-api.yaml`** — replace `YOUR_GITHUB_USERNAME`
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: pragna-api
-  namespace: pragna
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: pragna-api
-  template:
-    metadata:
-      labels:
-        app: pragna-api
-    spec:
-      imagePullSecrets:
-        - name: ghcr-pull-secret
-      containers:
-        - name: pragna-api
-          image: ghcr.io/YOUR_GITHUB_USERNAME/pragna-api:latest
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 8000
-          envFrom:
-            - secretRef:
-                name: pragna-secrets
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 15
-            periodSeconds: 15
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8000
-            initialDelaySeconds: 30
-            periodSeconds: 30
-            failureThreshold: 3
-```
-
----
-
-**`service-ui.yaml`**
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: pragna-ui
-  namespace: pragna
-spec:
-  selector:
-    app: pragna-ui
-  ports:
-    - port: 80
-      targetPort: 80
-```
-
----
-
-**`service-api.yaml`**
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: pragna-api
-  namespace: pragna
-spec:
-  selector:
-    app: pragna-api
-  ports:
-    - port: 8000
-      targetPort: 8000
-```
-
----
-
-**`ingress.yaml`** — replace `yourdomain.com`
-
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: pragna
-  namespace: pragna
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-spec:
-  ingressClassName: traefik
-  tls:
-    - hosts:
-        - yourdomain.com
-      secretName: pragna-tls
-  rules:
-    - host: yourdomain.com
-      http:
-        paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: pragna-api
-                port:
-                  number: 8000
-          - path: /auth
-            pathType: Prefix
-            backend:
-              service:
-                name: pragna-api
-                port:
-                  number: 8000
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: pragna-ui
-                port:
-                  number: 80
-```
-
----
-
-**`cluster-issuer.yaml`** — replace `your@email.com` — applied once per cluster, not per app
-
-```yaml
-apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
-metadata:
-  name: letsencrypt-prod
-spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: your@email.com
-    privateKeySecretRef:
-      name: letsencrypt-prod
-    solvers:
-      - http01:
-          ingress:
-            ingressClassName: traefik
-```
-
----
-
-### 1.7 — Commit and push everything
-
-```bash
-git add docker/ k8s/ .github/
-git commit -m "feat: Docker images, K8s manifests, GitHub Actions workflow"
-git push
-```
-
----
-
-## Part 2 — One-time server setup
-
-### 2.1 — SSH into the VPS
+### 1.1 — Update and install basics
 
 ```bash
 ssh root@YOUR_VPS_IP
-```
 
-### 2.2 — Update the server
-
-```bash
 apt update && apt upgrade -y
 apt install -y curl git ufw
 ```
 
-### 2.3 — Firewall
+### 1.2 — Configure firewall
 
 ```bash
-ufw allow 22
-ufw allow 80
-ufw allow 443
+ufw allow 22    # SSH
+ufw allow 80    # HTTP (cert-manager needs this for ACME challenge)
+ufw allow 443   # HTTPS
+ufw allow 6443  # Kubernetes API (needed if you run kubectl from your Mac)
 ufw --force enable
 ufw status
 ```
 
-### 2.4 — Install K3s
+### 1.3 — Install K3s
 
 ```bash
 curl -sfL https://get.k3s.io | sh -
-```
 
-Wait about 30 seconds, then verify:
-
-```bash
+# Wait ~30s then verify the node is Ready
 kubectl get nodes
-# Should show your node with STATUS = Ready
 ```
 
-### 2.5 — Install cert-manager
+Expected output:
+```
+NAME       STATUS   ROLES                  AGE   VERSION
+vps-host   Ready    control-plane,master   30s   v1.x.x
+```
 
-cert-manager handles automatic TLS certificate renewal for all your apps:
+### 1.4 — Install cert-manager
+
+cert-manager handles automatic TLS certificates via Let's Encrypt for all apps on this cluster.
 
 ```bash
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
 
-# Wait for cert-manager pods to be ready (takes ~60 seconds)
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=cert-manager \
+# Wait for all cert-manager pods to be Ready (~60 seconds)
+kubectl wait --for=condition=ready pod \
+  -l app.kubernetes.io/instance=cert-manager \
   -n cert-manager --timeout=120s
 ```
 
-### 2.6 — Verify K3s local-path storage is available
-
-K3s ships with a `local-path` storage class that backs PVCs with a directory on
-the VPS disk. Confirm it exists:
+### 1.5 — Clone the repo onto the VPS
 
 ```bash
-kubectl get storageclass
-# Should show:  local-path   rancher.io/local-path   Delete   WaitForFirstConsumer   false
+git clone https://github.com/sgummalla79/sf-research-agent.git /root/pragna
+cd /root/pragna
 ```
 
-If it is missing, re-install K3s with the default components or apply the
-[local-path-provisioner](https://github.com/rancher/local-path-provisioner) manually.
+This path must match `VPS_REPO_PATH` in GitHub secrets.
 
-### 2.7 — Allow your Mac to control the cluster (optional but recommended)
+### 1.6 — Allow your Mac to control the cluster (optional but recommended)
 
-This lets you run `kubectl` from your Mac without SSHing in every time.
+Lets you run `kubectl` commands from your Mac without SSHing in every time.
 
-On the **server**, copy the kubeconfig:
-
+**On the VPS:**
 ```bash
 cat /etc/rancher/k3s/k3s.yaml
 ```
 
-Copy that entire output. On your **Mac**, open a new terminal:
-
+Copy the full output. **On your Mac:**
 ```bash
 mkdir -p ~/.kube
+# Paste the content into this file:
 nano ~/.kube/config-hostinger
-# Paste the content, save
 
-# Replace 127.0.0.1 with your actual VPS IP — e.g. if your IP is 1.2.3.4:
-#   sed -i '' 's/127.0.0.1/1.2.3.4/g' ~/.kube/config-hostinger
-sed -i '' "s/127.0.0.1/$(echo YOUR_ACTUAL_VPS_IP)/g" ~/.kube/config-hostinger
-
-# Verify the file now contains your real IP
-grep server ~/.kube/config-hostinger
-# Expected output: server: https://1.2.3.4:6443
+# Replace 127.0.0.1 with your actual VPS IP
+sed -i '' 's/127.0.0.1/YOUR_VPS_IP/g' ~/.kube/config-hostinger
 
 # Add to your shell profile
 echo 'export KUBECONFIG=~/.kube/config:~/.kube/config-hostinger' >> ~/.zshrc
 source ~/.zshrc
 
-# Test
-kubectl get nodes --context=default
+# Test — should show your VPS node
+kubectl get nodes
 ```
 
 ---
 
-## Part 3 — One-time GitHub setup
+## Part 2 — One-time cluster setup (production)
 
-### 3.1 — Create a Personal Access Token for image pulls
+Run from the VPS (or your Mac if you set up kubeconfig above).
 
-The cluster needs credentials to pull private images from GHCR.
-
-1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
-2. Click **Generate new token (classic)**
-3. Name: `hostinger-k3s-pull`
-4. Expiration: 1 year (or No expiration)
-5. Tick only: `read:packages`
-6. Click **Generate token** — copy it immediately, it is shown only once
-
-### 3.2 — Create the image pull secret on the cluster
-
-Run this on the server (or from your Mac if you set up kubeconfig above).
-Replace `YOUR_GITHUB_USERNAME` and `YOUR_PAT`:
+### 2.1 — Apply production namespace and manifests
 
 ```bash
-# You need to apply the namespace first
-kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: pragna
-EOF
+cd /root/pragna
 
-kubectl create secret docker-registry ghcr-pull-secret \
-  --docker-server=ghcr.io \
-  --docker-username=YOUR_GITHUB_USERNAME \
-  --docker-password=YOUR_PAT \
-  --namespace=pragna
-```
-
-> When you add more apps later, create the same secret in their namespace too.
-
----
-
-## Part 4 — First build
-
-Go to your GitHub repo in the browser:
-
-1. Click the **Actions** tab
-2. Click **Build and Push** in the left sidebar
-3. Click **Run workflow**
-4. Type version: `1.0.0`
-5. Click the green **Run workflow** button
-
-Watch it run. Both images will be pushed to GHCR. Takes 3–5 minutes the first time, faster after that due to layer caching.
-
----
-
-## Part 5 — First deployment on the cluster
-
-Run these from the server (or your Mac if you set up kubeconfig):
-
-### 5.1 — Apply the namespace
-
-```bash
 kubectl apply -f k8s/pragna/namespace.yaml
-```
-
-### 5.2 — Create secrets with real values
-
-You need two secrets: one for Postgres itself, one for the application.
-**Never commit either file to git.**
-
-**Postgres secret** (used by the Postgres pod):
-
-```bash
-nano /tmp/postgres-secret.yaml
-# Paste your filled-in postgres-secret.template.yaml with a strong password
-kubectl apply -f /tmp/postgres-secret.yaml
-rm /tmp/postgres-secret.yaml
-```
-
-**Application secret** (used by pragna-api and the CI migration job):
-
-```bash
-nano /tmp/pragna-env.yaml
-# Paste your filled-in secret.template.yaml
-# DATABASE_URL must be: postgresql://pragna:YOUR_PASSWORD@postgres:5432/pragna
-kubectl apply -f /tmp/pragna-env.yaml
-rm /tmp/pragna-env.yaml
-```
-
-Verify both were created:
-
-```bash
-kubectl get secret postgres-secret pragna-env -n pragna
-```
-
-### 5.3 — Start PostgreSQL
-
-Apply the PVC, StatefulSet, and Service in order:
-
-```bash
-kubectl apply -f k8s/pragna/postgres-pvc.yaml
-kubectl apply -f k8s/pragna/postgres-statefulset.yaml
-kubectl apply -f k8s/pragna/postgres-service.yaml
-
-# Wait until the Postgres pod is Ready
-kubectl wait --for=condition=ready pod -l app=postgres -n pragna --timeout=120s
-```
-
-Confirm it is reachable from within the cluster:
-
-```bash
-kubectl run psql-test --rm -it --restart=Never \
-  --image=postgres:16-alpine \
-  -n pragna \
-  -- psql postgresql://pragna:YOUR_PASSWORD@postgres:5432/pragna -c '\l'
-# Should list the pragna database
-```
-
-> Alembic migrations run automatically when the API pod starts for the first time,
-> so you do not need to run them manually here.
-
-### 5.4 — Apply the cert-manager ClusterIssuer
-
-This is one per cluster — not per app:
-
-```bash
 kubectl apply -f k8s/pragna/cluster-issuer.yaml
-
-# Verify it becomes Ready
-kubectl describe clusterissuer letsencrypt-prod
-```
-
-### 5.5 — Point DNS at the VPS
-
-Before applying the ingress, your domain must point at the VPS IP. Go to your
-DNS provider and set an A record for `yourdomain.com` → your VPS IP.
-
-Check propagation from your Mac:
-
-```bash
-nslookup yourdomain.com
-```
-
-Wait until it returns your VPS IP (5–60 minutes).
-
-### 5.6 — Apply all remaining manifests
-
-```bash
-kubectl apply -f k8s/pragna/deployment-ui.yaml
-kubectl apply -f k8s/pragna/deployment-api.yaml
-kubectl apply -f k8s/pragna/service-ui.yaml
 kubectl apply -f k8s/pragna/service-api.yaml
+kubectl apply -f k8s/pragna/service-ui.yaml
+kubectl apply -f k8s/pragna/deployment-api-blue.yaml
+kubectl apply -f k8s/pragna/deployment-api-green.yaml
+kubectl apply -f k8s/pragna/deployment-ui.yaml
 kubectl apply -f k8s/pragna/ingress.yaml
 ```
 
-### 5.7 — Verify everything is running
+### 2.2 — Create the GHCR image pull secret
+
+Go to **GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)**
+and generate a token with only `read:packages` scope. Then on the VPS:
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=sgummalla79 \
+  --docker-password=YOUR_GITHUB_PAT \
+  --namespace=pragna
+```
+
+### 2.3 — Create production secrets
+
+**Never commit real secret values to git.** Fill in `k8s/pragna/secret.template.yaml`
+on the VPS, apply it, then delete the file.
+
+```bash
+# Generate SETTINGS_SECRET (Fernet key):
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# Generate JWT_SECRET:
+openssl rand -hex 32
+
+# Create the secrets file (never save this to disk long-term):
+nano /tmp/pragna-secrets.yaml
+# Fill in all REPLACE values from secret.template.yaml
+
+kubectl apply -f /tmp/pragna-secrets.yaml -n pragna
+rm /tmp/pragna-secrets.yaml
+
+# Verify:
+kubectl get secret pragna-secrets -n pragna
+```
+
+### 2.4 — Point DNS at the VPS
+
+Add an **A record** in your DNS provider:
+
+| Name | Type | Value |
+|------|------|-------|
+| `pragna` | A | `YOUR_VPS_IP` |
+
+Wait for DNS to propagate (up to 30 min). Check from your Mac:
+```bash
+nslookup pragna.sgummallaworks.com
+# Must return your VPS IP before continuing
+```
+
+### 2.5 — Run the first production deploy
+
+Go to **GitHub → Actions → Build and Push → Run workflow**:
+- Environment: `production`
+- Bump: `patch`
+
+This builds the images, pushes to GHCR, and runs `scripts/blue-green-deploy.sh`
+on the VPS for the first time. Blue slot becomes live, green stays at 0 replicas.
+
+### 2.6 — Verify production
 
 ```bash
 # Pods should show Running
 kubectl get pods -n pragna
 
-# Ingress should show your domain
-kubectl get ingress -n pragna
-
-# Certificate should become Ready within 2 minutes
+# Certificate should be Ready within 2 minutes
 kubectl get certificate -n pragna
+
+# Health check
+curl -s https://pragna.sgummallaworks.com/health
 ```
-
-### 5.8 — Verify the health endpoint
-
-Once pods are running, check that every dependency is healthy:
-
-```bash
-curl -s https://yourdomain.com/health | python3 -m json.tool
-```
-
-All checks should show `"ok": true`. Example of a healthy response:
-
-```json
-{
-  "status": "ok",
-  "checks": {
-    "env_vars":        { "ok": true, "present": ["SETTINGS_SECRET", "JWT_SECRET", ...], "missing": [] },
-    "settings_secret": { "ok": true },
-    "jwt_secret":      { "ok": true },
-    "auth0":           { "ok": true, "missing": [] },
-    "skills":          { "ok": true, "loaded": ["architect"] },
-    "database":        { "ok": true, "backend": "postgres", "reachable": true },
-    "tables":          { "ok": true, "total": 11, "missing": [] }
-  }
-}
-```
-
-If `status` is `"degraded"`, look at which check has `"ok": false` — that tells you exactly what is wrong.
-Common failures and fixes:
-
-| Failing check | Likely cause | Fix |
-|---|---|---|
-| `env_vars` | Secret missing a key | Re-apply `pragna-env` secret with the missing value |
-| `settings_secret` | Invalid Fernet key | Regenerate and update the secret |
-| `database` | Postgres pod not ready | `kubectl get pods -n pragna` — check postgres pod status |
-| `database` | Wrong password in `DATABASE_URL` | Ensure password in `pragna-env` matches `postgres-secret` |
-| `tables` | First-time startup | Restart the API pod — lifespan runs Alembic on boot |
-| `skills` | Pod still starting | Wait 15 s and retry |
 
 ---
 
-## Part 6 — Update Auth0 allowed URLs
+## Part 3 — One-time cluster setup (staging)
 
-Go to [manage.auth0.com](https://manage.auth0.com) → Applications → your app → Settings:
+### 3.1 — Apply staging namespace and manifests
+
+```bash
+cd /root/pragna
+
+kubectl apply -f k8s/pragna-staging/namespace.yaml
+kubectl apply -f k8s/pragna-staging/postgres.yaml
+kubectl apply -f k8s/pragna-staging/deployment-api.yaml
+kubectl apply -f k8s/pragna-staging/deployment-ui.yaml
+kubectl apply -f k8s/pragna-staging/service-api.yaml
+kubectl apply -f k8s/pragna-staging/service-ui.yaml
+kubectl apply -f k8s/pragna-staging/ingress.yaml
+
+# Wait for postgres to be ready
+kubectl wait --for=condition=ready pod -l app=postgres \
+  -n pragna-staging --timeout=120s
+```
+
+### 3.2 — Create the GHCR pull secret for staging
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=sgummalla79 \
+  --docker-password=YOUR_GITHUB_PAT \
+  --namespace=pragna-staging
+```
+
+### 3.3 — Create staging secrets
+
+Staging uses **different secret values** from production. Same structure as production
+but separate SETTINGS_SECRET, JWT_SECRET, DATABASE_URL, and Auth0 credentials.
+
+```bash
+# Generate fresh keys for staging:
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+openssl rand -hex 32
+
+nano /tmp/pragna-staging-secrets.yaml
+# Fill in all REPLACE values from k8s/pragna-staging/secret.template.yaml
+# Note: DATABASE_URL = postgresql://pragna:YOUR_PG_PASSWORD@postgres:5432/pragna_staging
+
+kubectl apply -f /tmp/pragna-staging-secrets.yaml -n pragna-staging
+rm /tmp/pragna-staging-secrets.yaml
+
+# Verify:
+kubectl get secret pragna-staging-secrets -n pragna-staging
+```
+
+### 3.4 — Point DNS for staging
+
+Add another A record:
+
+| Name | Type | Value |
+|------|------|-------|
+| `pragna-staging` | A | `YOUR_VPS_IP` (same IP, different subdomain) |
+
+### 3.5 — Update Auth0 for staging (if using a separate Auth0 app)
+
+Go to **manage.auth0.com → Applications → your staging app → Settings**:
 
 | Field | Value |
-|---|---|
-| Allowed Callback URLs | `https://yourdomain.com/auth/callback` |
-| Allowed Logout URLs | `https://yourdomain.com` |
-| Allowed Web Origins | `https://yourdomain.com` |
+|-------|-------|
+| Allowed Callback URLs | `https://pragna-staging.sgummallaworks.com/auth/callback` |
+| Allowed Logout URLs | `https://pragna-staging.sgummallaworks.com` |
+| Allowed Web Origins | `https://pragna-staging.sgummallaworks.com` |
 
-Click **Save Changes**.
+### 3.6 — Run the first staging deploy
 
-Open `https://yourdomain.com` — you should see the Pragna login page with a padlock.
+Go to **GitHub → Actions → Build and Push → Run workflow**:
+- Environment: `staging`
+- Bump: ignored for staging
+
+This builds `staging-<sha>` tagged images and deploys to `pragna-staging` namespace.
+
+```bash
+# Verify:
+kubectl get pods -n pragna-staging
+curl -s https://pragna-staging.sgummallaworks.com/health
+```
 
 ---
 
-## Part 7 — Normal deploy workflow (every future release)
+## Part 4 — Day-to-day: deploying to staging
 
-1. Make your changes on Mac, commit and push to GitHub
-2. Go to GitHub → Actions → **Build and Push** → **Run workflow**
-3. Choose a bump type (`patch` / `minor` / `major`) → **Run workflow**
+Use this to validate changes before promoting to production.
 
-The pipeline runs automatically in this order:
+1. Commit and push your changes to `main`
+2. Go to **GitHub → Actions → Build and Push → Run workflow**
+3. Set **Environment** to `staging`
+4. Click **Run workflow**
 
+**What happens:**
 ```
 test-backend  ──┐
-                ├──► build
-test-frontend ──┘     ├── bump VERSION + generate release notes
-                      ├── push Docker images to GHCR
-                      ├── SSH into VPS
-                      │     ├── git pull
-                      │     ├── kubectl run alembic-migrate   ← runs DB migrations FIRST
-                      │     ├── kubectl set image pragna-api  ← then rolls out new API pods
-                      │     ├── kubectl set image pragna-ui
-                      │     └── health check probe
-                      └── summary
+                ├──► deploy-staging
+test-frontend ──┘     ├── build pragna-api:staging-<sha>
+                      ├── build pragna-ui:staging-<sha>
+                      ├── push both to GHCR
+                      └── SSH into VPS:
+                            ├── run alembic migrations on staging DB
+                            ├── kubectl set image pragna-api (staging namespace)
+                            ├── kubectl set image pragna-ui (staging namespace)
+                            ├── wait for rollout
+                            └── health check probe
 ```
 
-**The migration step runs before any pods are replaced.** This ensures the new
-schema is in place before the new code starts serving traffic, and avoids race
-conditions if the old and new pods briefly overlap during a rolling restart.
-
-To roll back if something goes wrong:
-
+Check staging after deploy:
 ```bash
-kubectl rollout undo deployment/pragna-api -n pragna
-kubectl rollout undo deployment/pragna-ui  -n pragna
-```
-
-> Rolling back the pods does **not** roll back the database schema.
-> If a migration is destructive, write a compensating migration and deploy it forward.
-
-To roll back if something goes wrong:
-
-```bash
-kubectl rollout undo deployment/pragna-api -n pragna
-kubectl rollout undo deployment/pragna-ui -n pragna
+kubectl get pods -n pragna-staging
+curl -s https://pragna-staging.sgummallaworks.com/health
 ```
 
 ---
 
-## Part 8 — Adding a second site
+## Part 5 — Day-to-day: deploying to production (blue-green)
 
-For each new app, the pattern is the same:
+Only do this after validating on staging.
 
-1. Add `docker/Dockerfile.yourapp` to the repo
-2. Add a new job in the GitHub Actions workflow to build `yourapp` image
-3. Create `k8s/yourapp/` with the same set of manifests (different namespace, domain, image name)
-4. Create the `ghcr-pull-secret` in the new namespace
-5. Create the app's secret with `kubectl apply`
-6. Apply the manifests
-7. The same `ClusterIssuer` (letsencrypt-prod) is reused — do not create it again
+1. Go to **GitHub → Actions → Build and Push → Run workflow**
+2. Set **Environment** to `production`
+3. Set **Bump** to `patch` / `minor` / `major`
+4. Click **Run workflow**
 
-The `cluster-issuer.yaml` is a **cluster-wide resource** — one instance serves all namespaces.
+**What happens:**
+```
+test-backend  ──┐
+                ├──► build (production)
+test-frontend ──┘     ├── bump VERSION file (e.g. 1.0.12 → 1.0.13)
+                      ├── generate release notes
+                      ├── commit version bump to main
+                      ├── build pragna-api:1.0.13 + :latest
+                      ├── build pragna-ui:1.0.13 + :latest
+                      ├── push both to GHCR
+                      └──► deploy-production (blue-green)
+                            └── SSH into VPS, runs scripts/blue-green-deploy.sh:
+                                  1. detect active slot (blue or green)
+                                  2. update image on INACTIVE slot
+                                  3. scale up inactive slot (replicas: 1)
+                                  4. wait for readiness probe to pass
+                                  5. run alembic migrations
+                                  6. pre-switch health check on new pod
+                                  7. patch Service selector → traffic switches (~1s)
+                                  8. 2-minute health check window
+                                  9. on success: scale down old slot (replicas: 0)
+                                  10. on failure: patch selector back (instant rollback)
+```
+
+Watch it live on the VPS:
+```bash
+# See pods switching
+kubectl get pods -n pragna -w
+
+# See which slot the service is pointing at
+kubectl get service pragna-api -n pragna \
+  -o jsonpath='{.spec.selector.slot}'
+```
 
 ---
 
-## Troubleshooting
+## Part 6 — Rollback
 
-| Problem | Command |
-|---|---|
-| Pod not starting | `kubectl describe pod -n pragna` |
-| See what's unhealthy | `curl -s https://yourdomain.com/health \| python3 -m json.tool` |
-| Backend logs | `kubectl logs deployment/pragna-api -n pragna` |
-| Frontend logs | `kubectl logs deployment/pragna-ui -n pragna` |
-| Certificate stuck | `kubectl describe certificate -n pragna` |
-| Certificate challenge | `kubectl describe challenge -n pragna` |
-| Image pull error | `kubectl describe pod -n pragna \| grep -A5 Events` |
-| Ingress not routing | `kubectl describe ingress -n pragna` |
-| Restart a pod | `kubectl rollout restart deployment/pragna-api -n pragna` |
-| Watch all pods | `kubectl get pods -n pragna -w` |
+### Production rollback (instant — ~1 second)
+
+If something goes wrong after a production deploy, flip the Service selector back
+to the previous slot. The old pod is still running (scaled to 0, not deleted):
+
+```bash
+# Scale the old slot back up first
+kubectl scale deployment/pragna-api-blue -n pragna --replicas=1
+# (or green, whichever was the previous active slot)
+
+# Wait for it to be ready
+kubectl rollout status deployment/pragna-api-blue -n pragna
+
+# Flip traffic back
+kubectl patch service pragna-api -n pragna \
+  --type=merge \
+  -p '{"spec":{"selector":{"app":"pragna-api","slot":"blue"}}}'
+
+echo "Traffic restored to blue slot"
+```
+
+The deploy script prints the exact rollback command at the end of every deploy run —
+copy it from the GitHub Actions log before you need it.
+
+### Staging rollback
+
+Staging uses standard rolling updates, so:
+```bash
+kubectl rollout undo deployment/pragna-api -n pragna-staging
+kubectl rollout undo deployment/pragna-ui  -n pragna-staging
+```
+
+### Database rollback
+
+Rolling back pods does **not** roll back the database schema. Alembic migrations
+run forward-only in this setup. If a migration needs to be undone, write a new
+compensating migration and deploy it forward — do not run `alembic downgrade`.
 
 ---
 
-## Resource usage on KVM 2 (8GB RAM)
+## Part 7 — Troubleshooting
 
-| Component | Memory |
-|---|---|
-| K3s + Traefik | ~512MB |
-| cert-manager | ~128MB |
-| PostgreSQL pod | ~256–512MB |
-| pragna-api | 256–512MB |
-| pragna-ui | 64–128MB |
-| OS overhead | ~400MB |
-| **Total (1 app)** | **~1.6–2.2GB** |
-| **Headroom for 3–4 more apps** | **~6GB remaining** |
+### Check pod status
 
-You have comfortable room for 3–4 more apps on this node. Each additional app
-that shares the same Postgres instance adds only the API/UI pod memory, not
-another database.
+```bash
+kubectl get pods -n pragna          # production
+kubectl get pods -n pragna-staging  # staging
+```
+
+### See what's wrong with a pod
+
+```bash
+kubectl describe pod <pod-name> -n pragna
+kubectl logs deployment/pragna-api -n pragna
+kubectl logs deployment/pragna-api -n pragna-staging
+```
+
+### Health check
+
+```bash
+curl -s https://pragna.sgummallaworks.com/health
+curl -s https://pragna-staging.sgummallaworks.com/health
+```
+
+### Certificate not issued
+
+```bash
+kubectl get certificate -n pragna
+kubectl describe certificate pragna-tls -n pragna
+kubectl describe challenge -n pragna   # if challenge exists
+```
+
+Most common cause: DNS not propagated yet. Check with `nslookup pragna.sgummallaworks.com`.
+
+### Image pull failing
+
+```bash
+kubectl describe pod <pod-name> -n pragna | grep -A10 Events
+```
+
+Usually means the `ghcr-pull-secret` is missing or the PAT expired:
+```bash
+kubectl delete secret ghcr-pull-secret -n pragna
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=sgummalla79 \
+  --docker-password=YOUR_NEW_PAT \
+  --namespace=pragna
+```
+
+### Blue-green: check active slot
+
+```bash
+kubectl get service pragna-api -n pragna \
+  -o jsonpath='{.spec.selector}' | python3 -m json.tool
+```
+
+### Force restart a pod
+
+```bash
+kubectl rollout restart deployment/pragna-api -n pragna
+kubectl rollout restart deployment/pragna-api -n pragna-staging
+```
+
+### Common problems table
+
+| Problem | Command to run |
+|---------|---------------|
+| Pod stuck in Pending | `kubectl describe pod <name> -n pragna` — check Events |
+| Pod CrashLoopBackOff | `kubectl logs <pod-name> -n pragna --previous` |
+| 502/503 from browser | `kubectl get pods -n pragna` — check all Running |
+| Certificate pending | `kubectl describe challenge -n pragna` |
+| Staging DB not ready | `kubectl get pods -n pragna-staging` — check postgres pod |
+| Wrong models showing | Check `user_llm_models` table — inactive models shouldn't appear |
+| Migration failed | Check CI logs for `alembic upgrade head` step |
 
 ---
 
-## Postgres operations
+## Part 8 — Database operations
 
-### Backup
-
-```bash
-# One-off backup to a local file
-kubectl exec statefulset/postgres -n pragna -- \
-  pg_dump -U pragna pragna | gzip > pragna_$(date +%Y%m%d).sql.gz
-```
-
-### Restore
+### Connect to production DB
 
 ```bash
-gunzip -c pragna_20260101.sql.gz | \
-  kubectl exec -i statefulset/postgres -n pragna -- \
-  psql -U pragna pragna
+kubectl exec -it deployment/postgres -n pragna -- psql -U pragna pragna
 ```
 
-### Connect interactively
+> Production uses the external Neon DB specified in `DATABASE_URL` — adjust accordingly.
+
+### Connect to staging DB
 
 ```bash
-kubectl exec -it statefulset/postgres -n pragna -- psql -U pragna pragna
+kubectl exec -it deployment/postgres -n pragna-staging -- \
+  psql -U pragna pragna_staging
 ```
 
-### Scheduled nightly backup (add to VPS crontab)
+### Backup staging DB
+
+```bash
+kubectl exec deployment/postgres -n pragna-staging -- \
+  pg_dump -U pragna pragna_staging | gzip > staging_$(date +%Y%m%d).sql.gz
+```
+
+### Restore staging DB
+
+```bash
+gunzip -c staging_20260516.sql.gz | \
+  kubectl exec -i deployment/postgres -n pragna-staging -- \
+  psql -U pragna pragna_staging
+```
+
+### Nightly backup cron (add on VPS)
 
 ```bash
 crontab -e
-# Add:
-0 2 * * * kubectl exec statefulset/postgres -n pragna -- \
-  pg_dump -U pragna pragna | gzip > /backups/pragna_$(date +\%Y\%m\%d).sql.gz
+# Add this line:
+0 2 * * * kubectl exec deployment/postgres -n pragna-staging -- pg_dump -U pragna pragna_staging | gzip > /backups/staging_$(date +\%Y\%m\%d).sql.gz
+
+mkdir -p /backups
 ```
 
-Create the backup directory first: `mkdir -p /backups`
+---
+
+## Resource usage on KVM 2 (8 GB RAM)
+
+| Component | Memory |
+|-----------|--------|
+| K3s + Traefik | ~512 MB |
+| cert-manager | ~128 MB |
+| Production API (blue or green) | 256–512 MB |
+| Production UI | 64–128 MB |
+| Staging postgres | 256–512 MB |
+| Staging API | 256–512 MB |
+| Staging UI | 64–128 MB |
+| OS overhead | ~400 MB |
+| **Total** | **~2–3 GB** |
+| **Headroom** | **~5 GB** |
+
+---
+
+## Quick reference
+
+| Task | How |
+|------|-----|
+| Deploy to staging | Actions → Build and Push → environment: staging |
+| Deploy to production | Actions → Build and Push → environment: production |
+| Rollback production | `kubectl patch service pragna-api -n pragna --type=merge -p '{"spec":{"selector":{"app":"pragna-api","slot":"blue"}}}'` |
+| Check active slot | `kubectl get svc pragna-api -n pragna -o jsonpath='{.spec.selector.slot}'` |
+| Watch pods | `kubectl get pods -n pragna -w` |
+| View logs | `kubectl logs deployment/pragna-api -n pragna` |
+| Health check prod | `curl -s https://pragna.sgummallaworks.com/health` |
+| Health check staging | `curl -s https://pragna-staging.sgummallaworks.com/health` |
