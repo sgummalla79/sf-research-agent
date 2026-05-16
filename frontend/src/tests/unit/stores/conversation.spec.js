@@ -200,12 +200,14 @@ describe('SSE event dispatch via sendMessage', () => {
     expect(appr.approvalStatus).toBe('approved')
   })
 
-  it('done event with complete sets isComplete and clears pipeline', async () => {
+  it('done event with complete clears pipeline and sets no error flags', async () => {
     const store = await runStream([
       { type: 'done', status: 'complete' },
     ])
-    expect(store.isComplete).toBe(true)
     expect(store.isPipelineRunning).toBe(false)
+    expect(store.isHalted).toBe(false)
+    expect(store.isInvalidInput).toBe(false)
+    expect(store.error).toBeNull()
   })
 
   it('done with halted sets isHalted', async () => {

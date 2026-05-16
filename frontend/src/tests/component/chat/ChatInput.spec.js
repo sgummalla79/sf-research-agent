@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import ChatInput from '../../../components/chat/ChatInput.vue'
 
 // happy-dom doesn't implement URL.createObjectURL
@@ -15,6 +16,7 @@ global.URL.revokeObjectURL = vi.fn()
 
 function factory(props = {}) {
   return mount(ChatInput, {
+    global: { plugins: [createPinia()] },
     props: {
       chatModels:        [],
       isPipelineRunning: false,
@@ -27,6 +29,7 @@ function factory(props = {}) {
 }
 
 beforeEach(() => {
+  setActivePinia(createPinia())
   vi.clearAllMocks()
   document.body.innerHTML = ''
 })

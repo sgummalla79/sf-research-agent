@@ -48,10 +48,11 @@ describe('text messages', () => {
     expect(w.find('.cursor').exists()).toBe(false)
   })
 
-  it('shows stage label for agent messages', () => {
-    const w = factory({ role: 'agent', content: '', type: 'text', stage: 'research', isStreaming: false })
-    expect(w.find('.stage-tag').exists()).toBe(true)
-    expect(w.find('.stage-tag').text()).toContain('Research')
+  it('renders agent bubble without stage label (stage-tag removed from UI)', () => {
+    const w = factory({ role: 'agent', content: 'output', type: 'text', stage: 'research', isStreaming: false })
+    // stage-tag was removed during UI polish — agent messages just show content
+    expect(w.find('.stage-tag').exists()).toBe(false)
+    expect(w.find('.bubble').exists()).toBe(true)
   })
 })
 

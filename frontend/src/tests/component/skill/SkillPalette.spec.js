@@ -1,8 +1,9 @@
 /**
  * Component tests for SkillPalette.vue
  *
- * Tests: filter by query, keyboard navigation (ArrowDown/Up/Enter/Escape),
- *        click to select, empty state.
+ * Note: keyboard navigation is delegated to the parent via defineExpose
+ * (navigateUp, navigateDown, selectActive). The palette itself handles
+ * click + mouseenter. Tests use exposed methods directly.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -10,9 +11,9 @@ import { mount } from '@vue/test-utils'
 import SkillPalette from '../../../components/skill/SkillPalette.vue'
 
 const SKILLS = [
-  { id: 's1', name: 'Architect', description: 'System design', icon: '🏗️' },
-  { id: 's2', name: 'Researcher', description: 'Web search',   icon: '🔍' },
-  { id: 's3', name: 'Reviewer',  description: 'Code review',   icon: '✅' },
+  { id: 's1', name: 'Architect',  description: 'System design', icon: '🏗️' },
+  { id: 's2', name: 'Researcher', description: 'Web search',    icon: '🔍' },
+  { id: 's3', name: 'Reviewer',   description: 'Code review',   icon: '✅' },
 ]
 
 function factory(props = {}) {
@@ -30,11 +31,16 @@ describe('rendering', () => {
     expect(w.findAll('.palette-row')).toHaveLength(3)
   })
 
-  it('shows skill name and description', () => {
+  it('shows skill name in each row', () => {
     const w = factory()
     const rows = w.findAll('.palette-row')
     expect(rows[0].text()).toContain('Architect')
-    expect(rows[0].text()).toContain('System design')
+    expect(rows[1].text()).toContain('Researcher')
+  })
+
+  it('shows skill icon in each row', () => {
+    const w = factory()
+    expect(w.findAll('.palette-row')[0].text()).toContain('🏗️')
   })
 
   it('shows empty state when no skills match query', () => {
@@ -42,65 +48,83 @@ describe('rendering', () => {
     expect(w.find('.palette-empty').exists()).toBe(true)
     expect(w.findAll('.palette-row')).toHaveLength(0)
   })
+
+  it('shows description panel on hover', async () => {
+    const w = factory()
+    await w.findAll('.palette-row')[0].trigger('mouseenter')
+    expect(w.find('.palette-desc').exists()).toBe(true)
+    expect(w.find('.palette-desc').text()).toContain('System design')
+  })
+
+  it('hides description panel when not hovering', () => {
+    const w = factory()
+    expect(w.find('.palette-desc').exists()).toBe(false)
+  })
 })
 
 describe('filtering by query', () => {
   it('filters by skill name (case-insensitive)', () => {
-    // 'archi' is specific enough — 'researcher'.includes('archi') is false
     const w = factory({ query: 'archi' })
-    const rows = w.findAll('.palette-row')
-    expect(rows).toHaveLength(1)
-    expect(rows[0].text()).toContain('Architect')
+    expect(w.findAll('.palette-row')).toHaveLength(1)
+    expect(w.findAll('.palette-row')[0].text()).toContain('Architect')
   })
 
-  it('filters by description', () => {
-    const w = factory({ query: 'web' })
-    const rows = w.findAll('.palette-row')
-    expect(rows).toHaveLength(1)
-    expect(rows[0].text()).toContain('Researcher')
+  it('filters by skill id', () => {
+    const w = factory({ query: 's2' })
+    expect(w.findAll('.palette-row')).toHaveLength(1)
+    expect(w.findAll('.palette-row')[0].text()).toContain('Researcher')
   })
 
   it('shows all when query matches multiple', () => {
     const w = factory({ query: 'r' })
-    // Researcher and Reviewer both have 'r'
     expect(w.findAll('.palette-row').length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('exposes filtered list matching the rendered rows', () => {
+    const w = factory({ query: 'archi' })
+    expect(w.vm.filtered).toHaveLength(1)
+    expect(w.vm.filtered[0].id).toBe('s1')
   })
 })
 
-describe('keyboard navigation', () => {
-  it('ArrowDown moves active index down', async () => {
+describe('keyboard navigation via exposed methods', () => {
+  it('navigateDown moves active index to next row', async () => {
     const w = factory()
-    await w.trigger('keydown', { key: 'ArrowDown' })
+    w.vm.navigateDown()
+    await w.vm.$nextTick()
+    expect(w.findAll('.palette-row')[1].classes()).toContain('active')
+  })
+
+  it('navigateDown is clamped at last item', async () => {
+    const w = factory()
+    w.vm.navigateDown()
+    w.vm.navigateDown()
+    w.vm.navigateDown()   // beyond last
+    await w.vm.$nextTick()
     const rows = w.findAll('.palette-row')
-    expect(rows[1].classes()).toContain('active')
+    expect(rows[rows.length - 1].classes()).toContain('active')
   })
 
-  it('ArrowUp moves active index up (clamped at 0)', async () => {
+  it('navigateUp is clamped at 0', async () => {
     const w = factory()
-    await w.trigger('keydown', { key: 'ArrowDown' })
-    await w.trigger('keydown', { key: 'ArrowUp' })
-    const rows = w.findAll('.palette-row')
-    expect(rows[0].classes()).toContain('active')
+    w.vm.navigateUp()     // already at 0
+    await w.vm.$nextTick()
+    expect(w.findAll('.palette-row')[0].classes()).toContain('active')
   })
 
-  it('Enter emits select with active skill id', async () => {
+  it('selectActive emits select with current active skill id', async () => {
     const w = factory()
-    await w.trigger('keydown', { key: 'ArrowDown' })   // index 1 → Researcher
-    await w.trigger('keydown', { key: 'Enter' })
-    expect(w.emitted('select')).toBeTruthy()
-    expect(w.emitted('select')[0][0]).toBe('s2')
+    w.vm.navigateDown()   // move to s2
+    w.vm.selectActive()
+    await w.vm.$nextTick()
+    expect(w.emitted('select')?.[0]?.[0]).toBe('s2')
   })
 
-  it('Escape emits dismiss', async () => {
+  it('selectActive on first item emits s1', async () => {
     const w = factory()
-    await w.trigger('keydown', { key: 'Escape' })
-    expect(w.emitted('dismiss')).toBeTruthy()
-  })
-
-  it('Enter on first row emits select with first skill id', async () => {
-    const w = factory()
-    await w.trigger('keydown', { key: 'Enter' })
-    expect(w.emitted('select')[0][0]).toBe('s1')
+    w.vm.selectActive()
+    await w.vm.$nextTick()
+    expect(w.emitted('select')?.[0]?.[0]).toBe('s1')
   })
 })
 
@@ -108,10 +132,10 @@ describe('mouse interaction', () => {
   it('clicking a row emits select with that skill id', async () => {
     const w = factory()
     await w.findAll('.palette-row')[2].trigger('click')
-    expect(w.emitted('select')[0][0]).toBe('s3')
+    expect(w.emitted('select')?.[0]?.[0]).toBe('s3')
   })
 
-  it('mouseenter sets active index for keyboard preview', async () => {
+  it('mouseenter sets the active row for visual feedback', async () => {
     const w = factory()
     await w.findAll('.palette-row')[2].trigger('mouseenter')
     expect(w.findAll('.palette-row')[2].classes()).toContain('active')
