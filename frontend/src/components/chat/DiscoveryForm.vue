@@ -21,9 +21,13 @@
 
     <!-- Multiple questions -->
     <template v-else>
-      <div class="df-scroll">
+      <div class="df-count">{{ questions.length }} questions to answer</div>
+      <div class="df-scroll" ref="scrollEl" @scroll="onScroll">
         <div v-for="(q, i) in questions" :key="i" class="df-item">
-          <label class="df-label">{{ i + 1 }}. {{ q }}</label>
+          <label class="df-label">
+            <span class="df-num">{{ i + 1 }} / {{ questions.length }}</span>
+            {{ q }}
+          </label>
           <textarea v-model="answers[i]" class="df-ta" :placeholder="`Answer ${i + 1}…`" rows="2" />
         </div>
       </div>
@@ -41,6 +45,9 @@
 <script setup>
 import { ref, watch } from 'vue'
 import AppButton from '../ui/AppButton.vue'
+
+const scrollEl = ref(null)
+function onScroll() {} // reserved for future scroll tracking
 
 const props = defineProps({
   questions:  { type: Array,   required: true },
@@ -61,12 +68,26 @@ function submit() {
 </script>
 
 <style scoped>
-.discovery-form { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-.df-row  { display: flex; gap: 8px; align-items: flex-end; }
-.df-ta   { flex: 1; width: 100%; resize: vertical; min-height: 60px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit; }
+.discovery-form { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.df-count  { font-size: 12px; font-weight: 600; color: var(--pri); letter-spacing: .03em; text-transform: uppercase; }
+.df-row    { display: flex; gap: 8px; align-items: flex-end; }
+.df-ta     { flex: 1; width: 100%; resize: vertical; min-height: 60px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit; box-sizing: border-box; }
 .df-ta:focus { outline: none; border-color: var(--pri); }
-.df-scroll { display: flex; flex-direction: column; gap: 14px; max-height: 300px; overflow-y: auto; margin-bottom: 12px; }
-.df-item   { display: flex; flex-direction: column; gap: 6px; }
-.df-label  { font-size: 13px; font-weight: 500; color: var(--text); }
+
+.df-scroll {
+  display: flex; flex-direction: column; gap: 14px;
+  max-height: 300px;
+  overflow-y: scroll;           /* always show scrollbar — signals more content */
+  scrollbar-gutter: stable;     /* reserves scrollbar space, no overlay */
+  padding-right: 6px;           /* gap between content and scrollbar track */
+}
+.df-scroll::-webkit-scrollbar       { width: 6px; }
+.df-scroll::-webkit-scrollbar-track { background: transparent; }
+.df-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.df-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+.df-item  { display: flex; flex-direction: column; gap: 6px; }
+.df-label { font-size: 13px; font-weight: 500; color: var(--text); display: flex; flex-direction: column; gap: 2px; }
+.df-num   { font-size: 11px; font-weight: 700; color: var(--pri); opacity: .7; }
 .df-footer { display: flex; justify-content: flex-end; }
 </style>

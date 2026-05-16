@@ -326,8 +326,8 @@ function handleSend() {
   }
   const msg = text.value.trim()
   if (!msg) return
+  text.value = ''           // clear before emitting so parent setText() wins
   emit('submit', msg, opts())
-  text.value = ''
 }
 
 // ── Close popups on outside click ─────────────────────────────────────────────

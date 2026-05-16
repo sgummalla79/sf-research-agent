@@ -81,12 +81,24 @@ class IntakeStrategy(ExecutionStrategy):
                 "created_at":    datetime.now(timezone.utc).isoformat(),
             }
 
-            # ── Plain text brief — pass through directly ──────────────────────
+            # ── Plain text brief — pass through, or ask if empty ─────────────
             if state.source_type == "brief":
+                brief = state.project_brief.strip()
+                if not brief:
+                    # User invoked the skill without a brief — ask for one
+                    brief = _extract_answers(interrupt({
+                        "__type":  "confirm_understanding",
+                        "content": (
+                            "Please describe the project or system you'd like to architect.\n\n"
+                            "Include any relevant details — domain, purpose, expected scale, "
+                            "tech stack preferences, or constraints you have in mind."
+                        ),
+                    }))
                 return {
                     **base,
+                    "project_brief": brief,
                     "messages": [
-                        HumanMessage(content=f"Project brief:\n\n{state.project_brief}")
+                        HumanMessage(content=f"Project brief:\n\n{brief}")
                     ],
                 }
 

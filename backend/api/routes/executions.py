@@ -7,6 +7,7 @@ POST /api/executions/{execution_id}/retry         — retry after model update (
 GET  /api/executions/{execution_id}/stages        — per-stage audit trail
 """
 
+import asyncio
 import json
 import logging
 from typing import AsyncGenerator, Optional
@@ -92,7 +93,8 @@ async def _stream_graph(
                 yield _sse("stage_start", {"stage": name, "label": STAGE_LABELS[name]})
 
             elif kind == "on_chat_model_stream" and \
-                    event.get("metadata", {}).get("langgraph_node") != "research":
+                    event.get("metadata", {}).get("langgraph_node") not in \
+                    {"research", "discovery", "review", "approval"}:
                 chunk = event["data"].get("chunk")
                 raw   = getattr(chunk, "content", "") if chunk else ""
                 if isinstance(raw, list):
@@ -160,18 +162,24 @@ async def _stream_graph(
         state = await graph.aget_state(config)
 
         if db:
-            usage_records = (state.values or {}).get("usage_records", [])
+            state_values  = state.values or {}
+            usage_records = state_values.get("usage_records", [])
+            session_cfg   = state_values.get("session_agent_config", {})
             for rec in usage_records:
                 try:
+                    agent_key = rec.get("agent", "")
+                    agent_cfg = session_cfg.get(agent_key, {})
+                    provider  = agent_cfg.get("provider") or "unknown"
+                    model     = rec.get("model") or agent_cfg.get("model") or "unknown"
                     await db.usage.record(
                         conversation_id = conversation_id,
-                        provider        = rec.get("provider") or rec.get("model", "unknown").split("-")[0],
-                        model           = rec.get("model", "unknown"),
+                        provider        = provider,
+                        model           = model,
                         input_tokens    = rec.get("input_tokens", 0),
                         output_tokens   = rec.get("output_tokens", 0),
                     )
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.warning("Failed to save usage record: %s | rec=%s", exc, rec)
 
         if state.next:
             interrupt_value = None
@@ -384,6 +392,30 @@ async def reply(
 
     config = {"configurable": {"thread_id": execution_id}}
     await db.conversations.touch(conv.id)
+
+    # Auto-title when the user is replying to a confirm_understanding interrupt
+    # (i.e. they typed their project description after sending /skill with no brief).
+    if not conv.title:
+        state = await graph.aget_state(config)
+        interrupt_value = None
+        for task in (state.tasks or []):
+            if task.interrupts:
+                interrupt_value = task.interrupts[0].value
+                break
+
+        if (
+            isinstance(interrupt_value, dict)
+            and interrupt_value.get("__type") == "confirm_understanding"
+        ):
+            title_text = body.answers if isinstance(body.answers, str) else ""
+            if title_text.strip():
+                from utils.user_context import _user_keys, get_anthropic_mode
+                from api.routes.conversations import _auto_title
+                asyncio.create_task(_auto_title(
+                    db, conv.id, title_text.strip(),
+                    "anthropic", "claude-haiku-4-5-20251001",
+                    _user_keys.get() or {}, get_anthropic_mode(),
+                ))
 
     return StreamingResponse(
         _stream_graph(graph, Command(resume=body.answers), config, db, execution_id, conv.id),

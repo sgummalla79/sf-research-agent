@@ -98,8 +98,9 @@
               v-if="conv.pendingConfirmation"
               :content="conv.pendingConfirmation"
               :is-streaming="conv.isStreaming"
+              :error="confirmError"
               class="cp-interrupt"
-              @confirm="conv.confirmUnderstanding"
+              @confirm="onConfirmUnderstanding"
             />
           </Transition>
 
@@ -171,9 +172,9 @@
     <DocumentPanel
       v-if="docPanel.open"
       :panel="docPanel"
-      @close="closeDoc"
-      @download-m-d="downloadMD"
-      @download-p-d-f="() => downloadPDF(renderMd)"
+      :close="closeDoc"
+      :download-m-d="downloadMD"
+      :download-p-d-f="downloadPDF"
     />
 
   </AppLayout>
@@ -441,6 +442,29 @@ function buildBrief(text) {
 }
 
 async function runSkill(skillId, originalText, brief, opts) {
+  // Only validate when the user actually provided a brief — if empty, the
+  // pipeline will ask for one via confirm_understanding interrupt.
+  if (brief.trim()) {
+    try {
+      const vRes = await apiFetch(`/api/skills/${skillId}/validate-brief`, {
+        method: 'POST',
+        body:   JSON.stringify({ brief }),
+      })
+      if (vRes.ok) {
+        const { valid, message } = await vRes.json()
+        if (!valid) {
+          conv.addLocalMessage('user', originalText)
+          conv.addLocalMessage('agent', message)
+          chatInputRef.value?.setText(originalText)
+          return
+        }
+      }
+    } catch (_) {
+      // Network error — proceed and let the pipeline handle it
+    }
+  }
+
+  briefWasEmpty.value = !brief.trim()
   activeSkillId.value = skillId
   conv.reset()
   sidebar.load()
@@ -518,6 +542,40 @@ async function onUpload(file, opts) {
 
   await conv.uploadAndInvoke(file, skillId, { chatProvider: opts.provider, chatModel: opts.model })
   sidebar.load()
+}
+
+// ── Confirm understanding ──────────────────────────────────────────────────────
+const confirmError      = ref('')
+const briefWasEmpty     = ref(false)   // true when skill was invoked with no brief
+
+async function onConfirmUnderstanding(correction) {
+  confirmError.value = ''
+
+  // When brief was empty the correction field IS the brief — require it
+  if (briefWasEmpty.value && !correction.trim()) {
+    confirmError.value = 'Please describe the project you\'d like to architect.'
+    return
+  }
+
+  const textToValidate = correction.trim()
+  if (textToValidate && activeSkillId.value) {
+    try {
+      const vRes = await apiFetch(`/api/skills/${activeSkillId.value}/validate-brief`, {
+        method: 'POST',
+        body:   JSON.stringify({ brief: textToValidate }),
+      })
+      if (vRes.ok) {
+        const { valid, message } = await vRes.json()
+        if (!valid) {
+          confirmError.value = message
+          return
+        }
+      }
+    } catch (_) {}
+  }
+
+  briefWasEmpty.value = false
+  conv.confirmUnderstanding(correction)
 }
 
 // ── Provider conflict ──────────────────────────────────────────────────────────

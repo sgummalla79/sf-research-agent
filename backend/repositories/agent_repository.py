@@ -18,6 +18,14 @@ class Agent:
 
 class AgentRepository(BaseRepository):
 
+    async def get_by_id(self, agent_id: str) -> Optional[Agent]:
+        row = await self._fetchone(
+            "SELECT id, skill_id, agent_key, label, default_content, created_at"
+            " FROM agents WHERE id = %s",
+            (agent_id,),
+        )
+        return self._row_to_agent(row) if row else None
+
     async def get_by_key(self, skill_id: str, agent_key: str) -> Optional[Agent]:
         row = await self._fetchone(
             "SELECT id, skill_id, agent_key, label, default_content, created_at"
