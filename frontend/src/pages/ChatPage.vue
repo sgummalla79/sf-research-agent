@@ -331,11 +331,13 @@ async function loadChatModels() {
     if (!res.ok) return
     const data   = await res.json()
     chatModels.value = (data.models || []).map((m, i) => ({
-      model:       m.model_id,
-      display:     m.display_name,
-      description: '',
-      provider:    m.provider,
-      default:     i === 0,
+      model:        m.model_id,
+      display:      m.display_name,
+      description:  '',
+      provider:     m.provider,
+      providerName: m.provider_name,
+      capabilities: m.capabilities || {},
+      default:      i === 0,
     }))
   } catch (_) {
   } finally {

@@ -13,6 +13,7 @@ class ProviderEntry:
     description:   str
     display_order: int
     auth_config:   dict
+    capabilities:  dict
     is_enabled:    bool
 
 
@@ -20,7 +21,7 @@ class ProviderRegistryRepository(BaseRepository):
 
     async def get_all(self) -> list[ProviderEntry]:
         rows = await self._fetchall(
-            "SELECT provider_key, name, description, display_order, auth_config, is_enabled"
+            "SELECT provider_key, name, description, display_order, auth_config, capabilities, is_enabled"
             " FROM provider_registry WHERE is_enabled = TRUE"
             " ORDER BY display_order"
         )
@@ -28,7 +29,7 @@ class ProviderRegistryRepository(BaseRepository):
 
     async def get_by_key(self, provider_key: str) -> ProviderEntry | None:
         row = await self._fetchone(
-            "SELECT provider_key, name, description, display_order, auth_config, is_enabled"
+            "SELECT provider_key, name, description, display_order, auth_config, capabilities, is_enabled"
             " FROM provider_registry WHERE provider_key = %s",
             (provider_key,),
         )
@@ -60,14 +61,14 @@ class ProviderRegistryRepository(BaseRepository):
 
     @staticmethod
     def _row(r) -> ProviderEntry:
-        cfg = r[4]
-        if isinstance(cfg, str):
-            cfg = json.loads(cfg)
+        cfg  = r[4] if not isinstance(r[4], str) else json.loads(r[4])
+        caps = r[5] if not isinstance(r[5], str) else json.loads(r[5])
         return ProviderEntry(
             provider_key  = r[0],
             name          = r[1],
             description   = r[2],
             display_order = r[3],
             auth_config   = cfg,
-            is_enabled    = bool(r[5]),
+            capabilities  = caps,
+            is_enabled    = bool(r[6]),
         )

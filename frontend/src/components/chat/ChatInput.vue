@@ -126,9 +126,9 @@
           <!-- Adaptive Thinking — hidden while pipeline is running -->
           <button v-if="!props.isPipelineRunning && props.chatModels.length"
             class="cb-adaptive-btn"
-            :class="{ on: extendedThinking, 'cb-adaptive-off': selectedModel?.provider !== 'anthropic' }"
-            :disabled="selectedModel?.provider !== 'anthropic'"
-            :title="selectedModel?.provider === 'anthropic'
+            :class="{ on: extendedThinking, 'cb-adaptive-off': !selectedModel?.capabilities?.extended_thinking }"
+            :disabled="!selectedModel?.capabilities?.extended_thinking"
+            :title="selectedModel?.capabilities?.extended_thinking
               ? 'Adaptive Thinking — Claude thinks deeper before responding'
               : 'Adaptive Thinking is only available for Anthropic Claude models'"
             @click.stop="extendedThinking = !extendedThinking">
@@ -176,13 +176,11 @@ const extendedThinking      = ref(true)
 const plusMenuOpen          = ref(false)
 const skillsOpen            = ref(false)
 const modelPickerOpen       = ref(false)
-const PROVIDER_LABELS = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', perplexity: 'Perplexity', groq: 'Groq' }
-
 const modelGroups = computed(() => {
   const map = {}
   for (const m of props.chatModels) {
     const p = m.provider || 'other'
-    if (!map[p]) map[p] = { key: p, label: PROVIDER_LABELS[p] || p, items: [] }
+    if (!map[p]) map[p] = { key: p, label: m.providerName || p, items: [] }
     map[p].items.push({ label: m.display, value: m, selected: selectedModel.value?.model === m.model })
   }
   return Object.values(map)
@@ -216,8 +214,8 @@ watch(() => props.chatModels, (models) => {
 }, { immediate: true })
 
 // Keep Adaptive Thinking in sync with chosen provider
-watch(() => selectedModel.value?.provider, (provider) => {
-  extendedThinking.value = provider === 'anthropic'
+watch(() => selectedModel.value?.capabilities?.extended_thinking, (supported) => {
+  extendedThinking.value = !!supported
 }, { immediate: true })
 
 // ── Slash command — delegate palette to parent ────────────────────────────────
