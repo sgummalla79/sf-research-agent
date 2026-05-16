@@ -197,26 +197,69 @@ kubectl create secret docker-registry ghcr-pull-secret \
   --namespace=pragna
 ```
 
-### 2.3 — Create production secrets
+### 2.3 — Generate production secrets
 
-**Never commit real secret values to git.** Fill in `k8s/pragna/secret.template.yaml`
-on the VPS, apply it, then delete the file.
+Generate each secret value first, then paste them into the file below.
+
+**SETTINGS_SECRET** — Fernet encryption key for storing user API keys in the DB.
+Must be a valid 32-byte base64url string. Generate once; if you change it all
+stored API keys become unreadable.
 
 ```bash
-# Generate SETTINGS_SECRET (Fernet key):
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Example output: iKAvMwP3LI41X6jTI65qdetfjnnIVVrStE_9B4Q2-7U=
+```
 
-# Generate JWT_SECRET:
+**JWT_SECRET** — signs session cookies. Any long random string works.
+
+```bash
 openssl rand -hex 32
+# Example output: a3f8c2e1d4b7a9f0e2c5d8b1a4f7c0e3d6b9a2f5c8e1d4b7a0f3c6e9d2b5a8f1
+```
 
-# Create the secrets file (never save this to disk long-term):
+**POSTGRES_PASSWORD** — must use URL-safe characters only (`A-Za-z0-9_-`) so it
+works inside the `postgresql://` connection string without any encoding.
+
+```bash
+python3 -c "import secrets, string; a = string.ascii_letters + string.digits + '_-'; print(''.join(secrets.choice(a) for _ in range(32)))"
+# Example output: R3janW9lwbErAdNtnOJy8g2Dh9M3N53V
+```
+
+> **Why URL-safe only?** Characters like `@`, `:`, `/`, `#`, `?` break the
+> `postgresql://user:password@host/db` connection string. Stick to the alphabet above.
+
+**Create the production secret:**
+
+```bash
 nano /tmp/pragna-secrets.yaml
-# Fill in all REPLACE values from secret.template.yaml
+```
 
-kubectl apply -f /tmp/pragna-secrets.yaml -n pragna
-rm /tmp/pragna-secrets.yaml
+Paste this, filling in your generated values:
 
-# Verify:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pragna-secrets
+  namespace: pragna
+type: Opaque
+stringData:
+  SETTINGS_SECRET:    "PASTE_FERNET_KEY_HERE"
+  DATABASE_URL:       "postgresql://YOUR_DB_URL_HERE"
+  JWT_SECRET:         "PASTE_JWT_SECRET_HERE"
+  FRONTEND_URL:       "https://pragna.sgummallaworks.com"
+  ALLOWED_ORIGINS:    "https://pragna.sgummallaworks.com"
+  AUTH0_DOMAIN:       "your-tenant.auth0.com"
+  AUTH0_CLIENT_ID:    "PASTE_AUTH0_CLIENT_ID"
+  AUTH0_CLIENT_SECRET: "PASTE_AUTH0_CLIENT_SECRET"
+  AUTH0_CALLBACK_URL: "https://pragna.sgummallaworks.com/auth/callback"
+```
+
+```bash
+kubectl apply -f /tmp/pragna-secrets.yaml
+rm /tmp/pragna-secrets.yaml   # delete immediately — never leave secrets on disk
+
+# Verify it was created:
 kubectl get secret pragna-secrets -n pragna
 ```
 
@@ -283,22 +326,64 @@ kubectl create secret docker-registry ghcr-pull-secret \
   --namespace=pragna-staging
 ```
 
-### 3.3 — Create staging secrets
+### 3.3 — Generate staging secrets
 
-Staging uses **different secret values** from production. Same structure as production
-but separate SETTINGS_SECRET, JWT_SECRET, DATABASE_URL, and Auth0 credentials.
+Staging uses **completely separate values** from production — different Fernet key,
+different JWT secret, different DB password. Never reuse production secrets in staging.
+
+**Generate all three:**
 
 ```bash
-# Generate fresh keys for staging:
+# SETTINGS_SECRET (Fernet key):
 python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# JWT_SECRET:
 openssl rand -hex 32
 
-nano /tmp/pragna-staging-secrets.yaml
-# Fill in all REPLACE values from k8s/pragna-staging/secret.template.yaml
-# Note: DATABASE_URL = postgresql://pragna:YOUR_PG_PASSWORD@postgres:5432/pragna_staging
+# POSTGRES_PASSWORD (URL-safe only — no @, :, /, ?, # characters):
+python3 -c "import secrets, string; a = string.ascii_letters + string.digits + '_-'; print(''.join(secrets.choice(a) for _ in range(32)))"
+```
 
-kubectl apply -f /tmp/pragna-staging-secrets.yaml -n pragna-staging
-rm /tmp/pragna-staging-secrets.yaml
+**Create the staging secret:**
+
+```bash
+nano /tmp/pragna-staging-secrets.yaml
+```
+
+Paste this, filling in your generated values. The `DATABASE_URL` must use the
+same user and password as `POSTGRES_USER` and `POSTGRES_PASSWORD` — all three
+must match exactly.
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pragna-staging-secrets
+  namespace: pragna-staging
+type: Opaque
+stringData:
+  # PostgreSQL pod credentials — postgres.yaml reads these on first start
+  POSTGRES_USER:     "pragna"
+  POSTGRES_PASSWORD: "PASTE_POSTGRES_PASSWORD_HERE"
+
+  # App secrets
+  SETTINGS_SECRET:    "PASTE_FERNET_KEY_HERE"
+  DATABASE_URL:       "postgresql://pragna:PASTE_POSTGRES_PASSWORD_HERE@postgres:5432/pragna_staging"
+  JWT_SECRET:         "PASTE_JWT_SECRET_HERE"
+  FRONTEND_URL:       "https://pragna-staging.sgummallaworks.com"
+  ALLOWED_ORIGINS:    "https://pragna-staging.sgummallaworks.com"
+  AUTH0_DOMAIN:       "your-tenant.auth0.com"
+  AUTH0_CLIENT_ID:    "PASTE_AUTH0_CLIENT_ID"
+  AUTH0_CLIENT_SECRET: "PASTE_AUTH0_CLIENT_SECRET"
+  AUTH0_CALLBACK_URL: "https://pragna-staging.sgummallaworks.com/auth/callback"
+```
+
+> The password appears **twice** — in `POSTGRES_PASSWORD` and inside `DATABASE_URL`.
+> They must be identical or the API pod cannot connect to the DB.
+
+```bash
+kubectl apply -f /tmp/pragna-staging-secrets.yaml
+rm /tmp/pragna-staging-secrets.yaml   # delete immediately
 
 # Verify:
 kubectl get secret pragna-staging-secrets -n pragna-staging
