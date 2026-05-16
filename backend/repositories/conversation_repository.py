@@ -59,7 +59,7 @@ class ConversationRepository(BaseRepository):
         row = await self._fetchone(
             "SELECT id, user_id, title, chat_provider, chat_model, created_at, last_modified,"
             "       COALESCE(pinned, 0), pinned_at"
-            " FROM conversations WHERE id = %s",
+            " FROM conversations WHERE id = %s AND COALESCE(archived, FALSE) = FALSE",
             (conversation_id,),
         )
         return self._row_to_conv(row) if row else None

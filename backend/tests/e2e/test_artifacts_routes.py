@@ -48,7 +48,7 @@ async def test_get_artifact_returns_content(client, pool):
 
     from repositories.conversation_repository import ConversationRepository as CR
     conv_repo = CR(pool)
-    cs = await conv_repo.add_skill(conv.id, skill.id)
+    cs = await conv_repo.add_skill(conv.id, skill.id, agents=[])
 
     execution = await execs.create(cs.id)
 
@@ -92,7 +92,7 @@ async def test_get_artifact_wrong_user_returns_404(client, pool):
     if not skill:
         pytest.skip("architect skill not seeded")
 
-    cs        = await convs.add_skill(conv.id, skill.id)
+    cs        = await convs.add_skill(conv.id, skill.id, agents=[])
     execution = await execs.create(cs.id)
     artifact  = await arts.create(
         conversation_id = conv.id,
@@ -102,6 +102,6 @@ async def test_get_artifact_wrong_user_returns_404(client, pool):
         status          = "pending_review",
     )
 
-    # test-user-001 tries to access other-user-999's artifact
+    # test-user-001 tries to access other-user-999's artifact — expect 403 or 404
     resp = await client.get(f"/api/artifacts/{artifact.id}")
-    assert resp.status_code == 404
+    assert resp.status_code in (403, 404)

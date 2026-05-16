@@ -270,11 +270,15 @@ async def refresh_provider_models(
     if provider_id not in statuses:
         raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not connected.")
 
-    from utils.user_context import _user_keys
-    user_keys = _user_keys.get() or {}
-    api_key   = user_keys.get(provider_id)
-    if not api_key:
-        raise HTTPException(status_code=422, detail="Cannot refresh — provider is inactive or key unavailable.")
+    from utils.user_api_keys import decrypt
+    enc_keys = await db.users.get_all_llm_provider_keys(current_user.sub)
+    enc_key  = enc_keys.get(provider_id)
+    if not enc_key:
+        raise HTTPException(status_code=422, detail="Cannot refresh — provider key not found.")
+    try:
+        api_key = decrypt(enc_key, current_user.sub)
+    except Exception:
+        raise HTTPException(status_code=422, detail="Cannot refresh — failed to decrypt provider key.")
 
     count, err   = await _fetch_and_seed_models(db, current_user.sub, provider_id, api_key)
     return {"ok": True, "provider": provider_id, "models_seeded": count, "fetch_error": err}
