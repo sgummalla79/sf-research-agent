@@ -80,14 +80,15 @@ kubectl rollout status deployment/pragna-api-${NEW_SLOT} \
 # Migrations MUST be backwards-compatible so old pods remain healthy.
 
 echo "=== Running Alembic migrations ==="
+DB_URL=$(kubectl get secret pragna-secrets -n "$NS" \
+  -o jsonpath='{.data.DATABASE_URL}' | base64 --decode)
 kubectl run alembic-migrate-${VERSION//\./-} \
   --image="${IMAGE_API}" \
   --restart=Never \
   --rm \
   --attach \
   -n "$NS" \
-  --env-from=secret/pragna-secrets \
-  --timeout=300s \
+  --env="DATABASE_URL=${DB_URL}" \
   -- python -m alembic upgrade head
 echo "=== Migrations complete ==="
 

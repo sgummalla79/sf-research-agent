@@ -157,14 +157,15 @@ jobs:
             TAG="staging-${SHA}"
 
             echo "=== Running migrations on staging ==="
+            DB_URL=$(kubectl get secret pragna-staging-secrets -n pragna-staging \
+              -o jsonpath='{.data.DATABASE_URL}' | base64 --decode)
             kubectl run alembic-staging-${SHA} \
               --image=ghcr.io/${{ github.repository_owner }}/pragna-api:${TAG} \
               --restart=Never \
               --rm \
               --attach \
               -n pragna-staging \
-              --env-from=secret/pragna-staging-secrets \
-              --timeout=300s \
+              --env="DATABASE_URL=${DB_URL}" \
               -- python -m alembic upgrade head
 
             echo "=== Deploying staging images ==="
