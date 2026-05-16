@@ -115,9 +115,15 @@ async def test_fetch_google_excludes_non_generative():
 
 
 async def test_fetch_perplexity_valid_key():
-    from utils.provider_registry import _fetch_perplexity, _PERPLEXITY_MODELS
-    models = await _fetch_perplexity("pplx-valid-key")
-    assert ids(models) == list(_PERPLEXITY_MODELS)
+    from utils.provider_registry import _fetch_perplexity
+    catalog = [
+        {"model_id": "sonar-pro",            "display_name": "Sonar Pro"},
+        {"model_id": "sonar",                "display_name": "Sonar"},
+        {"model_id": "sonar-reasoning-pro",  "display_name": "Sonar Reasoning Pro"},
+        {"model_id": "sonar-deep-research",  "display_name": "Sonar Deep Research"},
+    ]
+    models = await _fetch_perplexity("pplx-valid-key", catalog_models=catalog)
+    assert ids(models) == [m["model_id"] for m in catalog]
     assert has_display(models)
 
 
@@ -151,7 +157,7 @@ async def test_fetch_models_dispatches_correctly():
         result = await fetch_models("anthropic", "sk-ant-test")
 
     mock.assert_called_once_with("sk-ant-test", mode="direct",
-                                 bedrock_url="", bedrock_token="")
+                                 bedrock_url="", bedrock_token="", catalog_models=[])
     assert result == expected
 
 

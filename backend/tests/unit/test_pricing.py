@@ -2,7 +2,22 @@
 Unit tests for utils/pricing.py — cost calculation.
 """
 
+import pytest
+import utils.pricing as pricing_module
 from utils.pricing import cost_usd, usage_record
+
+
+@pytest.fixture(autouse=True)
+def seed_pricing_cache():
+    """Seed the in-memory pricing cache for all tests in this module."""
+    pricing_module._cache.update({
+        "claude-sonnet-4-6":         {"input": 3.00,  "output": 15.00},
+        "claude-haiku-4-5-20251001": {"input": 0.80,  "output":  4.00},
+        "gemini-2.5-pro":            {"input": 1.25,  "output": 10.00},
+        "sonar-pro":                 {"input": 3.00,  "output": 15.00},
+    })
+    yield
+    pricing_module._cache.clear()
 
 
 def test_cost_usd_sonnet():
@@ -32,6 +47,3 @@ def test_usage_record_none_metadata():
     rec = usage_record("review", "gemini-2.5-pro", None)
     assert rec["input_tokens"]  == 0
     assert rec["output_tokens"] == 0
-
-
-import pytest
