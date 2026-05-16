@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: pragna-api
-  namespace: pragna
+  namespace: pragna-staging
 spec:
   replicas: 1
   selector:
@@ -23,7 +23,7 @@ spec:
             - containerPort: 8000
           envFrom:
             - secretRef:
-                name: pragna-secrets
+                name: pragna-staging-secrets
           resources:
             requests:
               memory: "256Mi"

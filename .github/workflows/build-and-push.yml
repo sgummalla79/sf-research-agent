@@ -3,9 +3,17 @@ name: Build and Push
 on:
   workflow_dispatch:
     inputs:
-      bump:
-        description: 'Version bump type'
+      environment:
+        description: 'Deployment target'
         required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - production
+      bump:
+        description: 'Version bump (production only)'
+        required: false
         type: choice
         default: patch
         options:
@@ -18,7 +26,7 @@ env:
 
 jobs:
 
-  # ── Backend tests ────────────────────────────────────────────────────────────
+  # ── Backend tests ──────────────────────────────────────────────────────────
   test-backend:
     name: Backend tests
     runs-on: ubuntu-latest
@@ -54,15 +62,15 @@ jobs:
       - name: Run unit + e2e tests
         working-directory: backend
         env:
-          DATABASE_URL:       postgresql://pragna:pragna_dev@localhost:5432/pragna
-          SETTINGS_SECRET:    iKAvMwP3LI41X6jTI65qdetfjnnIVVrStE_9B4Q2-7U=
-          JWT_SECRET:         ci-jwt-secret-not-used-in-prod
-          AUTH0_DOMAIN:       placeholder.auth0.com
-          AUTH0_CLIENT_ID:    placeholder
+          DATABASE_URL:        postgresql://pragna:pragna_dev@localhost:5432/pragna
+          SETTINGS_SECRET:     iKAvMwP3LI41X6jTI65qdetfjnnIVVrStE_9B4Q2-7U=
+          JWT_SECRET:          ci-jwt-secret-not-used-in-prod
+          AUTH0_DOMAIN:        placeholder.auth0.com
+          AUTH0_CLIENT_ID:     placeholder
           AUTH0_CLIENT_SECRET: placeholder
         run: pytest tests/unit/ tests/e2e/ -q --tb=short
 
-  # ── Frontend tests ───────────────────────────────────────────────────────────
+  # ── Frontend tests ─────────────────────────────────────────────────────────
   test-frontend:
     name: Frontend tests
     runs-on: ubuntu-latest
@@ -84,14 +92,125 @@ jobs:
         working-directory: frontend
         run: npm test
 
-  # ── Build & deploy (only if both test jobs pass) ─────────────────────────────
-  build:
-    name: Build and deploy
+  # ── Staging deploy ─────────────────────────────────────────────────────────
+  # Builds images tagged with the git SHA and deploys to pragna-staging.
+  # No version bump — every merge to main can be pushed to staging on demand.
+  deploy-staging:
+    name: Deploy to staging
     needs: [test-backend, test-frontend]
+    if: inputs.environment == 'staging'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Short SHA
+        id: sha
+        run: echo "short=${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push pragna-ui (staging)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.ui
+          push: true
+          no-cache: true
+          tags: |
+            ghcr.io/${{ env.OWNER }}/pragna-ui:staging
+            ghcr.io/${{ env.OWNER }}/pragna-ui:staging-${{ steps.sha.outputs.short }}
+
+      - name: Build and push pragna-api (staging)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.api
+          push: true
+          no-cache: true
+          tags: |
+            ghcr.io/${{ env.OWNER }}/pragna-api:staging
+            ghcr.io/${{ env.OWNER }}/pragna-api:staging-${{ steps.sha.outputs.short }}
+
+      - name: Deploy to staging cluster
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -e
+            SHA="${{ steps.sha.outputs.short }}"
+            TAG="staging-${SHA}"
+
+            echo "=== Running migrations on staging ==="
+            kubectl run alembic-staging-${SHA} \
+              --image=ghcr.io/${{ github.repository_owner }}/pragna-api:${TAG} \
+              --restart=Never \
+              --rm \
+              --attach \
+              -n pragna-staging \
+              --env-from=secret/pragna-staging-secrets \
+              --timeout=300s \
+              -- python -m alembic upgrade head
+
+            echo "=== Deploying staging images ==="
+            kubectl set image deployment/pragna-api \
+              pragna-api=ghcr.io/${{ github.repository_owner }}/pragna-api:${TAG} \
+              -n pragna-staging
+
+            kubectl set image deployment/pragna-ui \
+              pragna-ui=ghcr.io/${{ github.repository_owner }}/pragna-ui:${TAG} \
+              -n pragna-staging
+
+            echo "=== Waiting for rollout ==="
+            kubectl rollout status deployment/pragna-api -n pragna-staging --timeout=120s
+            kubectl rollout status deployment/pragna-ui  -n pragna-staging --timeout=120s
+
+            echo "=== Health check ==="
+            for i in $(seq 1 12); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+                https://pragna-staging.sgummallaworks.com/health 2>/dev/null || echo "000")
+              if [ "$STATUS" = "200" ]; then
+                echo "✓ Staging healthy (attempt $i)"
+                break
+              fi
+              echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
+              sleep 10
+            done
+
+            echo "=== Staging deploy complete: ${TAG} ==="
+            kubectl get pods -n pragna-staging
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Staging deploy: \`staging-${{ steps.sha.outputs.short }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "URL: https://pragna-staging.sgummallaworks.com" >> $GITHUB_STEP_SUMMARY
+
+  # ── Production: build & version ───────────────────────────────────────────
+  build:
+    name: Build production images
+    needs: [test-backend, test-frontend]
+    if: inputs.environment == 'production'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
+    outputs:
+      version: ${{ steps.version.outputs.new }}
 
     steps:
       - name: Checkout
@@ -99,8 +218,6 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
-
-      # ── Version ───────────────────────────────────────────────────────────────
 
       - name: Bump version
         id: version
@@ -164,8 +281,6 @@ jobs:
           git commit -m "chore: bump version to ${{ steps.version.outputs.new }}"
           git push
 
-      # ── Build & push images ───────────────────────────────────────────────────
-
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -198,79 +313,39 @@ jobs:
             ghcr.io/${{ env.OWNER }}/pragna-api:${{ steps.version.outputs.new }}
             ghcr.io/${{ env.OWNER }}/pragna-api:latest
 
-      # ── Deploy to cluster ─────────────────────────────────────────────────────
+  # ── Production: blue-green deploy ─────────────────────────────────────────
+  deploy-production:
+    name: Blue-green deploy to production
+    needs: [build]
+    if: inputs.environment == 'production'
+    runs-on: ubuntu-latest
 
-      - name: Deploy to cluster
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via blue-green script
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: root
           key: ${{ secrets.VPS_SSH_KEY }}
-          command_timeout: 5m
+          command_timeout: 10m
           script: |
             set -e
-            VERSION="${{ steps.version.outputs.new }}"
-
-            echo "=== Pulling latest code ==="
             cd ${{ secrets.VPS_REPO_PATH }}
             git pull
 
-            echo "=== Running database migrations ==="
-            # Run Alembic as a one-shot job before rolling out the new pods.
-            # This ensures the schema is ready before any new pod starts, and
-            # avoids race conditions during rolling restarts.
-            kubectl run alembic-migrate \
-              --image=ghcr.io/${{ github.repository_owner }}/pragna-api:${VERSION} \
-              --restart=Never \
-              --rm \
-              --attach \
-              -n pragna \
-              --env-from=secret/pragna-env \
-              -- python -m alembic upgrade head
-            echo "=== Migrations complete ==="
-
-            echo "=== Updating pod images to v${VERSION} ==="
-            kubectl set image deployment/pragna-api \
-              pragna-api=ghcr.io/${{ github.repository_owner }}/pragna-api:${VERSION} \
-              -n pragna
-
-            kubectl set image deployment/pragna-ui \
-              pragna-ui=ghcr.io/${{ github.repository_owner }}/pragna-ui:${VERSION} \
-              -n pragna
-
-            echo "=== Waiting for rollout ==="
-            kubectl rollout status deployment/pragna-api -n pragna --timeout=120s
-            kubectl rollout status deployment/pragna-ui  -n pragna --timeout=120s
-
-            echo "=== Pod status ==="
-            kubectl get pods -n pragna
-
-            echo "=== Probe check ==="
-            STATUS="000"
-            for i in $(seq 1 12); do
-              STATUS=$(curl -s -o /tmp/health.json -w "%{http_code}" \
-                https://pragna.sgummallaworks.com/health 2>/dev/null || echo "000")
-              if [ "$STATUS" = "200" ] && [ -s /tmp/health.json ]; then
-                echo "✓ Health check passed (attempt $i)"
-                python3 -m json.tool /tmp/health.json || cat /tmp/health.json
-                break
-              fi
-              echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
-              sleep 10
-            done
-            if [ "$STATUS" != "200" ]; then
-              echo "⚠ Health check did not return 200 after 12 attempts (HTTP $STATUS)"
-              echo "  Deployment completed — pods are running. Check logs if needed."
-              cat /tmp/health.json 2>/dev/null || true
-            fi
-
-      # ── Summary ───────────────────────────────────────────────────────────────
+            chmod +x scripts/blue-green-deploy.sh
+            scripts/blue-green-deploy.sh \
+              "${{ needs.build.outputs.version }}" \
+              "${{ github.repository_owner }}"
 
       - name: Summary
         if: always()
         run: |
-          echo "### Version ${{ steps.version.outputs.new }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Production deploy: v${{ needs.build.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cat "release-notes/v${{ steps.version.outputs.new }}.md" >> $GITHUB_STEP_SUMMARY
+          cat "release-notes/v${{ needs.build.outputs.version }}.md" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
