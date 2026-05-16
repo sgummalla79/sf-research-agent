@@ -2,7 +2,7 @@
 # Add test cases to eval-viewer/cases/*.yaml to enable evaluation.
 
 skill_id: architect
-evaluator_model: claude-sonnet-4-6
+# evaluator_model: set this to a model_id from your active providers (Settings → Providers)
 
 # Stages to evaluate (subset of the pipeline)
 evaluate_stages:
