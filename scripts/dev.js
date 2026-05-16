@@ -34,8 +34,8 @@ function spawnLabeled(label, color, cmd, args, opts = {}) {
   const c = { blue: '\x1b[34m', green: '\x1b[32m', reset: '\x1b[0m', bold: '\x1b[1m' }
   const prefix = `${c.bold}${c[color]}[${label}]${c.reset} `
   const child = spawn(cmd, args, { ...opts, stdio: ['ignore', 'pipe', 'pipe'], cwd: ROOT })
-  child.stdout.on('data', d => process.stdout.write(d.toString().replace(/^/gm, prefix)))
-  child.stderr.on('data', d => process.stderr.write(d.toString().replace(/^/gm, prefix)))
+  child.stdout.on('data', d => process.stdout.write(d.toString().replace(/^(?=.)/gm, prefix)))
+  child.stderr.on('data', d => process.stderr.write(d.toString().replace(/^(?=.)/gm, prefix)))
   return child
 }
 
@@ -82,6 +82,9 @@ process.on('SIGTERM', () => { killAll(); process.exit(0) })
 
 // ── 1. Start backend ─────────────────────────────────────────────────────────
 
+// PYTHONUNBUFFERED=1 ensures Python never buffers stdout/stderr in pipe mode
+const backendEnv = { ...process.env, PYTHONUNBUFFERED: '1' }
+
 let backend
 if (IS_WIN) {
   backend = spawnLabeled('backend', 'blue', 'cmd', [
@@ -90,7 +93,7 @@ if (IS_WIN) {
     '(if not exist .venv python -m venv .venv) && ' +
     '.venv\\Scripts\\pip install -r requirements.txt -q --disable-pip-version-check && ' +
     '.venv\\Scripts\\uvicorn api.app:app --reload --port 8000',
-  ])
+  ], { env: backendEnv })
 } else {
   backend = spawnLabeled('backend', 'blue', 'sh', [
     '-c',
@@ -98,7 +101,7 @@ if (IS_WIN) {
     '([ -d .venv ] || python3 -m venv .venv) && ' +
     '.venv/bin/pip install -r requirements.txt -q --disable-pip-version-check && ' +
     '.venv/bin/uvicorn api.app:app --reload --port 8000',
-  ])
+  ], { env: backendEnv })
 }
 processes.push(backend)
 

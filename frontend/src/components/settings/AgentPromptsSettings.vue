@@ -39,19 +39,22 @@
             <div class="ap-name-row">
               <span class="ap-editor-title">{{ selected.label || selected.agent_key }}</span>
               <!-- Model picker inline next to name -->
-              <select class="ap-model-select" v-model="selectedModelKey" @change="onModelChange"
-                :title="filteredProviderGroups.length ? '' : 'Connect a provider in Settings → Providers'">
-                <option value="__global__">Smart default</option>
-                <template v-if="filteredProviderGroups.length">
-                  <optgroup v-for="grp in filteredProviderGroups" :key="grp.id" :label="grp.label">
-                    <option v-for="m in grp.models" :key="`${grp.id}::${m.model}`"
-                      :value="`${grp.id}::${m.model}`">
-                      {{ m.label }}
-                    </option>
-                  </optgroup>
-                </template>
-                <option v-else disabled>— connect a provider first —</option>
-              </select>
+              <div class="ap-picker-wrap">
+                <button class="ap-picker-btn" @click.stop="modelMenuOpen = !modelMenuOpen">
+                  {{ selectedModelLabel }}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" width="10" height="10">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                <ModelMenu
+                  :groups="modelMenuGroups"
+                  :open="modelMenuOpen"
+                  direction="below"
+                  @select="onModelPick"
+                  @close="modelMenuOpen = false"
+                />
+              </div>
             </div>
             <div class="ap-editor-meta" :class="metaClass">{{ metaText }}</div>
           </div>
@@ -118,6 +121,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { apiFetch }     from '../../composables/useFetch.js'
 import ConfirmDialog    from '../ui/ConfirmDialog.vue'
+import ModelMenu        from '../ui/ModelMenu.vue'
 
 const props = defineProps({
   embedded:  { type: Boolean, default: false },
@@ -127,51 +131,12 @@ const props = defineProps({
 
 const emit = defineEmits(['draft-saved'])
 
-// ── Curated model list ────────────────────────────────────────────────────────
-const PROVIDER_GROUPS = [
-  {
-    id: 'anthropic', label: 'Anthropic',
-    models: [
-      { model: 'claude-opus-4-7',           label: 'Claude Opus 4.7' },
-      { model: 'claude-sonnet-4-6',         label: 'Claude Sonnet 4.6' },
-      { model: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
-    ],
-  },
-  {
-    id: 'openai', label: 'OpenAI',
-    models: [
-      { model: 'gpt-4o',      label: 'GPT-4o' },
-      { model: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-      { model: 'o3',          label: 'o3' },
-      { model: 'o4-mini',     label: 'o4 mini' },
-    ],
-  },
-  {
-    id: 'google', label: 'Google',
-    models: [
-      { model: 'gemini-2.5-pro',       label: 'Gemini 2.5 Pro' },
-      { model: 'gemini-2.0-flash-001', label: 'Gemini 2.0 Flash' },
-    ],
-  },
-  {
-    id: 'perplexity', label: 'Perplexity',
-    models: [
-      { model: 'sonar-pro', label: 'Sonar Pro' },
-      { model: 'sonar',     label: 'Sonar' },
-    ],
-  },
-  {
-    id: 'groq', label: 'Groq',
-    models: [
-      { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
-    ],
-  },
-]
+const PROVIDER_LABELS = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', perplexity: 'Perplexity', groq: 'Groq' }
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const allSkills      = ref([])
 const loadingSkills  = ref(true)
-const connectedIds   = ref(new Set())   // provider ids that are connected
+const activeModels   = ref([])          // [{provider, model_id, display_name}] from /api/models/active
 
 const activeSkillKey      = ref(null)
 const selected            = ref(null)
@@ -184,12 +149,44 @@ const selectedModelKey    = ref('__global__')
 const savedModelKey       = ref('__global__')   // what's currently in DB
 const discardPending      = ref(false)
 
-const modelChanged = computed(() => selectedModelKey.value !== savedModelKey.value)
+const modelChanged  = computed(() => selectedModelKey.value !== savedModelKey.value)
+const modelMenuOpen = ref(false)
 
-// Only show model groups for connected providers
-const filteredProviderGroups = computed(() =>
-  PROVIDER_GROUPS.filter(g => connectedIds.value.has(g.id))
-)
+const modelMenuGroups = computed(() => {
+  const map = {}
+  for (const m of activeModels.value) {
+    if (!map[m.provider]) map[m.provider] = []
+    map[m.provider].push(m)
+  }
+  const defaultGroup = {
+    key:   '__default__',
+    label: 'Default',
+    items: [{ label: 'Smart default', value: '__global__', selected: selectedModelKey.value === '__global__' }],
+  }
+  const providerGroups = Object.entries(map).map(([pid, models]) => ({
+    key:   pid,
+    label: PROVIDER_LABELS[pid] || pid,
+    items: models.map(m => ({
+      label:    m.display_name,
+      value:    `${pid}::${m.model_id}`,
+      selected: selectedModelKey.value === `${pid}::${m.model_id}`,
+    })),
+  }))
+  return [defaultGroup, ...providerGroups]
+})
+
+const selectedModelLabel = computed(() => {
+  if (selectedModelKey.value === '__global__') return 'Smart default'
+  const [pid, mid] = selectedModelKey.value.split('::')
+  const m = activeModels.value.find(m => m.provider === pid && m.model_id === mid)
+  return m ? m.display_name : mid
+})
+
+function onModelPick(val) {
+  selectedModelKey.value = val
+  dirty.value = true
+  modelMenuOpen.value = false
+}
 
 // ── Computed helpers ──────────────────────────────────────────────────────────
 const hasDraft = computed(() => !!selected.value?.has_draft)
@@ -226,20 +223,17 @@ function keyFromModelConfig(provider, model) {
   return `${provider}::${model}`
 }
 
-function onModelChange() { dirty.value = true }
-
 // ── Data loading ──────────────────────────────────────────────────────────────
 async function loadAll() {
   loadingSkills.value = true
   try {
-    // Fetch connected providers first so the model picker is filtered
-    const pvdRes = await apiFetch('/api/providers')
-    if (pvdRes.ok) {
-      const pvd = await pvdRes.json()
-      connectedIds.value = new Set((pvd.providers || []).filter(p => p.connected).map(p => p.id))
+    const [modelsRes, skillsRes] = await Promise.all([
+      apiFetch('/api/models/active'),
+      apiFetch('/api/skills'),
+    ])
+    if (modelsRes.ok) {
+      activeModels.value = (await modelsRes.json()).models || []
     }
-
-    const skillsRes = await apiFetch('/api/skills')
     if (!skillsRes.ok) return
     const skillsData = await skillsRes.json()
 
@@ -482,13 +476,17 @@ onMounted(loadAll)
 .meta-draft     { color: #92400e; }
 .meta-published { color: var(--pri); }
 
-.ap-model-top { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.ap-model-select {
-  padding: 6px 10px; border-radius: 8px;
-  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
-  font-size: 13px; cursor: pointer; outline: none; transition: border-color .15s;
+.ap-picker-wrap {
+  position: relative; flex-shrink: 0;
 }
-.ap-model-select:focus { border-color: var(--pri); }
+.ap-picker-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 8px; white-space: nowrap;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font-size: 13px; cursor: pointer; transition: border-color .15s;
+}
+.ap-picker-btn:hover { border-color: var(--pri); }
+.ap-picker-btn svg   { color: var(--muted); flex-shrink: 0; }
 
 .ap-actions       { display: flex; align-items: center; gap: 8px; }
 .ap-actions-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }

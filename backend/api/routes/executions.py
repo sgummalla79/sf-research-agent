@@ -19,7 +19,29 @@ from pydantic import BaseModel
 
 from state import AgentState
 from utils.auth import AuthUser, get_current_user
-from framework.defaults import available_providers
+from framework.defaults import available_providers, smart_pick
+
+
+def _pick_title_model(agent_cfg: dict | None) -> tuple[str, str]:
+    """
+    Pick provider/model for auto-titling.
+    Prefers the lightest model from the execution's agent config;
+    falls back to smart_pick("default") from the current request's connected providers.
+    """
+    from utils.user_context import _user_keys
+    # Use whatever model the first agent is already configured with
+    if agent_cfg:
+        p = agent_cfg.get("provider")
+        m = agent_cfg.get("model")
+        if p and m:
+            return p, m
+    # Nothing configured — smart-pick from connected providers
+    connected = available_providers(_user_keys.get() or {})
+    try:
+        pick = smart_pick("default", connected)
+        return pick["provider"], pick["model"]
+    except ValueError:
+        return "", ""
 
 log    = logging.getLogger(__name__)
 router = APIRouter()
@@ -236,13 +258,28 @@ async def _stream_graph(
 
     except Exception as exc:
         import traceback
-        msg = str(exc)
+        msg     = str(exc)
+        msg_low = msg.lower()
         log.error("_stream_graph error: %s\n%s", msg, traceback.format_exc())
+
+        from utils.user_context import connected_providers
+        connected = connected_providers()
+
         if "API key not configured for" in msg or "No LLM providers are configured" in msg:
-            from utils.user_context import connected_providers
             yield _sse("provider_error", {
                 "message":        msg,
-                "can_smart_pick": bool(connected_providers()),
+                "can_smart_pick": bool(connected),
+            })
+        elif any(p in msg_low for p in (
+            "no longer available", "model not found", "does not exist",
+            "model is not available", "not_found", "deprecated",
+        )):
+            yield _sse("provider_error", {
+                "message": (
+                    "The selected model is unavailable or has been deprecated. "
+                    "Please choose a different model in Settings → Agents, or use Smart Config."
+                ),
+                "can_smart_pick": bool(connected),
             })
         else:
             yield _sse("error", {"message": msg})
@@ -332,10 +369,8 @@ async def invoke_skill(
         from utils.user_context import _user_keys, get_anthropic_mode
         from api.routes.conversations import _auto_title
         title_text  = body.brief or body.raw_document_text or ""
-        _cfg        = session_agent_config
-        first_agent = next(iter(_cfg.values()), {}) if _cfg else {}
-        t_provider  = first_agent.get("provider") or "anthropic"
-        t_model     = first_agent.get("model")    or "claude-haiku-4-5-20251001"
+        first_agent             = next(iter(session_agent_config.values()), {}) if session_agent_config else {}
+        t_provider, t_model     = _pick_title_model(first_agent)
         asyncio.create_task(_auto_title(
             db, conversation_id, title_text, t_provider, t_model,
             _user_keys.get() or {}, get_anthropic_mode(),
@@ -411,11 +446,13 @@ async def reply(
             if title_text.strip():
                 from utils.user_context import _user_keys, get_anthropic_mode
                 from api.routes.conversations import _auto_title
-                asyncio.create_task(_auto_title(
-                    db, conv.id, title_text.strip(),
-                    "anthropic", "claude-haiku-4-5-20251001",
-                    _user_keys.get() or {}, get_anthropic_mode(),
-                ))
+                t_provider, t_model = _pick_title_model(None)
+                if t_provider:
+                    asyncio.create_task(_auto_title(
+                        db, conv.id, title_text.strip(),
+                        t_provider, t_model,
+                        _user_keys.get() or {}, get_anthropic_mode(),
+                    ))
 
     return StreamingResponse(
         _stream_graph(graph, Command(resume=body.answers), config, db, execution_id, conv.id),

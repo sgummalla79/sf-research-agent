@@ -40,7 +40,7 @@ async def test_get_current_user_from_cookie():
 
     request = MagicMock()
     request.cookies = {"session": token}
-    request.app.state.db.users.get_all_api_keys = AsyncMock(return_value={})
+    request.app.state.db.users.get_all_llm_provider_keys = AsyncMock(return_value={})
 
     with patch("utils.auth._inject_user_keys", new_callable=AsyncMock):
         result = await get_current_user(request, creds=None)

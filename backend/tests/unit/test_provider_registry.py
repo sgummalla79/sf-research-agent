@@ -1,10 +1,23 @@
 """
 Unit tests for utils/provider_registry.py — per-provider model fetching.
 All external SDK/HTTP calls are mocked.
+
+fetch_models() returns list[{"model_id": str, "display_name": str}].
+Helper: ids(result) extracts just the model_id strings for easy assertion.
 """
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+
+def ids(models: list[dict]) -> list[str]:
+    """Extract model_id strings from a list[dict] result."""
+    return [m["model_id"] for m in models]
+
+
+def has_display(models: list[dict]) -> bool:
+    """Every entry must have a non-empty display_name."""
+    return all(m.get("display_name") for m in models)
 
 
 async def test_fetch_anthropic_direct():
@@ -18,13 +31,12 @@ async def test_fetch_anthropic_direct():
 
     mock_client = AsyncMock()
     mock_client.models.list = AsyncMock(return_value=mock_response)
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__  = AsyncMock(return_value=None)
 
     with patch("anthropic.AsyncAnthropic", return_value=mock_client):
         models = await _fetch_anthropic("sk-ant-test")
 
-    assert "claude-sonnet-4-6" in models
+    assert "claude-sonnet-4-6" in ids(models)
+    assert has_display(models)
 
 
 async def test_fetch_openai():
@@ -38,13 +50,12 @@ async def test_fetch_openai():
 
     mock_client = AsyncMock()
     mock_client.models.list = AsyncMock(return_value=mock_response)
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__  = AsyncMock(return_value=None)
 
     with patch("openai.AsyncOpenAI", return_value=mock_client):
         models = await _fetch_openai("sk-oai-test")
 
-    assert "gpt-4o" in models
+    assert "gpt-4o" in ids(models)
+    assert has_display(models)
 
 
 async def test_fetch_openai_excludes_non_chat_models():
@@ -60,16 +71,15 @@ async def test_fetch_openai_excludes_non_chat_models():
 
     mock_client = AsyncMock()
     mock_client.models.list = AsyncMock(return_value=mock_response)
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__  = AsyncMock(return_value=None)
 
     with patch("openai.AsyncOpenAI", return_value=mock_client):
         models = await _fetch_openai("sk-oai-test")
 
-    assert "gpt-4o" in models
-    assert "text-embedding-ada-002" not in models
-    assert "tts-1" not in models
-    assert "whisper-1" not in models
+    model_ids = ids(models)
+    assert "gpt-4o" in model_ids
+    assert "text-embedding-ada-002" not in model_ids
+    assert "tts-1" not in model_ids
+    assert "whisper-1" not in model_ids
 
 
 async def test_fetch_google():
@@ -83,7 +93,8 @@ async def test_fetch_google():
          patch("google.generativeai.list_models", return_value=[mock_model]):
         models = await _fetch_google("AIza-test")
 
-    assert "gemini-2.5-pro" in models
+    assert "gemini-2.5-pro" in ids(models)
+    assert has_display(models)
 
 
 async def test_fetch_google_excludes_non_generative():
@@ -98,14 +109,16 @@ async def test_fetch_google_excludes_non_generative():
          patch("google.generativeai.list_models", return_value=[m1, m2]):
         models = await _fetch_google("AIza-test")
 
-    assert "gemini-2.5-pro" in models
-    assert "embedding-001" not in models
+    model_ids = ids(models)
+    assert "gemini-2.5-pro" in model_ids
+    assert "embedding-001" not in model_ids
 
 
 async def test_fetch_perplexity_valid_key():
     from utils.provider_registry import _fetch_perplexity, _PERPLEXITY_MODELS
     models = await _fetch_perplexity("pplx-valid-key")
-    assert models == list(_PERPLEXITY_MODELS)
+    assert ids(models) == list(_PERPLEXITY_MODELS)
+    assert has_display(models)
 
 
 async def test_fetch_perplexity_invalid_key_raises():
@@ -121,46 +134,39 @@ async def test_fetch_groq():
     mock_response = MagicMock(); mock_response.data = [mock_model]
     mock_client = AsyncMock()
     mock_client.models.list = AsyncMock(return_value=mock_response)
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__  = AsyncMock(return_value=None)
 
     with patch("openai.AsyncOpenAI", return_value=mock_client):
         models = await _fetch_groq("gsk-test")
 
-    assert "llama-3.3-70b-versatile" in models
-
-
-async def test_fetch_mistral():
-    from utils.provider_registry import _fetch_mistral
-
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"data": [{"id": "mistral-large-latest"}]}
-    mock_response.raise_for_status = MagicMock()
-
-    mock_client = AsyncMock()
-    mock_client.get = AsyncMock(return_value=mock_response)
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__  = AsyncMock(return_value=None)
-
-    with patch("httpx.AsyncClient", return_value=mock_client):
-        models = await _fetch_mistral("mst-test")
-
-    assert "mistral-large-latest" in models
+    assert "llama-3.3-70b-versatile" in ids(models)
+    assert has_display(models)
 
 
 async def test_fetch_models_dispatches_correctly():
     from utils.provider_registry import fetch_models
 
+    expected = [{"model_id": "claude-sonnet-4-6", "display_name": "Claude Sonnet 4 6"}]
     with patch("utils.provider_registry._fetch_anthropic",
-               new=AsyncMock(return_value=["claude-sonnet-4-6"])) as mock:
+               new=AsyncMock(return_value=expected)) as mock:
         result = await fetch_models("anthropic", "sk-ant-test")
 
     mock.assert_called_once_with("sk-ant-test", mode="direct",
                                  bedrock_url="", bedrock_token="")
-    assert result == ["claude-sonnet-4-6"]
+    assert result == expected
 
 
 async def test_fetch_models_unknown_provider_raises():
     from utils.provider_registry import fetch_models
     with pytest.raises(ValueError, match="Unknown provider"):
         await fetch_models("unknown-provider", "some-key")
+
+
+def test_prettify():
+    from utils.provider_registry import _prettify
+    assert _prettify("claude-sonnet-4-6")       == "Claude Sonnet 4 6"
+    assert _prettify("gpt-4o-mini")             == "GPT 4o Mini"
+    assert _prettify("llama-3.3-70b-versatile") == "Llama 3.3 70b Versatile"
+    assert _prettify("gemini-1.5-pro")          == "Gemini 1.5 Pro"
+    assert _prettify("sonar-pro")               == "Sonar Pro"
+    # Bedrock vendor prefix is stripped
+    assert _prettify("us.anthropic.claude-sonnet-4-6") == "Claude Sonnet 4 6"

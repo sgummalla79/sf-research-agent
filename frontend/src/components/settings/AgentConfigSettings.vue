@@ -39,22 +39,23 @@
                 </span>
               </div>
 
-              <div class="ac-select-wrap">
-                <select
-                  v-model="selections[sk.skillKey + '::' + agent.agent_key]"
-                  class="ac-select"
-                  :class="{ 'ac-select-empty': !selections[sk.skillKey + '::' + agent.agent_key] }"
-                  @change="onSelectChange(sk.skillKey, agent.agent_key)">
-                  <option value="" disabled>— select model —</option>
-                  <template v-for="pid in connectedProviderIds" :key="pid">
-                    <optgroup :label="providerNames[pid]">
-                      <option
-                        v-for="m in availableModels[pid]"
-                        :key="`${pid}::${m}`"
-                        :value="`${pid}::${m}`">{{ m }}</option>
-                    </optgroup>
-                  </template>
-                </select>
+              <div class="ac-picker-wrap">
+                <button class="ac-picker-btn"
+                  :class="{ 'ac-picker-empty': !selections[sk.skillKey + '::' + agent.agent_key] }"
+                  @click.stop="togglePicker(sk.skillKey + '::' + agent.agent_key)">
+                  {{ getSelectedLabel(sk.skillKey + '::' + agent.agent_key) }}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                    stroke-linecap="round" width="10" height="10">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                <ModelMenu
+                  :groups="getModelGroups(sk.skillKey + '::' + agent.agent_key)"
+                  :open="openPickerKey === sk.skillKey + '::' + agent.agent_key"
+                  direction="below"
+                  @select="v => onModelPick(sk.skillKey, agent.agent_key, v)"
+                  @close="openPickerKey = null"
+                />
               </div>
             </div>
           </div>
@@ -80,17 +81,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { apiFetch } from '../../composables/useFetch'
-
-// ── Hardcoded model lists per provider (no caching needed) ───────────────────
-const PROVIDER_MODEL_DEFAULTS = {
-  anthropic:  ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
-  openai:     ['gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'],
-  google:     ['gemini-2.5-pro', 'gemini-2.0-flash-001', 'gemini-1.5-pro'],
-  perplexity: ['sonar-pro', 'sonar-reasoning-pro', 'sonar'],
-  groq:       ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile'],
-}
+import { useProvidersStore } from '../../stores/providers'
+import ModelMenu from '../ui/ModelMenu.vue'
 
 // ── Slot-priority hints for Suggest ──────────────────────────────────────────
 const SLOT_PRIORITY = {
@@ -103,41 +97,70 @@ const SLOT_PRIORITY = {
   approver:             ['anthropic:claude-opus', 'openai:o3', 'google:gemini-2.5-pro'],
 }
 
+const PROVIDER_LABELS = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', perplexity: 'Perplexity', groq: 'Groq' }
+
 // ── State ─────────────────────────────────────────────────────────────────────
-const skillAgents      = ref([])     // [{skillKey, name, icon, agents: [...]}]
-const availableModels  = ref({})     // { providerId: [modelStr] }
-const providerNames    = ref({})     // { providerId: displayName }
-const selections       = reactive({})  // "skillKey::agentKey" → "provider::model"
+const skillAgents      = ref([])       // [{skillKey, name, icon, agents: [...]}]
+const activeModels     = ref([])       // [{provider, model_id, display_name}] from /api/models/active
+const selections       = reactive({})  // "skillKey::agentKey" → "provider::model_id"
 const saving           = reactive({})  // skillKey → bool
 const saveMsgs         = reactive({})  // skillKey → {type, text}
 const loading          = ref(true)
+const openPickerKey    = ref(null)     // which row's picker is open
 
-const connectedProviderIds = computed(() =>
-  Object.keys(availableModels.value).filter(pid => (availableModels.value[pid] || []).length > 0)
-)
-const hasAnyModels = computed(() => connectedProviderIds.value.length > 0)
+const hasAnyModels = computed(() => activeModels.value.length > 0)
+
+// Group active models by provider
+const modelsByProvider = computed(() => {
+  const map = {}
+  for (const m of activeModels.value) {
+    if (!map[m.provider]) map[m.provider] = []
+    map[m.provider].push(m)
+  }
+  return map
+})
+
+function getModelGroups(selKey) {
+  return Object.entries(modelsByProvider.value).map(([pid, models]) => ({
+    key:   pid,
+    label: PROVIDER_LABELS[pid] || pid,
+    items: models.map(m => ({
+      label:    m.display_name,
+      value:    `${pid}::${m.model_id}`,
+      selected: selections[selKey] === `${pid}::${m.model_id}`,
+    })),
+  }))
+}
+
+function getSelectedLabel(selKey) {
+  const val = selections[selKey]
+  if (!val) return '— select model —'
+  const [pid, mid] = val.split('::')
+  const m = (modelsByProvider.value[pid] || []).find(m => m.model_id === mid)
+  return m ? m.display_name : mid
+}
+
+function togglePicker(key) {
+  openPickerKey.value = openPickerKey.value === key ? null : key
+}
+
+function onModelPick(skillKey, agentKey, val) {
+  selections[`${skillKey}::${agentKey}`] = val
+  openPickerKey.value = null
+  saveMsgs[skillKey] = null
+}
 
 // ── Load ──────────────────────────────────────────────────────────────────────
 async function load() {
   loading.value = true
   try {
-    const [skillsRes, pvdRes] = await Promise.all([
+    const [skillsRes, modelsRes] = await Promise.all([
       apiFetch('/api/skills'),
-      apiFetch('/api/providers'),
+      apiFetch('/api/models/active'),
     ])
 
-    // Build provider model maps from hardcoded defaults (no cache needed)
-    if (pvdRes.ok) {
-      const data   = await pvdRes.json()
-      const models = {}
-      const names  = {}
-      for (const p of (data.providers || [])) {
-        if (!p.connected) continue
-        models[p.id] = PROVIDER_MODEL_DEFAULTS[p.id] || []
-        names[p.id]  = p.name
-      }
-      availableModels.value = models
-      providerNames.value   = names
+    if (modelsRes.ok) {
+      activeModels.value = (await modelsRes.json()).models || []
     }
 
     // Fetch agents for each installed skill
@@ -176,12 +199,6 @@ async function load() {
   }
 }
 
-// ── Change handler ─────────────────────────────────────────────────────────────
-function onSelectChange(skillKey, agentKey) {
-  // Clear any save message when selection changes
-  saveMsgs[skillKey] = null
-}
-
 // ── Clear ──────────────────────────────────────────────────────────────────────
 function clearSkill(skillKey) {
   const sk = skillAgents.value.find(s => s.skillKey === skillKey)
@@ -202,19 +219,16 @@ function suggestSkill(skillKey, agents) {
 
     for (const hint of priority) {
       const [preferPid, preferModel] = hint.split(':')
-      const models = availableModels.value[preferPid] || []
+      const models = modelsByProvider.value[preferPid] || []
       if (!models.length) continue
-      const match = models.find(m => m.toLowerCase().includes(preferModel.toLowerCase()))
-      if (match) { picked = `${preferPid}::${match}`; break }
-      picked = `${preferPid}::${models[0]}`; break
+      const match = models.find(m => m.model_id.toLowerCase().includes(preferModel.toLowerCase()))
+      if (match) { picked = `${preferPid}::${match.model_id}`; break }
+      picked = `${preferPid}::${models[0].model_id}`; break
     }
 
-    if (!picked) {
-      // fallback: first available model from any connected provider
-      for (const pid of connectedProviderIds.value) {
-        const models = availableModels.value[pid] || []
-        if (models.length) { picked = `${pid}::${models[0]}`; break }
-      }
+    if (!picked && activeModels.value.length) {
+      const first = activeModels.value[0]
+      picked = `${first.provider}::${first.model_id}`
     }
 
     if (picked) {
@@ -258,6 +272,9 @@ async function saveSkill(sk) {
   await load()
 }
 
+const provStore = useProvidersStore()
+watch(() => provStore.version, load)
+
 onMounted(load)
 </script>
 
@@ -290,14 +307,17 @@ onMounted(load)
 .ac-agent-label  { font-size: 13px; font-weight: 600; color: var(--text); }
 .ac-current-badge { font-size: 11px; font-family: monospace; color: var(--muted); }
 
-.ac-select-wrap { flex-shrink: 0; width: 280px; }
-.ac-select {
-  width: 100%; padding: 8px 10px; border-radius: 8px;
+.ac-picker-wrap { position: relative; flex-shrink: 0; }
+.ac-picker-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border-radius: 8px; white-space: nowrap;
   border: 1px solid var(--border); background: var(--surface); font-size: 13px;
-  color: var(--text); outline: none; cursor: pointer; transition: border-color .15s;
+  color: var(--text); cursor: pointer; transition: border-color .15s;
+  min-width: 220px; justify-content: space-between;
 }
-.ac-select:focus      { border-color: var(--pri); }
-.ac-select-empty      { color: var(--muted); }
+.ac-picker-btn:hover   { border-color: var(--pri); }
+.ac-picker-empty       { color: var(--muted); }
+.ac-picker-btn svg     { color: var(--muted); flex-shrink: 0; }
 
 .ac-skill-footer {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;

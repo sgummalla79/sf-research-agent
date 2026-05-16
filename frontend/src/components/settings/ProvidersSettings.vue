@@ -101,6 +101,36 @@
                 {{ disconnecting[modal.id] ? 'Disconnecting…' : 'Disconnect' }}
               </button>
             </div>
+
+            <!-- Models section — shown when provider is connected -->
+            <template v-if="modal.connected">
+              <div class="ps-models-hdr">
+                <span class="ps-models-title">Models</span>
+                <span class="ps-models-hint">Activate the models you want to use</span>
+                <button class="ps-models-refresh" :disabled="refreshing[modal.id]" @click="refreshModels(modal.id)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" width="13" height="13">
+                    <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                  </svg>
+                  {{ refreshing[modal.id] ? 'Refreshing…' : 'Refresh' }}
+                </button>
+              </div>
+              <div v-if="modelsLoading[modal.id]" class="ps-models-loading">Loading models…</div>
+              <div v-else-if="!modalModels.length" class="ps-models-empty">
+                No models found. Click Refresh to fetch models.
+              </div>
+              <div v-else class="ps-models-grid">
+                <button
+                  v-for="m in modalModels"
+                  :key="m.model_id"
+                  class="ps-model-pill"
+                  :class="m.isactive ? 'pill-on' : 'pill-off'"
+                  @click="toggleModel(modal.id, m.model_id)"
+                >
+                  {{ m.display_name }}
+                </button>
+              </div>
+            </template>
           </div>
         </div>
       </Transition>
@@ -111,6 +141,9 @@
 <script setup>
 import { apiFetch } from '../../composables/useFetch.js'
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useProvidersStore } from '../../stores/providers'
+
+const provStore = useProvidersStore()
 
 const logoModules = import.meta.glob('../../assets/logos/*.svg', { eager: true, query: '?url', import: 'default' })
 const PROVIDER_LOGOS = Object.fromEntries(
@@ -154,6 +187,9 @@ const errors        = reactive({})
 const connecting    = reactive({})
 const disconnecting = reactive({})
 const toggling      = reactive({})
+const refreshing    = reactive({})
+const modelsLoading = reactive({})
+const modalModels   = ref([])
 
 async function load() {
   loading.value = true
@@ -182,11 +218,67 @@ const modalFieldsFilled = computed(() => {
   return (TILE_FIELDS[modal.value.id] || []).every(f => (keyInputs[f.key] || '').trim())
 })
 
-function openModal(p) {
-  errors[p.id] = ''
-  modal.value  = p
+async function openModal(p) {
+  errors[p.id]  = ''
+  modal.value   = p
+  modalModels.value = []
+  if (p.connected) await loadModalModels(p.id)
 }
-function closeModal() { modal.value = null }
+function closeModal() { modal.value = null; modalModels.value = [] }
+
+async function loadModalModels(pid) {
+  modelsLoading[pid] = true
+  try {
+    const res = await apiFetch(`/api/providers/${pid}/models`)
+    if (res.ok) modalModels.value = (await res.json()).models || []
+  } finally {
+    modelsLoading[pid] = false
+  }
+}
+
+async function toggleModel(pid, modelId) {
+  const res = await apiFetch(`/api/providers/${pid}/models/${encodeURIComponent(modelId)}`, { method: 'PATCH' })
+  if (res.ok) {
+    const data = await res.json()
+    const m = modalModels.value.find(x => x.model_id === modelId)
+    if (m) m.isactive = data.isactive
+    provStore.markUpdated()
+  }
+}
+
+async function refreshModels(pid) {
+  refreshing[pid] = true
+  errors[pid] = ''
+  try {
+    const res  = await apiFetch(`/api/providers/${pid}/refresh`, { method: 'POST' })
+    const data = await res.json()
+    if (res.ok) {
+      await loadModalModels(pid)
+      provStore.markUpdated()
+      if (data.fetch_error) {
+        errors[pid] = `Could not fetch models: ${_friendlyFetchError(data.fetch_error)}`
+      }
+    } else {
+      errors[pid] = data.detail || 'Refresh failed.'
+    }
+  } catch (_) {
+    errors[pid] = 'Network error.'
+  } finally {
+    refreshing[pid] = false
+  }
+}
+
+function _friendlyFetchError(msg) {
+  if (!msg) return ''
+  const low = msg.toLowerCase()
+  if (low.includes('authentication') || low.includes('invalid') && low.includes('key') || low.includes('401'))
+    return 'Invalid API key — please check and reconnect.'
+  if (low.includes('network') || low.includes('connection') || low.includes('timeout'))
+    return 'Network error — check your connection and try again.'
+  if (low.includes('permission') || low.includes('forbidden') || low.includes('403'))
+    return 'API key does not have permission to list models.'
+  return msg.length > 120 ? msg.slice(0, 120) + '…' : msg
+}
 
 async function connect(pid) {
   errors[pid]     = ''
@@ -213,9 +305,12 @@ async function connect(pid) {
     if (res.ok) {
       for (const f of (TILE_FIELDS[pid] || [])) keyInputs[f.key] = ''
       await load()
-      // Keep modal open so user can see the updated connected state
+      provStore.markUpdated()
       const updated = providers.value.find(p => p.id === pid)
-      if (updated) modal.value = updated
+      if (updated) { modal.value = updated; await loadModalModels(pid) }
+      if (data.fetch_error) {
+        errors[pid] = `Connected, but could not fetch models: ${_friendlyFetchError(data.fetch_error)}`
+      }
     } else {
       errors[pid] = (typeof data.detail === 'string' ? data.detail : null) || 'Connection failed.'
     }
@@ -233,6 +328,7 @@ async function disconnect(pid) {
     const res = await apiFetch(url, { method: 'DELETE' })
     if (res.ok) {
       await load()
+      provStore.markUpdated()
       const updated = providers.value.find(p => p.id === pid)
       if (updated) modal.value = updated
     }
@@ -250,6 +346,7 @@ async function toggle(pid) {
       const data = await res.json()
       const p = providers.value.find(x => x.id === pid)
       if (p) p.isactive = data.isactive
+      provStore.markUpdated()
     }
   } finally {
     toggling[pid] = false
@@ -397,6 +494,41 @@ onMounted(load)
 :root.dark .logo-mono-black { filter: invert(1); }
 /* White logos → black in light mode */
 :root:not(.dark) .logo-mono-white { filter: invert(1); }
+
+/* ── Models section ────────────────────────────────────────────────────────── */
+.ps-models-hdr {
+  display: flex; align-items: center; gap: 8px;
+  padding-top: 4px; border-top: 1px solid var(--bdr);
+}
+.ps-models-title { font-size: 13px; font-weight: 700; color: var(--tx); }
+.ps-models-hint  { font-size: 12px; color: var(--muted); flex: 1; }
+.ps-models-refresh {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 7px;
+  border: 1px solid var(--bdr); background: none;
+  font-size: 12px; color: var(--muted); cursor: pointer;
+  transition: color .15s, background .15s;
+}
+.ps-models-refresh:hover:not(:disabled) { color: var(--tx); background: var(--hover); }
+.ps-models-refresh:disabled { opacity: .45; cursor: not-allowed; }
+
+.ps-models-loading { font-size: 13px; color: var(--muted); padding: 8px 0; }
+.ps-models-empty   { font-size: 13px; color: var(--muted); padding: 8px 0; }
+
+.ps-models-grid {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  max-height: 220px; overflow-y: auto;
+  scrollbar-width: thin;
+}
+.ps-model-pill {
+  padding: 5px 12px; border-radius: 99px;
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  border: 1.5px solid; transition: all .15s; white-space: nowrap;
+}
+.ps-model-pill.pill-on  { background: rgba(34,197,94,.12);  border-color: rgba(34,197,94,.4);  color: #22c55e; }
+.ps-model-pill.pill-off { background: rgba(148,163,184,.08); border-color: var(--bdr);          color: var(--muted); }
+.ps-model-pill.pill-on:hover  { background: rgba(34,197,94,.22); }
+.ps-model-pill.pill-off:hover { background: rgba(148,163,184,.16); color: var(--tx); }
 
 /* ── Modal transition ──────────────────────────────────────────────────────── */
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity .2s, transform .2s; }

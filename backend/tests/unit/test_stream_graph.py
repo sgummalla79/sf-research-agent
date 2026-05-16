@@ -69,7 +69,8 @@ async def test_stage_start_emitted():
     assert stage_starts[0]["label"] == "Intake Agent"
 
 
-async def test_token_emitted_for_non_research_node():
+async def test_token_emitted_for_intake_node():
+    """intake is the only stage that streams visible tokens."""
     from api.routes.executions import _stream_graph
 
     chunk = MagicMock()
@@ -80,7 +81,7 @@ async def test_token_emitted_for_non_research_node():
             "event": "on_chat_model_stream",
             "name":  "ChatAnthropic",
             "data":  {"chunk": chunk},
-            "metadata": {"langgraph_node": "discovery"},
+            "metadata": {"langgraph_node": "intake"},
         }],
         final_state_values={"current_stage": "complete", "document_version": 0, "revision_count": 0},
     )
@@ -91,6 +92,30 @@ async def test_token_emitted_for_non_research_node():
     tokens = [e for e in events if e["type"] == "token"]
     assert len(tokens) == 1
     assert tokens[0]["content"] == "Hello "
+
+
+async def test_token_suppressed_for_structured_output_nodes():
+    """discovery, review, approval use structured output — tokens must be suppressed."""
+    from api.routes.executions import _stream_graph
+
+    for suppressed_node in ("discovery", "review", "approval"):
+        chunk = MagicMock()
+        chunk.content = '{"key": "value"}'
+
+        graph = _mock_graph(
+            events=[{
+                "event": "on_chat_model_stream",
+                "name":  "ChatAnthropic",
+                "data":  {"chunk": chunk},
+                "metadata": {"langgraph_node": suppressed_node},
+            }],
+            final_state_values={"current_stage": "complete", "document_version": 0, "revision_count": 0},
+        )
+
+        raw    = await _collect(_stream_graph(graph, {}, {}, None, "exec-001", "conv-001"))
+        events = _parse_sse(raw)
+        tokens = [e for e in events if e["type"] == "token"]
+        assert len(tokens) == 0, f"Expected no tokens from {suppressed_node}, got {tokens}"
 
 
 async def test_token_suppressed_for_research_node():

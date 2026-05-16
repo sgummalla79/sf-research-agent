@@ -63,8 +63,8 @@ def _sse(event_type: str, payload: dict) -> str:
 
 class CreateConversationRequest(BaseModel):
     title:         Optional[str] = None
-    chat_provider: Optional[str] = "anthropic"
-    chat_model:    Optional[str] = "claude-sonnet-4-6"
+    chat_provider: Optional[str] = None
+    chat_model:    Optional[str] = None
 
 
 class ChatMessageRequest(BaseModel):
@@ -227,8 +227,21 @@ async def send_message(
     if running:
         raise HTTPException(status_code=409, detail="A skill is currently running — wait for it to complete.")
 
-    provider = body.chat_provider or conv.chat_provider or "anthropic"
-    model    = body.chat_model    or conv.chat_model    or "claude-sonnet-4-6"
+    provider = body.chat_provider or conv.chat_provider
+    model    = body.chat_model    or conv.chat_model
+    if not provider or not model:
+        from framework.defaults import smart_pick, available_providers
+        from utils.user_context import _user_keys
+        connected = available_providers(_user_keys.get() or {})
+        try:
+            pick     = smart_pick("default", connected)
+            provider = provider or pick["provider"]
+            model    = model    or pick["model"]
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail="No LLM providers connected. Go to Settings → Providers and add an API key.",
+            )
 
     # Save user message
     await db.messages.create(

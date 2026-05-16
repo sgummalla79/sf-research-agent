@@ -1,11 +1,11 @@
 import os
-from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 config = context.config
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Do not call fileConfig here — our configure_logging() is already applied at startup.
+# Calling fileConfig would reset the root logger level to WARN (from alembic.ini),
+# silently dropping all INFO logs for the rest of the process lifetime.
 
 # Read DATABASE_URL from environment (set before alembic runs)
 database_url = os.getenv("DATABASE_URL", "")

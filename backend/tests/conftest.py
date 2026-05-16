@@ -30,7 +30,7 @@ _TRUNCATE_SQL = """
         conversation_skill_execution_stages, conversation_skill_executions,
         conversation_skill_agents, conversation_skills, conversations,
         user_agents_versions, user_agents, user_skills,
-        user_api_keys, user_config, users
+        user_llm_providers, user_config, users
     CASCADE
 """
 # Note: skills + agents are platform data seeded by lifespan — never truncated.

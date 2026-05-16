@@ -1,9 +1,8 @@
 """
-Unit tests for model_metadata.py and models_cache.py.
-Pure function calls — no mocking needed.
+Unit tests for model_metadata.py.
+_MODEL_INFO and _DISPLAY_NAMES are removed — get_model_info now just returns
+provider + model + prettified display_name for any model.
 """
-
-import pytest
 
 
 class TestModelMetadata:
@@ -12,51 +11,17 @@ class TestModelMetadata:
         from utils.model_metadata import get_model_info
         info = get_model_info("anthropic", "claude-sonnet-4-6")
         assert info is not None
-        assert info["model"]          == "claude-sonnet-4-6"
-        assert info["provider"]       == "anthropic"
-        assert info["context_window"] > 0
+        assert info["model"]        == "claude-sonnet-4-6"
+        assert info["provider"]     == "anthropic"
+        assert info["display_name"] == "Claude Sonnet 4 6"
 
-    def test_google_model_has_large_context(self):
+    def test_unknown_model_still_returns_prettified_name(self):
         from utils.model_metadata import get_model_info
-        info = get_model_info("google", "gemini-2.5-pro")
-        assert info["context_window"] >= 1_000_000
+        info = get_model_info("anthropic", "some-new-model-2025")
+        assert info is not None
+        assert info["display_name"] == "Some New Model 2025"
 
-    def test_unknown_model_returns_none(self):
+    def test_display_name_uses_prettify(self):
         from utils.model_metadata import get_model_info
-        assert get_model_info("anthropic", "nonexistent-model-xyz") is None
-
-    def test_all_known_models_have_context_window(self):
-        from utils.model_metadata import _MODEL_INFO
-        for model_id, info in _MODEL_INFO.items():
-            assert info["context_window"] > 0, f"{model_id} has no context_window"
-            assert info["provider"] in ("anthropic", "google", "perplexity", "openai")
-
-
-class TestModelsCache:
-
-    async def test_anthropic_returns_model_list(self):
-        from utils.models_cache import fetch_models
-        models = await fetch_models("anthropic")
-        assert isinstance(models, list)
-        assert len(models) > 0
-        assert all("id" in m and "name" in m for m in models)
-
-    async def test_google_returns_model_list(self):
-        from utils.models_cache import fetch_models
-        models = await fetch_models("google")
-        assert any("gemini" in m["id"] for m in models)
-
-    async def test_perplexity_returns_model_list(self):
-        from utils.models_cache import fetch_models
-        models = await fetch_models("perplexity")
-        assert any("sonar" in m["id"] for m in models)
-
-    async def test_openai_returns_model_list(self):
-        from utils.models_cache import fetch_models
-        models = await fetch_models("openai")
-        assert any("gpt" in m["id"] for m in models)
-
-    async def test_unknown_provider_returns_empty(self):
-        from utils.models_cache import fetch_models
-        models = await fetch_models("unknown-provider")
-        assert models == []
+        info = get_model_info("google", "gemini-1.5-pro")
+        assert info["display_name"] == "Gemini 1.5 Pro"

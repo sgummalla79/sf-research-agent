@@ -8,6 +8,7 @@ from repositories.execution_repository import ExecutionRepository
 from repositories.message_repository import MessageRepository
 from repositories.artifact_repository import ArtifactRepository
 from repositories.usage_repository import UsageRepository
+from repositories.user_llm_models_repository import UserLLMModelsRepository
 
 __all__ = [
     "SkillRepository",
@@ -20,4 +21,5 @@ __all__ = [
     "MessageRepository",
     "ArtifactRepository",
     "UsageRepository",
+    "UserLLMModelsRepository",
 ]

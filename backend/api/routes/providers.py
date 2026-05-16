@@ -1,14 +1,20 @@
 """
 LLM provider management routes.
 
-GET    /api/providers                  — list all providers + AWS Bedrock tile
-POST   /api/providers/bedrock/connect  — save Bedrock URL + token
-PATCH  /api/providers/bedrock/toggle   — toggle Bedrock active
-DELETE /api/providers/bedrock          — remove Bedrock credentials
-POST   /api/providers/{id}/connect     — save/update API key (sets isactive=True)
-PATCH  /api/providers/{id}/toggle      — toggle isactive without changing the key
-DELETE /api/providers/{id}             — disconnect (delete key)
-GET    /api/providers/model-info       — metadata for a specific model
+GET    /api/providers                     — list providers (connected/isactive)
+POST   /api/providers/bedrock/connect     — save Bedrock credentials + seed models
+PATCH  /api/providers/bedrock/toggle      — toggle Bedrock isactive (cascades to models)
+DELETE /api/providers/bedrock             — remove Bedrock credentials + delete models
+POST   /api/providers/{id}/connect        — save API key + seed models
+PATCH  /api/providers/{id}/toggle         — toggle provider isactive (cascades to models)
+DELETE /api/providers/{id}               — remove API key + delete models
+
+GET    /api/providers/{id}/models         — list models with isactive for provider
+PATCH  /api/providers/{id}/models/{mid}  — toggle one model active/inactive
+POST   /api/providers/{id}/refresh        — re-fetch models from LLM API, reset all inactive
+
+GET    /api/models/active                 — all active models across providers (for dropdowns)
+GET    /api/providers/model-info          — metadata for a specific model
 """
 
 import logging
@@ -34,10 +40,44 @@ class BedrockConnectRequest(BaseModel):
     bedrock_token: str
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _fetch_and_seed_models(
+    db, user_id: str, provider_key: str, api_key: str
+) -> tuple[int, str | None]:
+    """
+    Fetch available models from the LLM provider and seed user_llm_models (all inactive).
+    Returns (count, error_message).
+    - Provider key is always saved regardless of fetch outcome.
+    - Existing models are NOT deleted if the fetch fails.
+    """
+    from utils.provider_registry import fetch_models
+
+    fetch_error: str | None = None
+    models = []
+
+    try:
+        models = await fetch_models(provider_key, api_key)
+    except Exception as exc:
+        fetch_error = str(exc)
+        log.warning("Could not fetch models for provider '%s': %s", provider_key, exc)
+        return 0, fetch_error   # bail out — do not wipe existing models
+
+    try:
+        await db.llm_models.seed(user_id, provider_key, models)
+    except Exception as exc:
+        log.error("Could not seed models for provider '%s': %s", provider_key, exc)
+        return 0, str(exc)
+
+    return len(models), None
+
+
+# ── List providers ─────────────────────────────────────────────────────────────
+
 @router.get("")
 async def list_providers(request: Request, current_user: AuthUser = Depends(get_current_user)):
     db           = request.app.state.db
-    key_statuses = await db.users.get_api_key_statuses(current_user.sub)
+    key_statuses = await db.users.get_llm_provider_key_statuses(current_user.sub)
 
     providers = []
     for pid in PROVIDER_ORDER:
@@ -52,8 +92,8 @@ async def list_providers(request: Request, current_user: AuthUser = Depends(get_
             "description": info.get("description", ""),
         })
 
-    # AWS Bedrock — virtual tile keyed on anthropic_bedrock_url
-    has_bedrock   = "anthropic_bedrock_url" in key_statuses
+    # AWS Bedrock virtual tile
+    has_bedrock    = "anthropic_bedrock_url" in key_statuses
     bedrock_active = key_statuses.get("anthropic_bedrock_url", False)
     providers.append({
         "id":          "bedrock",
@@ -66,7 +106,7 @@ async def list_providers(request: Request, current_user: AuthUser = Depends(get_
     return {"providers": providers}
 
 
-# ── AWS Bedrock (literal routes — must be before /{provider_id}) ──────────────
+# ── AWS Bedrock (literal routes — before /{provider_id}) ──────────────────────
 
 @router.post("/bedrock/connect")
 async def connect_bedrock(
@@ -75,10 +115,14 @@ async def connect_bedrock(
     current_user: AuthUser = Depends(get_current_user),
 ):
     db = request.app.state.db
-    await db.users.save_api_key(current_user.sub, "anthropic_bedrock_url",   encrypt(body.bedrock_url,   current_user.sub))
-    await db.users.save_api_key(current_user.sub, "anthropic_bedrock_token", encrypt(body.bedrock_token, current_user.sub))
-    await db.users.save_api_key(current_user.sub, "anthropic_mode",          encrypt("bedrock",           current_user.sub))
-    return {"ok": True, "provider": "bedrock"}
+    await db.users.save_llm_provider_key(current_user.sub, "anthropic_bedrock_url",   encrypt(body.bedrock_url,   current_user.sub))
+    await db.users.save_llm_provider_key(current_user.sub, "anthropic_bedrock_token", encrypt(body.bedrock_token, current_user.sub))
+    await db.users.save_llm_provider_key(current_user.sub, "anthropic_mode",          encrypt("bedrock",           current_user.sub))
+
+    from utils.provider_registry import _BEDROCK_MODELS, _model_entry
+    models = [_model_entry(m) for m in _BEDROCK_MODELS]
+    await db.llm_models.seed(current_user.sub, "bedrock", models)
+    return {"ok": True, "provider": "bedrock", "models_seeded": len(models)}
 
 
 @router.patch("/bedrock/toggle")
@@ -87,13 +131,15 @@ async def toggle_bedrock(
     current_user: AuthUser = Depends(get_current_user),
 ):
     db       = request.app.state.db
-    statuses = await db.users.get_api_key_statuses(current_user.sub)
+    statuses = await db.users.get_llm_provider_key_statuses(current_user.sub)
     if "anthropic_bedrock_url" not in statuses:
         raise HTTPException(status_code=404, detail="AWS Bedrock is not configured.")
     new_isactive = not statuses["anthropic_bedrock_url"]
     for key in ("anthropic_bedrock_url", "anthropic_bedrock_token"):
         if key in statuses:
-            await db.users.set_api_key_active(current_user.sub, key, new_isactive)
+            await db.users.set_llm_provider_key_active(current_user.sub, key, new_isactive)
+    if not new_isactive:
+        await db.llm_models.deactivate_all(current_user.sub, "bedrock")
     return {"ok": True, "provider": "bedrock", "isactive": new_isactive}
 
 
@@ -104,8 +150,23 @@ async def disconnect_bedrock(
 ):
     db = request.app.state.db
     for key in ("anthropic_bedrock_url", "anthropic_bedrock_token", "anthropic_mode"):
-        await db.users.delete_api_key(current_user.sub, key)
+        await db.users.delete_llm_provider_key(current_user.sub, key)
+    await db.llm_models.delete_all(current_user.sub, "bedrock")
     return {"ok": True, "provider": "bedrock"}
+
+
+# ── model-info (literal — before /{provider_id}) ──────────────────────────────
+
+@router.get("/model-info")
+async def model_info(
+    provider: str,
+    model:    str,
+    request:  Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    from utils.model_metadata import get_model_info
+    info = get_model_info(provider, model)
+    return info or {"provider": provider, "model": model}
 
 
 # ── Regular providers ─────────────────────────────────────────────────────────
@@ -120,9 +181,12 @@ async def connect_provider(
     if provider_id not in PROVIDERS:
         raise HTTPException(status_code=404, detail=f"Unknown provider: {provider_id}")
     db  = request.app.state.db
+    # Ensure user row exists before any FK-referencing inserts
+    await db.users.upsert(current_user.sub, current_user.email, current_user.name, None)
     enc = encrypt(body.api_key, current_user.sub)
-    await db.users.save_api_key(current_user.sub, provider_id, enc)
-    return {"ok": True, "provider": provider_id}
+    await db.users.save_llm_provider_key(current_user.sub, provider_id, enc)
+    count, err = await _fetch_and_seed_models(db, current_user.sub, provider_id, body.api_key)
+    return {"ok": True, "provider": provider_id, "models_seeded": count, "fetch_error": err}
 
 
 @router.patch("/{provider_id}/toggle")
@@ -132,11 +196,13 @@ async def toggle_provider(
     current_user: AuthUser = Depends(get_current_user),
 ):
     db       = request.app.state.db
-    statuses = await db.users.get_api_key_statuses(current_user.sub)
+    statuses = await db.users.get_llm_provider_key_statuses(current_user.sub)
     if provider_id not in statuses:
         raise HTTPException(status_code=404, detail=f"No key stored for provider '{provider_id}'.")
     new_isactive = not statuses[provider_id]
-    await db.users.set_api_key_active(current_user.sub, provider_id, new_isactive)
+    await db.users.set_llm_provider_key_active(current_user.sub, provider_id, new_isactive)
+    if not new_isactive:
+        await db.llm_models.deactivate_all(current_user.sub, provider_id)
     return {"ok": True, "provider": provider_id, "isactive": new_isactive}
 
 
@@ -147,17 +213,68 @@ async def disconnect_provider(
     current_user: AuthUser = Depends(get_current_user),
 ):
     db = request.app.state.db
-    await db.users.delete_api_key(current_user.sub, provider_id)
+    await db.users.delete_llm_provider_key(current_user.sub, provider_id)
+    await db.llm_models.delete_all(current_user.sub, provider_id)
     return {"ok": True}
 
 
-@router.get("/model-info")
-async def model_info(
-    provider: str,
-    model:    str,
-    request:  Request,
+# ── Per-provider model management ─────────────────────────────────────────────
+
+@router.get("/{provider_id}/models")
+async def list_provider_models(
+    provider_id:  str,
+    request:      Request,
     current_user: AuthUser = Depends(get_current_user),
 ):
-    from utils.model_metadata import get_model_info
-    info = get_model_info(provider, model)
-    return info or {"provider": provider, "model": model}
+    db     = request.app.state.db
+    models = await db.llm_models.get_for_provider(current_user.sub, provider_id)
+    return {
+        "provider": provider_id,
+        "models": [
+            {"model_id": m.model_id, "display_name": m.display_name, "isactive": m.isactive}
+            for m in models
+        ],
+    }
+
+
+@router.patch("/{provider_id}/models/{model_id:path}")
+async def toggle_model(
+    provider_id:  str,
+    model_id:     str,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    db        = request.app.state.db
+    new_state = await db.llm_models.toggle(current_user.sub, provider_id, model_id)
+    if new_state is None:
+        raise HTTPException(status_code=404, detail="Model not found.")
+    return {"ok": True, "provider": provider_id, "model_id": model_id, "isactive": new_state}
+
+
+@router.post("/{provider_id}/refresh")
+async def refresh_provider_models(
+    provider_id:  str,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """Delete all models for this provider, re-fetch from API, re-seed as inactive."""
+    db       = request.app.state.db
+    statuses = await db.users.get_llm_provider_key_statuses(current_user.sub)
+
+    if provider_id == "bedrock":
+        from utils.provider_registry import _BEDROCK_MODELS, _model_entry
+        models = [_model_entry(m) for m in _BEDROCK_MODELS]
+        await db.llm_models.seed(current_user.sub, "bedrock", models)
+        return {"ok": True, "provider": "bedrock", "models_seeded": len(models)}
+
+    if provider_id not in statuses:
+        raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not connected.")
+
+    from utils.user_context import _user_keys
+    user_keys = _user_keys.get() or {}
+    api_key   = user_keys.get(provider_id)
+    if not api_key:
+        raise HTTPException(status_code=422, detail="Cannot refresh — provider is inactive or key unavailable.")
+
+    count, err   = await _fetch_and_seed_models(db, current_user.sub, provider_id, api_key)
+    return {"ok": True, "provider": provider_id, "models_seeded": count, "fetch_error": err}

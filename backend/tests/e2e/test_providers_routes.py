@@ -53,8 +53,8 @@ async def test_connect_unknown_provider_returns_404(client):
 
 @pytest.mark.e2e
 async def test_refresh_models(client):
-    with patch("utils.models_cache.fetch_models",
-               new=AsyncMock(return_value=[{"id": "gpt-4o", "name": "GPT-4o"}])):
+    with patch("utils.provider_registry.fetch_models",
+               new=AsyncMock(return_value=[{"model_id": "gpt-4o", "display_name": "GPT-4o"}])):
         resp = await client.post("/api/providers/openai/refresh")
 
     assert resp.status_code == 200

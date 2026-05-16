@@ -46,10 +46,10 @@ class UserRepository(BaseRepository):
         )
         return self._row_to_user(row) if row else None
 
-    async def save_api_key(self, user_id: str, key_name: str, encrypted_value: str) -> None:
+    async def save_llm_provider_key(self, user_id: str, key_name: str, encrypted_value: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
         await self._exec(
-            "INSERT INTO user_api_keys (user_id, key_name, encrypted_value, isactive, updated_at)"
+            "INSERT INTO user_llm_providers (user_id, key_name, encrypted_value, isactive, updated_at)"
             " VALUES (%s, %s, %s, TRUE, %s)"
             " ON CONFLICT (user_id, key_name) DO UPDATE SET"
             "   encrypted_value = EXCLUDED.encrypted_value,"
@@ -58,34 +58,34 @@ class UserRepository(BaseRepository):
             (user_id, key_name, encrypted_value, now),
         )
 
-    async def get_all_api_keys(self, user_id: str) -> dict[str, str]:
+    async def get_all_llm_provider_keys(self, user_id: str) -> dict[str, str]:
         """Return {key_name: encrypted_value} for ACTIVE keys only — used by auth and LLM factory."""
         rows = await self._fetchall(
-            "SELECT key_name, encrypted_value FROM user_api_keys"
+            "SELECT key_name, encrypted_value FROM user_llm_providers"
             " WHERE user_id = %s AND isactive = TRUE",
             (user_id,),
         )
         return {r[0]: r[1] for r in rows}
 
-    async def get_api_key_statuses(self, user_id: str) -> dict[str, bool]:
+    async def get_llm_provider_key_statuses(self, user_id: str) -> dict[str, bool]:
         """Return {key_name: isactive} for ALL stored keys — used by the providers UI."""
         rows = await self._fetchall(
-            "SELECT key_name, isactive FROM user_api_keys WHERE user_id = %s",
+            "SELECT key_name, isactive FROM user_llm_providers WHERE user_id = %s",
             (user_id,),
         )
         return {r[0]: bool(r[1]) for r in rows}
 
-    async def set_api_key_active(self, user_id: str, key_name: str, isactive: bool) -> None:
+    async def set_llm_provider_key_active(self, user_id: str, key_name: str, isactive: bool) -> None:
         now = datetime.now(timezone.utc).isoformat()
         await self._exec(
-            "UPDATE user_api_keys SET isactive = %s, updated_at = %s"
+            "UPDATE user_llm_providers SET isactive = %s, updated_at = %s"
             " WHERE user_id = %s AND key_name = %s",
             (isactive, now, user_id, key_name),
         )
 
-    async def delete_api_key(self, user_id: str, key_name: str) -> None:
+    async def delete_llm_provider_key(self, user_id: str, key_name: str) -> None:
         await self._exec(
-            "DELETE FROM user_api_keys WHERE user_id = %s AND key_name = %s",
+            "DELETE FROM user_llm_providers WHERE user_id = %s AND key_name = %s",
             (user_id, key_name),
         )
 

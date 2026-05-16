@@ -75,10 +75,18 @@ def test_get_llm_for_agent_uses_config():
         mock_build.assert_called_once_with("anthropic", "claude-sonnet-4-6")
 
 
-def test_get_llm_for_agent_raises_when_not_in_config():
+def test_get_llm_for_agent_falls_back_to_smart_pick_when_config_empty():
+    """When no provider/model in config, get_llm_for_agent calls smart_pick as fallback."""
     from utils.llm_factory import get_llm_for_agent
-    with pytest.raises(RuntimeError, match="No model configured for agent"):
-        get_llm_for_agent("discovery", {})
+    from unittest.mock import patch, MagicMock
+
+    mock_llm = MagicMock()
+    with patch("utils.llm_factory.build_llm", return_value=mock_llm) as mock_build, \
+         patch("framework.defaults.smart_pick", return_value={"provider": "anthropic", "model": "claude-haiku-4-5-20251001"}), \
+         patch("utils.user_context.connected_providers", return_value=["anthropic"]):
+        result = get_llm_for_agent("discovery", {})
+        assert result is mock_llm
+        mock_build.assert_called_once_with("anthropic", "claude-haiku-4-5-20251001")
 
 
 def test_agent_model_returns_model_name():

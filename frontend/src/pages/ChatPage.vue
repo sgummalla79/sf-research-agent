@@ -72,26 +72,7 @@
           @open-document="openDoc"
         />
 
-        <!-- Status banners -->
-        <div v-if="conv.providerConflict" class="banner provider-conflict">
-          <span class="pc-icon">⚠️</span>
-          <span>{{ conv.providerConflict.detail }}</span>
-          <div class="pc-actions">
-            <button class="retry-btn" @click="goToProviders">Configure Providers</button>
-            <button v-if="conv.providerConflict.canSmartPick" class="retry-btn smart-pick-btn"
-              :disabled="conv.isStreaming" @click="smartPick">
-              {{ conv.isStreaming ? 'Retrying…' : 'Use Smart Config' }}
-            </button>
-          </div>
-        </div>
-        <div v-if="conv.isHalted"       class="banner warn">⚠️ Session halted after maximum revisions.</div>
-        <div v-if="conv.isInvalidInput" class="banner err">❌ Input doesn't appear to be architecture-related.</div>
-        <div v-if="conv.error" class="banner err">
-          <span>{{ conv.error }}</span>
-          <button class="retry-btn" @click="conv.retryExecution">↺ Retry</button>
-        </div>
-
-        <!-- Bottom: interrupts + palette + input -->
+        <!-- Bottom: interrupts + palette + input + inline notices -->
         <div class="cp-bottom">
           <Transition name="slide-up">
             <ConfirmPanel
@@ -125,6 +106,34 @@
               />
             </div>
           </Transition>
+
+          <!-- Inline notices — sit flush above the input -->
+          <div v-if="conv.providerConflict" class="cp-notice cp-notice-warn">
+            <svg class="cp-notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>{{ conv.providerConflict.detail }}</span>
+            <div class="cp-notice-actions">
+              <button class="cp-notice-btn" @click="goToProviders">Configure Providers</button>
+              <button v-if="conv.providerConflict.canSmartPick && conv.executionId" class="cp-notice-btn cp-notice-btn-pri"
+                :disabled="conv.isStreaming" @click="smartPick">
+                {{ conv.isStreaming ? 'Retrying…' : 'Use Smart Config' }}
+              </button>
+            </div>
+          </div>
+          <div v-if="conv.isHalted" class="cp-notice cp-notice-warn">
+            <svg class="cp-notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <span>Session halted after maximum revisions.</span>
+          </div>
+          <div v-if="conv.isInvalidInput" class="cp-notice cp-notice-err">
+            <svg class="cp-notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+            <span>Input doesn't appear to be architecture-related.</span>
+          </div>
+          <div v-if="conv.error" class="cp-notice cp-notice-err">
+            <svg class="cp-notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>{{ conv.error }}</span>
+            <div v-if="conv.executionId" class="cp-notice-actions">
+              <button class="cp-notice-btn" @click="conv.retryExecution">↺ Retry</button>
+            </div>
+          </div>
 
           <ChatInput
             v-if="!conv.isPipelineRunning"
@@ -182,6 +191,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useProvidersStore } from '../stores/providers'
 import { marked } from 'marked'
 
 import { useConversationStore } from '../stores/conversation'
@@ -203,8 +213,11 @@ import DocumentPanel    from '../components/document/DocumentPanel.vue'
 import SudarshanChakra  from '../components/SudarshanChakra.vue'
 import StatusBar        from '../components/ui/StatusBar.vue'
 
-const conv    = useConversationStore()
-const sidebar = useSidebarStore()
+const conv      = useConversationStore()
+const sidebar   = useSidebarStore()
+const provStore = useProvidersStore()
+
+watch(() => provStore.version, () => loadChatModels())
 const { user } = useAuth()
 
 const { panel: docPanel, open: openDoc, close: closeDoc, downloadMD, downloadPDF } = useDocumentPanel()
@@ -315,8 +328,8 @@ const PROVIDER_DEFAULTS = {
     { model: 'gpt-4o-mini', display: 'GPT-4o Mini', description: 'Fast and affordable' },
   ],
   google:     [
-    { model: 'gemini-2.0-flash-001', display: 'Gemini 2.0 Flash', description: 'Fast multimodal' },
-    { model: 'gemini-1.5-pro',       display: 'Gemini 1.5 Pro',   description: 'Advanced reasoning' },
+    { model: 'gemini-1.5-pro',   display: 'Gemini 1.5 Pro',   description: 'Advanced reasoning' },
+    { model: 'gemini-1.5-flash', display: 'Gemini 1.5 Flash', description: 'Fast and efficient' },
   ],
   perplexity: [
     { model: 'sonar-pro', display: 'Sonar Pro', description: 'Web-grounded search' },
@@ -328,23 +341,16 @@ const PROVIDER_DEFAULTS = {
 
 async function loadChatModels() {
   try {
-    const res  = await apiFetch('/api/providers')
-    const data = await res.json()
-    const models = []
-
-    for (const p of (data.providers || [])) {
-      if (!p.connected) continue
-
-      const list = p.available_models?.length
-        ? p.available_models.map(m => ({ model: m, display: modelDisplay(m), description: modelDescription(m, p.id) }))
-        : (PROVIDER_DEFAULTS[p.id] || [])
-
-      for (const m of list) {
-        models.push({ ...m, provider: p.id, default: models.length === 0 })
-      }
-    }
-
-    chatModels.value = models
+    const res  = await apiFetch('/api/models/active')
+    if (!res.ok) return
+    const data   = await res.json()
+    chatModels.value = (data.models || []).map((m, i) => ({
+      model:       m.model_id,
+      display:     m.display_name,
+      description: '',
+      provider:    m.provider,
+      default:     i === 0,
+    }))
   } catch (_) {
   } finally {
     modelsLoaded.value = true
@@ -674,33 +680,35 @@ onMounted(async () => {
   letter-spacing: -0.2px; margin: 0; line-height: 1.2;
 }
 
-/* ── Banners ── */
-.banner {
-  flex-shrink: 0; padding: 12px 28px; font-size: 13px; font-weight: 500;
-  text-align: center; display: flex; align-items: center; justify-content: center; gap: 12px;
-  max-width: 720px; width: 100%; margin: 0 auto; align-self: center;
+/* ── Inline notices (sit above ChatInput inside cp-bottom) ── */
+.cp-notice {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 20px; font-size: 13px; font-weight: 500;
+  border-radius: 10px; margin: 0 20px 4px;
 }
-.banner-dismiss { background: none; border: none; cursor: pointer; font-size: 13px; opacity: .6; padding: 0; line-height: 1; color: inherit; flex-shrink: 0; }
-.banner-dismiss:hover { opacity: 1; }
-.retry-btn { padding: 5px 12px; border-radius: 8px; border: 1px solid currentColor; background: none; cursor: pointer; font-size: 12.5px; font-weight: 600; color: inherit; }
-.smart-pick-btn { opacity: .85; }
-
-.banner.ok   { background: #dcfce7; color: #166534; }
-.banner.warn { background: #fef3c7; color: #92400e; }
-.banner.err  { background: #fee2e2; color: #991b1b; }
-
-html.dark .banner.ok   { background: #052e16; color: #86efac; }
-html.dark .banner.warn { background: #1c1400; color: #fcd34d; }
-html.dark .banner.err  { background: #1f0000; color: #fca5a5; }
-
-.banner.provider-conflict {
-  background: #fff7ed; color: #7c2d12;
-  flex-direction: row; align-items: center; justify-content: flex-start;
-  text-align: left; gap: 8px; padding: 10px 20px; flex-wrap: wrap;
+.cp-notice > span { flex: 1; min-width: 0; }
+.cp-notice-icon { width: 16px; height: 16px; flex-shrink: 0; }
+.cp-notice-warn {
+  background: rgba(251,191,36,.12); color: #92400e;
+  border: 1px solid rgba(251,191,36,.3);
 }
-html.dark .banner.provider-conflict { background: #1c0f00; color: #fdba74; }
-.pc-icon { font-size: 16px; flex-shrink: 0; }
-.pc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.cp-notice-err {
+  background: rgba(239,68,68,.08); color: #991b1b;
+  border: 1px solid rgba(239,68,68,.25);
+}
+html.dark .cp-notice-warn { background: rgba(251,191,36,.08); color: #fcd34d; border-color: rgba(251,191,36,.2); }
+html.dark .cp-notice-err  { background: rgba(239,68,68,.08); color: #fca5a5; border-color: rgba(239,68,68,.2); }
+
+.cp-notice-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.cp-notice-btn {
+  padding: 4px 12px; border-radius: 7px;
+  border: 1px solid currentColor; background: none;
+  cursor: pointer; font-size: 12px; font-weight: 600; color: inherit;
+  white-space: nowrap;
+}
+.cp-notice-btn:hover { background: rgba(0,0,0,.06); }
+.cp-notice-btn-pri { background: currentColor; }
+.cp-notice-btn-pri span, .cp-notice-btn-pri { color: var(--bg); }
 
 .ub-cell {
   display: flex; flex-direction: column; align-items: center; justify-content: center;

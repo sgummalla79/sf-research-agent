@@ -64,6 +64,30 @@ export const useConversationStore = defineStore('conversation', () => {
   const error            = ref(null)
   const providerConflict = ref(null)  // { detail, canSmartPick }
 
+  function _friendlyError(msg) {
+    if (!msg) return msg
+    const low = msg.toLowerCase()
+    if (
+      low.includes('not_found') || low.includes('not found') ||
+      low.includes('no longer available') || low.includes('is not found for api') ||
+      low.includes('deprecated') || low.includes('does not exist') ||
+      low.includes('model is not available') || low.includes('unsupported')
+    ) {
+      return 'The selected model is unavailable or no longer supported. Please choose a different model in Settings → Agents.'
+    }
+    if (low.includes('api key') || low.includes('authentication') || low.includes('unauthorized') || low.includes('invalid_api_key')) {
+      return 'Invalid or missing API key. Please check your credentials in Settings → Providers.'
+    }
+    if (low.includes('quota') || low.includes('rate limit') || low.includes('too many requests')) {
+      return 'Rate limit reached. Please wait a moment and try again.'
+    }
+    // Strip raw JSON blobs that leaked through
+    if (msg.includes("{'error':") || msg.includes('{"error":')) {
+      return 'An error occurred with the AI provider. Please check your model selection and try again.'
+    }
+    return msg
+  }
+
   // ── Computed ───────────────────────────────────────────────────────────────
   const hasActiveConversation = computed(() => !!conversationId.value)
   const isInputLocked         = computed(() => isPipelineRunning.value && !pendingQuestions.value.length && !pendingConfirmation.value)
@@ -215,7 +239,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
       case 'error': {
         if (currentMsgHolder.msg) { currentMsgHolder.msg.isStreaming = false; currentMsgHolder.msg = null }
-        error.value             = event.message
+        error.value             = _friendlyError(event.message)
         isPipelineRunning.value = false
         isStreaming.value       = false
         break
@@ -223,7 +247,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
       case 'provider_error': {
         currentMsgHolder.msg    = null
-        providerConflict.value  = { detail: event.message, canSmartPick: event.can_smart_pick }
+        providerConflict.value  = { detail: _friendlyError(event.message), canSmartPick: event.can_smart_pick }
         isPipelineRunning.value = false
         isStreaming.value       = false
         break
@@ -279,7 +303,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
-      error.value = err.detail || 'Message failed.'
+      error.value = _friendlyError(err.detail) || 'Message failed.'
       return
     }
 

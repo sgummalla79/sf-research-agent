@@ -30,6 +30,7 @@ from repositories.execution_repository import ExecutionRepository
 from repositories.message_repository import MessageRepository
 from repositories.artifact_repository import ArtifactRepository
 from repositories.usage_repository import UsageRepository
+from repositories.user_llm_models_repository import UserLLMModelsRepository
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class DBContext:
     messages:      MessageRepository
     artifacts:     ArtifactRepository
     usage:         UsageRepository
+    llm_models:    UserLLMModelsRepository
 
 
 @asynccontextmanager
@@ -96,6 +98,7 @@ async def get_db():
             messages      = MessageRepository(pool),
             artifacts     = ArtifactRepository(pool),
             usage         = UsageRepository(pool),
+            llm_models    = UserLLMModelsRepository(pool),
         )
 
         log.info("DBContext ready — all repositories initialised")
@@ -115,5 +118,9 @@ def _run_migrations(database_url: str) -> None:
     alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
 
     log.info("Running Alembic migrations …")
-    command.upgrade(alembic_cfg, "head")
+    try:
+        command.upgrade(alembic_cfg, "head")
+    except Exception as exc:
+        log.critical("Alembic migration failed: %s", exc, exc_info=True)
+        raise
     log.info("Migrations complete")

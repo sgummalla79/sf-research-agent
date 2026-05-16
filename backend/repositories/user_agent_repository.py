@@ -141,6 +141,31 @@ class UserAgentRepository(BaseRepository):
             )
         return await self._get_draft(ua.id)
 
+    async def set_model(
+        self,
+        user_id:         str,
+        agent_id:        str,
+        provider_to_use: Optional[str],
+        model_to_use:    Optional[str],
+    ) -> bool:
+        """
+        Persist the default provider/model for a user_agent row.
+        Pass None for both to reset to smart default.
+        Returns True if a row was updated, False if not found.
+        """
+        ua = await self.get(user_id, agent_id)
+        if not ua:
+            return False
+        # Update the current published version's provider/model too so the
+        # agents list endpoint reflects the change without a publish cycle.
+        await self._exec(
+            "UPDATE user_agents_versions"
+            " SET provider_to_use = %s, model_to_use = %s"
+            " WHERE user_agent_id = %s AND status = 'published'",
+            (provider_to_use, model_to_use, ua.id),
+        )
+        return True
+
     async def discard_draft(self, user_id: str, agent_id: str) -> None:
         ua = await self.get(user_id, agent_id)
         if not ua:

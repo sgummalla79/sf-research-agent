@@ -114,7 +114,7 @@
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
             </button>
-            <FlyoutMenu
+            <ModelMenu
               :groups="modelGroups"
               :open="modelPickerOpen"
               :direction="props.isEmptyChat ? 'below' : 'above'"
@@ -153,7 +153,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useAppStore }  from '../../stores/app'
-import FlyoutMenu       from '../ui/FlyoutMenu.vue'
+import ModelMenu        from '../ui/ModelMenu.vue'
 
 const props = defineProps({
   chatModels:        { type: Array,   default: () => [] },

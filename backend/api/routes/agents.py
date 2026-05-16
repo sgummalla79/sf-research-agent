@@ -27,6 +27,11 @@ class SaveDraftRequest(BaseModel):
     model:    Optional[str] = None
 
 
+class UpdateModelRequest(BaseModel):
+    provider: Optional[str] = None   # None = revert to smart default
+    model:    Optional[str] = None
+
+
 @router.get("/{skill_id}/agents")
 async def list_agents(
     skill_id:     str,
@@ -143,6 +148,31 @@ async def publish_agent(
         return {"ok": True, "agent_key": agent_key, "version": version.version}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.patch("/{skill_id}/agents/{agent_key}/model")
+async def update_agent_model(
+    skill_id:     str,
+    agent_key:    str,
+    body:         UpdateModelRequest,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """Set (or clear) the default provider/model for an agent. Null = smart default."""
+    db    = request.app.state.db
+    skill = await db.skills.get_by_key(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
+    agent = await db.agents.get_by_key(skill.id, agent_key)
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_key}' not found.")
+
+    updated = await db.user_agents.set_model(
+        current_user.sub, agent.id, body.provider or None, body.model or None
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Agent not installed for this user.")
+    return {"ok": True, "agent_key": agent_key, "provider": body.provider, "model": body.model}
 
 
 @router.post("/{skill_id}/publish")

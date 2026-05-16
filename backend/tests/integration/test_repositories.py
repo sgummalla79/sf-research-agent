@@ -25,7 +25,7 @@ async def pool():
                     conversation_skill_execution_stages, conversation_skill_executions,
                     conversation_skill_agents, conversation_skills, conversations,
                     user_agents_versions, user_agents, user_skills,
-                    user_api_keys, user_config, users
+                    user_llm_providers, user_config, users
                 CASCADE
             """)
         yield p
@@ -54,13 +54,13 @@ async def test_user_upsert_and_api_key(pool):
     assert user.id    == "user-123"
     assert user.email == "test@example.com"
 
-    await repo.save_api_key("user-123", "anthropic", "encrypted-key-value")
-    keys = await repo.get_all_api_keys("user-123")
+    await repo.save_llm_provider_key("user-123", "anthropic", "encrypted-key-value")
+    keys = await repo.get_all_llm_provider_keys("user-123")
     assert "anthropic" in keys
     assert keys["anthropic"] == "encrypted-key-value"
 
-    await repo.delete_api_key("user-123", "anthropic")
-    keys_after = await repo.get_all_api_keys("user-123")
+    await repo.delete_llm_provider_key("user-123", "anthropic")
+    keys_after = await repo.get_all_llm_provider_keys("user-123")
     assert "anthropic" not in keys_after
 
 

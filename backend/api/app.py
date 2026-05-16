@@ -49,6 +49,7 @@ from api.routes.artifacts import router as artifacts_router
 from api.routes.usage import router as usage_router
 from api.routes.uploads import router as uploads_router
 from api.routes.settings import router as settings_router
+from api.routes.models import router as models_router
 
 from framework.engine import SkillEngine
 from framework.registry import SkillRegistry
@@ -159,3 +160,4 @@ app.include_router(artifacts_router)
 app.include_router(usage_router)
 app.include_router(uploads_router)
 app.include_router(settings_router)
+app.include_router(models_router)
