@@ -57,8 +57,11 @@ async def _fetch_and_seed_models(
     fetch_error: str | None = None
     models = []
 
+    catalog = await db.model_catalog.get_by_provider(provider_key)
+    catalog_models = [{"model_id": c.model_id, "display_name": c.display_name} for c in catalog]
+
     try:
-        models = await fetch_models(provider_key, api_key)
+        models = await fetch_models(provider_key, api_key, catalog_models=catalog_models)
     except Exception as exc:
         fetch_error = str(exc)
         log.warning("Could not fetch models for provider '%s': %s", provider_key, exc)
@@ -120,8 +123,8 @@ async def connect_bedrock(
     await db.users.save_llm_provider_key(current_user.sub, "anthropic_bedrock_token", encrypt(body.bedrock_token, current_user.sub))
     await db.users.save_llm_provider_key(current_user.sub, "anthropic_mode",          encrypt("bedrock",           current_user.sub))
 
-    from utils.provider_registry import _BEDROCK_MODELS, _model_entry
-    models = [_model_entry(m) for m in _BEDROCK_MODELS]
+    catalog = await db.model_catalog.get_by_provider("bedrock")
+    models  = [{"model_id": c.model_id, "display_name": c.display_name} for c in catalog]
     await db.llm_models.seed(current_user.sub, "bedrock", models)
     return {"ok": True, "provider": "bedrock", "models_seeded": len(models)}
 
@@ -284,8 +287,8 @@ async def refresh_provider_models(
     statuses = await db.users.get_llm_provider_key_statuses(current_user.sub)
 
     if provider_id == "bedrock":
-        from utils.provider_registry import _BEDROCK_MODELS, _model_entry
-        models = [_model_entry(m) for m in _BEDROCK_MODELS]
+        catalog = await db.model_catalog.get_by_provider("bedrock")
+        models  = [{"model_id": c.model_id, "display_name": c.display_name} for c in catalog]
         await db.llm_models.seed(current_user.sub, "bedrock", models)
         return {"ok": True, "provider": "bedrock", "models_seeded": len(models)}
 
