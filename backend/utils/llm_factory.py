@@ -2,7 +2,7 @@
 LLM factory — builds a configured LangChain chat model for a given agent.
 
 Usage:
-    llm = build_llm("anthropic", "claude-sonnet-4-6")
+    llm = build_llm(provider, model_id)
     llm = get_llm_for_agent(agent_key, session_agent_config)
 """
 
