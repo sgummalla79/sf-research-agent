@@ -16,7 +16,10 @@
     "stop:backend:mac": "lsof -ti:8000 | xargs kill -9 2>/dev/null || true",
     "stop:backend:win": "powershell -Command \"Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
     "stop:frontend:mac": "lsof -ti:5173 | xargs kill -9 2>/dev/null || true",
-    "stop:frontend:win": "powershell -Command \"Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\""
+    "stop:frontend:win": "powershell -Command \"Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
+    "test:backend": "cd backend && .venv/bin/pytest tests/unit/ tests/e2e/ -v",
+    "test:frontend": "cd frontend && npm run test",
+    "test": "pnpm test:backend && pnpm test:frontend"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

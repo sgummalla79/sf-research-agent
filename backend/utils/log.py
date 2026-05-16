@@ -18,13 +18,10 @@ Usage:
 """
 
 import logging
-import logging.handlers
-import os
 import sys
 import uuid
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from pathlib import Path
 
 # ── Correlation ID ─────────────────────────────────────────────────────────────
 
@@ -90,42 +87,16 @@ class _Fmt(logging.Formatter):
 # ── Configure ─────────────────────────────────────────────────────────────────
 
 def configure_logging(level: str = "INFO") -> None:
-    """
-    Set up root logger with:
-    - stdout handler (for whatever shows in console)
-    - rotating file handler: backend/logs/pragna.log, splits every hour, keeps 7 days
-    Both include correlation ID via _CorrelationFilter.
-    """
+    """Set up root logger with a stdout handler and correlation ID injection."""
     root = logging.getLogger()
     root.setLevel(getattr(logging, level.upper(), logging.INFO))
     root.handlers.clear()
 
-    fmt    = _Fmt(use_color=False)   # no ANSI in files
-    fmt_tty = _Fmt(use_color=True)
-    filt   = _CorrelationFilter()
-
-    # ── stdout handler ────────────────────────────────────────────────────────
+    filt     = _CorrelationFilter()
     stdout_h = logging.StreamHandler(sys.stdout)
-    stdout_h.setFormatter(fmt_tty)
+    stdout_h.setFormatter(_Fmt(use_color=True))
     stdout_h.addFilter(filt)
     root.addHandler(stdout_h)
-
-    # ── rotating file handler (1-hour splits, 7 days retention) ──────────────
-    log_dir = Path(__file__).parent.parent / "logs"
-    log_dir.mkdir(exist_ok=True)
-    log_file = log_dir / "pragna.log"
-
-    file_h = logging.handlers.TimedRotatingFileHandler(
-        filename    = log_file,
-        when        = "h",        # rotate every hour
-        interval    = 1,
-        backupCount = 24 * 7,     # keep 7 days
-        encoding    = "utf-8",
-        utc         = True,
-    )
-    file_h.setFormatter(fmt)
-    file_h.addFilter(filt)
-    root.addHandler(file_h)
 
     # Silence noisy third-party loggers
     for noisy in (
