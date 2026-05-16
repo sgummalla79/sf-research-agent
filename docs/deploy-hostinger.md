@@ -1,5 +1,44 @@
 # Deployment Guide — Pragna on Hostinger K3s
 
+## Table of Contents
+
+- [Architecture](#architecture)
+- [Repository structure](#repository-structure-infra-files)
+- [GitHub Actions secrets required](#github-actions-secrets-required)
+- [Part 1 — One-time VPS setup](#part-1--one-time-vps-setup)
+  - [1.1 Update and install basics](#11--update-and-install-basics)
+  - [1.2 Configure firewall](#12--configure-firewall)
+  - [1.3 Install K3s](#13--install-k3s)
+  - [1.4 Install cert-manager](#14--install-cert-manager)
+  - [1.5 Clone the repo onto the VPS](#15--clone-the-repo-onto-the-vps)
+  - [1.6 Allow your Mac to control the cluster](#16--allow-your-mac-to-control-the-cluster-optional-but-recommended)
+- [Part 2 — One-time cluster setup (production)](#part-2--one-time-cluster-setup-production)
+  - [2.1 Apply production namespace and manifests](#21--apply-production-namespace-and-manifests)
+  - [2.2 Create the GHCR image pull secret](#22--create-the-ghcr-image-pull-secret)
+  - [2.3 Generate production secrets](#23--generate-production-secrets)
+  - [2.4 Point DNS at the VPS](#24--point-dns-at-the-vps)
+  - [2.5 Run the first production deploy](#25--run-the-first-production-deploy)
+  - [2.6 Verify production](#26--verify-production)
+- [Part 3 — One-time cluster setup (staging)](#part-3--one-time-cluster-setup-staging)
+  - [3.1 Apply staging namespace and manifests](#31--apply-staging-namespace-and-manifests)
+  - [3.2 Create the GHCR pull secret for staging](#32--create-the-ghcr-pull-secret-for-staging)
+  - [3.3 Generate staging secrets](#33--generate-staging-secrets)
+  - [3.4 Point DNS for staging](#34--point-dns-for-staging)
+  - [3.5 Update Auth0 for staging](#35--update-auth0-for-staging-if-using-a-separate-auth0-app)
+  - [3.6 Run the first staging deploy](#36--run-the-first-staging-deploy)
+- [Part 4 — Day-to-day: deploying to staging](#part-4--day-to-day-deploying-to-staging)
+- [Part 5 — Day-to-day: deploying to production (blue-green)](#part-5--day-to-day-deploying-to-production-blue-green)
+- [Part 6 — Rollback](#part-6--rollback)
+  - [Production rollback](#production-rollback-instant---1-second)
+  - [Staging rollback](#staging-rollback)
+  - [Database rollback](#database-rollback)
+- [Part 7 — Troubleshooting](#part-7--troubleshooting)
+- [Part 8 — Database operations](#part-8--database-operations)
+- [Resource usage](#resource-usage-on-kvm-2-8-gb-ram)
+- [Quick reference](#quick-reference)
+
+---
+
 ## Architecture
 
 ```
