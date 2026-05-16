@@ -10,25 +10,6 @@ Priority at execution start:
   3. Smart pick from connected providers using slot preference
 """
 
-# Best model per provider per slot
-_PROVIDER_SLOT_MODEL: dict[str, dict[str, str]] = {
-    "anthropic": {
-        "default":  "claude-sonnet-4-6",
-        "approver": "claude-opus-4-7",
-    },
-    "google": {
-        "default":              "gemini-2.0-flash",
-        "researcher_reasoning": "gemini-2.5-pro",
-    },
-    "perplexity": {
-        "default":           "sonar-pro",
-        "researcher_search": "sonar-pro",
-    },
-    "openai": {
-        "default": "gpt-4o",
-    },
-}
-
 # Ordered provider preference per slot
 _SLOT_PREFERENCE: dict[str, list[str]] = {
     "researcher_search":    ["perplexity", "google", "anthropic", "openai"],
@@ -61,37 +42,29 @@ def available_providers(user_keys: dict) -> set[str]:
 
 def smart_pick(slot: str, connected: set[str], active_models: list[dict] | None = None) -> dict:
     """
-    Pick the best available provider/model for a slot from connected providers.
+    Pick the best available provider/model for a slot from the user's active models.
 
-    Resolution order per preferred provider:
-      1. Slot-specific recommended model — if user has it active
-      2. Any other active model the user has for that provider
-      3. Hardcoded static default (last resort, no active_models info)
+    Resolution order:
+      1. First connected provider in the slot preference list that has active models
+      2. Any other connected provider that has active models
 
-    Raises ValueError if no providers are connected.
+    Raises ValueError if no connected provider has active models.
     """
-    preference = _SLOT_PREFERENCE.get(slot, _DEFAULT_PREFERENCE)
+    if not active_models:
+        raise ValueError(
+            "No models are activated. "
+            "Go to Settings → Providers, open a connected provider, and activate at least one model."
+        )
 
     def _pick_for_provider(provider: str) -> dict | None:
         if provider not in connected:
             return None
-        if active_models:
-            provider_models = [m for m in active_models if m["provider"] == provider]
-            if provider_models:
-                # Try the slot-recommended model first, then provider default, then any active
-                hints = _PROVIDER_SLOT_MODEL.get(provider, {})
-                preferred_id = hints.get(slot) or hints.get("default")
-                if preferred_id:
-                    match = next((m for m in provider_models if m["model_id"] == preferred_id), None)
-                    if match:
-                        return {"provider": provider, "model": match["model_id"]}
-                return {"provider": provider, "model": provider_models[0]["model_id"]}
-        # No active model info — fall back to static defaults
-        hints = _PROVIDER_SLOT_MODEL.get(provider, {})
-        model = hints.get(slot) or hints.get("default", "")
-        return {"provider": provider, "model": model} if model else None
+        provider_models = [m for m in active_models if m["provider"] == provider]
+        if not provider_models:
+            return None
+        return {"provider": provider, "model": provider_models[0]["model_id"]}
 
-    for provider in preference:
+    for provider in _SLOT_PREFERENCE.get(slot, _DEFAULT_PREFERENCE):
         result = _pick_for_provider(provider)
         if result:
             return result
@@ -102,8 +75,8 @@ def smart_pick(slot: str, connected: set[str], active_models: list[dict] | None 
             return result
 
     raise ValueError(
-        "No LLM providers are configured. "
-        "Go to Settings → Providers and connect at least one provider."
+        "No active models found for any connected provider. "
+        "Go to Settings → Providers and activate at least one model."
     )
 
 
