@@ -120,15 +120,39 @@
                 No models found. Click Refresh to fetch models.
               </div>
               <div v-else class="ps-models-grid">
-                <button
+                <div
                   v-for="m in modalModels"
                   :key="m.model_id"
-                  class="ps-model-pill"
-                  :class="m.isactive ? 'pill-on' : 'pill-off'"
-                  @click="toggleModel(modal.id, m.model_id)"
+                  class="ps-model-pill-wrap"
                 >
-                  {{ m.display_name }}
-                </button>
+                  <template v-if="editingModel === m.model_id">
+                    <input
+                      class="ps-model-pill ps-model-pill-input"
+                      :value="editingName"
+                      @input="editingName = $event.target.value"
+                      @keydown.enter="saveModelName(modal.id, m)"
+                      @keydown.escape="cancelEdit"
+                      @blur="saveModelName(modal.id, m)"
+                      ref="editInputEl"
+                      autofocus
+                    />
+                  </template>
+                  <template v-else>
+                    <button
+                      class="ps-model-pill"
+                      :class="m.isactive ? 'pill-on' : 'pill-off'"
+                      @click="toggleModel(modal.id, m.model_id)"
+                    >
+                      {{ m.display_name }}
+                    </button>
+                    <button class="ps-model-edit-btn" @click.stop="startEdit(m)" title="Rename">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                      </svg>
+                    </button>
+                  </template>
+                </div>
               </div>
             </template>
           </div>
@@ -140,7 +164,7 @@
 
 <script setup>
 import { apiFetch } from '../../composables/useFetch.js'
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted } from 'vue'
 import { useProvidersStore } from '../../stores/providers'
 
 const provStore = useProvidersStore()
@@ -190,6 +214,9 @@ const toggling      = reactive({})
 const refreshing    = reactive({})
 const modelsLoading = reactive({})
 const modalModels   = ref([])
+const editingModel  = ref(null)
+const editingName   = ref('')
+const editInputEl   = ref(null)
 
 async function load() {
   loading.value = true
@@ -234,6 +261,31 @@ async function loadModalModels(pid) {
   } finally {
     modelsLoading[pid] = false
   }
+}
+
+function startEdit(m) {
+  editingModel.value = m.model_id
+  editingName.value  = m.display_name
+  nextTick(() => editInputEl.value?.focus())
+}
+
+function cancelEdit() {
+  editingModel.value = null
+  editingName.value  = ''
+}
+
+async function saveModelName(pid, m) {
+  const name = editingName.value.trim()
+  if (!name || name === m.display_name) { cancelEdit(); return }
+  const res = await apiFetch(
+    `/api/providers/${pid}/models/${encodeURIComponent(m.model_id)}/display-name`,
+    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ display_name: name }) }
+  )
+  if (res.ok) {
+    m.display_name = name
+    provStore.markUpdated()
+  }
+  cancelEdit()
 }
 
 async function toggleModel(pid, modelId) {
@@ -529,6 +581,26 @@ onMounted(load)
 .ps-model-pill.pill-off { background: rgba(148,163,184,.08); border-color: var(--bdr);          color: var(--muted); }
 .ps-model-pill.pill-on:hover  { background: rgba(34,197,94,.22); }
 .ps-model-pill.pill-off:hover { background: rgba(148,163,184,.16); color: var(--tx); }
+
+.ps-model-pill-wrap {
+  display: flex; align-items: center; gap: 2px;
+}
+.ps-model-edit-btn {
+  display: flex; align-items: center; justify-content: center;
+  padding: 3px; border-radius: 5px;
+  border: none; background: none;
+  color: var(--muted); cursor: pointer; opacity: 0;
+  transition: opacity .15s, color .15s;
+}
+.ps-model-pill-wrap:hover .ps-model-edit-btn { opacity: 1; }
+.ps-model-edit-btn:hover { color: var(--tx); }
+
+.ps-model-pill-input {
+  padding: 4px 10px; border-radius: 99px;
+  font-size: 12px; font-weight: 500;
+  border: 1.5px solid var(--pri); background: var(--inp);
+  color: var(--tx); outline: none; min-width: 0; width: 140px;
+}
 
 /* ── Modal transition ──────────────────────────────────────────────────────── */
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity .2s, transform .2s; }

@@ -85,6 +85,28 @@ class UserLLMModelsRepository(BaseRepository):
         )
         return new_state
 
+    async def rename(
+        self,
+        user_id:      str,
+        provider_key: str,
+        model_id:     str,
+        display_name: str,
+    ) -> bool:
+        """Update display_name for one model. Returns True if found, False otherwise."""
+        row = await self._fetchone(
+            "SELECT id FROM user_llm_models"
+            " WHERE user_id = %s AND provider_key = %s AND model_id = %s",
+            (user_id, provider_key, model_id),
+        )
+        if not row:
+            return False
+        await self._exec(
+            "UPDATE user_llm_models SET display_name = %s"
+            " WHERE user_id = %s AND provider_key = %s AND model_id = %s",
+            (display_name.strip()[:100], user_id, provider_key, model_id),
+        )
+        return True
+
     async def deactivate_all(self, user_id: str, provider_key: str) -> None:
         """Called when provider is toggled inactive."""
         await self._exec(

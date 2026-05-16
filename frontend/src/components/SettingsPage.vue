@@ -64,6 +64,7 @@ watch(() => props.initialTab, (tab) => { activeSection.value = tab })
 
 const navItems = [
   { id: 'providers', label: 'Providers',    icon: '⚡' },
+  { id: 'skills',    label: 'Skills',       icon: '🧩' },
   { id: 'usage',     label: 'Usage & Cost', icon: '📊' },
 ]
 </script>

@@ -15,7 +15,8 @@ export const useAppStore = defineStore('app', () => {
 
   function openChat()                        { view.value = 'chat' }
   function openSettings(tab = 'providers')   { settingsTab.value = tab; view.value = 'settings' }
+  function openSkills()                      { settingsTab.value = 'skills'; view.value = 'settings' }
   function openConfiguration()               { view.value = 'configuration' }
 
-  return { view, settingsTab, openChat, openSettings, openConfiguration }
+  return { view, settingsTab, openChat, openSettings, openSkills, openConfiguration }
 })

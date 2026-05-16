@@ -90,7 +90,7 @@
                   <div class="cpm-divider" />
                 </template>
                 <button class="cpm-item cpm-manage"
-                  @click="app.openConfiguration(); plusMenuOpen = false; skillsOpen = false">
+                  @click="app.openSkills(); plusMenuOpen = false; skillsOpen = false">
                   <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
                     <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
                   </svg>

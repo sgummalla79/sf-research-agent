@@ -9,9 +9,10 @@ POST   /api/providers/{id}/connect        — save API key + seed models
 PATCH  /api/providers/{id}/toggle         — toggle provider isactive (cascades to models)
 DELETE /api/providers/{id}               — remove API key + delete models
 
-GET    /api/providers/{id}/models         — list models with isactive for provider
-PATCH  /api/providers/{id}/models/{mid}  — toggle one model active/inactive
-POST   /api/providers/{id}/refresh        — re-fetch models from LLM API, reset all inactive
+GET    /api/providers/{id}/models                      — list models with isactive for provider
+PATCH  /api/providers/{id}/models/{mid}               — toggle one model active/inactive
+PUT    /api/providers/{id}/models/{mid}/display-name  — update model display name
+POST   /api/providers/{id}/refresh                    — re-fetch models from LLM API, reset all inactive
 
 GET    /api/models/active                 — all active models across providers (for dropdowns)
 GET    /api/providers/model-info          — metadata for a specific model
@@ -249,6 +250,27 @@ async def toggle_model(
     if new_state is None:
         raise HTTPException(status_code=404, detail="Model not found.")
     return {"ok": True, "provider": provider_id, "model_id": model_id, "isactive": new_state}
+
+
+class RenameModelRequest(BaseModel):
+    display_name: str
+
+
+@router.put("/{provider_id}/models/{model_id:path}/display-name")
+async def rename_model(
+    provider_id:  str,
+    model_id:     str,
+    body:         RenameModelRequest,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    if not body.display_name.strip():
+        raise HTTPException(status_code=422, detail="display_name cannot be empty.")
+    db   = request.app.state.db
+    found = await db.llm_models.rename(current_user.sub, provider_id, model_id, body.display_name)
+    if not found:
+        raise HTTPException(status_code=404, detail="Model not found.")
+    return {"ok": True, "provider": provider_id, "model_id": model_id, "display_name": body.display_name.strip()}
 
 
 @router.post("/{provider_id}/refresh")
