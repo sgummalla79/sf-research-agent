@@ -207,6 +207,22 @@ def upgrade() -> None:
     """)
 
     # ── Billing ───────────────────────────────────────────────────────────────
+    # Drop token_usage if it exists with the old schema (missing conversation_id)
+    # so the correct schema is always applied regardless of prior state.
+    op.execute("""
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_schema = 'public' AND table_name = 'token_usage'
+            ) AND NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'token_usage' AND column_name = 'conversation_id'
+            ) THEN
+                DROP TABLE token_usage CASCADE;
+            END IF;
+        END $$;
+    """)
 
     op.execute("""
         CREATE TABLE IF NOT EXISTS token_usage (
