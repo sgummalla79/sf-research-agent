@@ -280,7 +280,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
   // ── Ensure conversation exists ─────────────────────────────────────────────
 
-  async function _ensureConversation(chatProvider = 'anthropic', chatModel = 'claude-sonnet-4-6') {
+  async function _ensureConversation(chatProvider, chatModel) {
     if (conversationId.value) return conversationId.value
 
     const res  = await apiFetch('/api/conversations', {

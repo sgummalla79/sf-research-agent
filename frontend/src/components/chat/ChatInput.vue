@@ -109,7 +109,7 @@
           <!-- Model picker -->
           <div v-if="!props.isPipelineRunning && props.chatModels.length" class="cb-model-wrap">
             <button class="cb-model-btn" @click.stop="modelPickerOpen = !modelPickerOpen">
-              {{ selectedModel.display }}
+              {{ selectedModel?.display ?? '…' }}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="10" height="10">
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
@@ -126,9 +126,9 @@
           <!-- Adaptive Thinking — hidden while pipeline is running -->
           <button v-if="!props.isPipelineRunning && props.chatModels.length"
             class="cb-adaptive-btn"
-            :class="{ on: extendedThinking, 'cb-adaptive-off': selectedModel.provider !== 'anthropic' }"
-            :disabled="selectedModel.provider !== 'anthropic'"
-            :title="selectedModel.provider === 'anthropic'
+            :class="{ on: extendedThinking, 'cb-adaptive-off': selectedModel?.provider !== 'anthropic' }"
+            :disabled="selectedModel?.provider !== 'anthropic'"
+            :title="selectedModel?.provider === 'anthropic'
               ? 'Adaptive Thinking — Claude thinks deeper before responding'
               : 'Adaptive Thinking is only available for Anthropic Claude models'"
             @click.stop="extendedThinking = !extendedThinking">
@@ -171,7 +171,7 @@ const app  = useAppStore()
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const text                  = ref('')
-const selectedModel         = ref({ model: 'claude-sonnet-4-6', display: 'Sonnet 4.6', description: 'Responsive everyday work', provider: 'anthropic' })
+const selectedModel         = ref(null)
 const extendedThinking      = ref(true)
 const plusMenuOpen          = ref(false)
 const skillsOpen            = ref(false)
@@ -183,7 +183,7 @@ const modelGroups = computed(() => {
   for (const m of props.chatModels) {
     const p = m.provider || 'other'
     if (!map[p]) map[p] = { key: p, label: PROVIDER_LABELS[p] || p, items: [] }
-    map[p].items.push({ label: m.display, value: m, selected: selectedModel.value.model === m.model })
+    map[p].items.push({ label: m.display, value: m, selected: selectedModel.value?.model === m.model })
   }
   return Object.values(map)
 })
@@ -211,12 +211,12 @@ const canSend = computed(() =>
 // Sync selected model when chatModels list changes (provider lock narrows the list)
 watch(() => props.chatModels, (models) => {
   if (!models.length) return
-  const still = models.find(m => m.model === selectedModel.value.model)
+  const still = selectedModel.value && models.find(m => m.model === selectedModel.value.model)
   if (!still) selectedModel.value = models.find(m => m.default) || models[0]
 }, { immediate: true })
 
 // Keep Adaptive Thinking in sync with chosen provider
-watch(() => selectedModel.value.provider, (provider) => {
+watch(() => selectedModel.value?.provider, (provider) => {
   extendedThinking.value = provider === 'anthropic'
 }, { immediate: true })
 
@@ -309,8 +309,8 @@ function onDrop(e)       { isDragging.value = false; const f = e.dataTransfer?.f
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 const opts = () => ({
-  model:            selectedModel.value.model,
-  provider:         selectedModel.value.provider || 'anthropic',
+  model:            selectedModel.value?.model,
+  provider:         selectedModel.value?.provider,
   extendedThinking: extendedThinking.value,
 })
 

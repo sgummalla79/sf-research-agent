@@ -324,28 +324,6 @@ async function loadSkills() {
   } catch (_) {}
 }
 
-// Fallback models shown when a provider is connected but hasn't been refreshed yet
-const PROVIDER_DEFAULTS = {
-  anthropic:  [
-    { model: 'claude-sonnet-4-6', display: 'Sonnet 4.6', description: 'Balanced performance' },
-    { model: 'claude-opus-4-7',   display: 'Opus 4.7',   description: 'Most powerful' },
-    { model: 'claude-haiku-4-5-20251001', display: 'Haiku 4.5', description: 'Fast and lightweight' },
-  ],
-  openai:     [
-    { model: 'gpt-4o',      display: 'GPT-4o',      description: 'Advanced reasoning' },
-    { model: 'gpt-4o-mini', display: 'GPT-4o Mini', description: 'Fast and affordable' },
-  ],
-  google:     [
-    { model: 'gemini-1.5-pro',   display: 'Gemini 1.5 Pro',   description: 'Advanced reasoning' },
-    { model: 'gemini-1.5-flash', display: 'Gemini 1.5 Flash', description: 'Fast and efficient' },
-  ],
-  perplexity: [
-    { model: 'sonar-pro', display: 'Sonar Pro', description: 'Web-grounded search' },
-  ],
-  groq: [
-    { model: 'llama-3.3-70b-versatile', display: 'Llama 3.3 70B', description: 'Fast inference' },
-  ],
-}
 
 async function loadChatModels() {
   try {
@@ -365,31 +343,6 @@ async function loadChatModels() {
   }
 }
 
-function modelDisplay(modelId) {
-  const map = {
-    'claude-opus-4-7':             'Opus 4.7',
-    'claude-sonnet-4-6':           'Sonnet 4.6',
-    'claude-haiku-4-5-20251001':   'Haiku 4.5',
-    'gpt-4o':                      'GPT-4o',
-    'gpt-4o-mini':                 'GPT-4o Mini',
-    'gemini-2.0-flash-001':        'Gemini 2.0 Flash',
-    'gemini-1.5-pro':              'Gemini 1.5 Pro',
-  }
-  return map[modelId] || modelId
-}
-
-function modelDescription(modelId, provider) {
-  if (provider === 'anthropic') {
-    if (modelId.includes('opus'))   return 'Most powerful Claude model'
-    if (modelId.includes('sonnet')) return 'Balanced performance'
-    if (modelId.includes('haiku'))  return 'Fast and lightweight'
-  }
-  if (provider === 'openai') {
-    if (modelId.includes('mini')) return 'Fast and affordable'
-    return 'Advanced reasoning'
-  }
-  return ''
-}
 
 function fmtTokens(n) { return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n) }
 function fmtCost(c)   { return c < 0.01  ? `$${c.toFixed(6)}`           : `$${c.toFixed(5)}` }
