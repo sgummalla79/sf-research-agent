@@ -33,7 +33,6 @@
 
       <!-- Textarea -->
       <textarea ref="taEl" v-model="text" class="cb-ta"
-        :class="{ 'cb-ta-skill': hasSkillToken }"
         :placeholder="effectivePlaceholder"
         :disabled="props.noProviders || props.isPipelineRunning"
         rows="2"
@@ -177,7 +176,7 @@ const extendedThinking      = ref(true)
 const plusMenuOpen          = ref(false)
 const skillsOpen            = ref(false)
 const modelPickerOpen       = ref(false)
-const PROVIDER_LABELS = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', perplexity: 'Perplexity', groq: 'Groq', mistral: 'Mistral' }
+const PROVIDER_LABELS = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', perplexity: 'Perplexity', groq: 'Groq' }
 
 const modelGroups = computed(() => {
   const map = {}
@@ -195,8 +194,6 @@ const uploadError      = ref(null)
 const fileInputEl      = ref(null)
 const taEl             = ref(null)
 
-// Bold + theme color only when text is just the skill command (nothing typed after the space yet)
-const hasSkillToken = computed(() => /^\/\w[\w-]*\s*$/.test(text.value))
 
 const effectivePlaceholder = computed(() => {
   if (props.noProviders)       return ''
@@ -385,7 +382,6 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   font-size: 15px; font-family: inherit; color: var(--tx); line-height: 1.55;
   padding: 2px; min-height: 44px; max-height: 220px;
 }
-.cb-ta-skill { color: var(--pri); font-weight: 700; }
 .cb-ta::placeholder { color: var(--muted); }
 .cb-ta:disabled { opacity: 0.4; cursor: not-allowed; }
 

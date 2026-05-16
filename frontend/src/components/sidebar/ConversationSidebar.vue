@@ -28,7 +28,7 @@
         <span class="sba-label">New Chat</span>
       </button>
 
-      <div class="sb-action-row sb-section-head">
+      <button class="sb-action-row sb-chats-btn" :class="{ active: isChatsRoute }" @click="router.push('/chats')">
         <span class="sba-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" width="16" height="16">
             <path d="M17 8h2a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v3l-3-3h-3"/>
@@ -36,7 +36,7 @@
           </svg>
         </span>
         <span class="sba-label">Chats</span>
-      </div>
+      </button>
 
       <div class="sb-list">
         <div v-if="!filteredPinned.length && !filteredRecent.length" class="sb-empty">
@@ -171,6 +171,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useSidebarStore }  from '../../stores/sidebar'
 import { useAppStore }      from '../../stores/app'
 import { useAuth }          from '../../composables/useAuth'
@@ -185,6 +186,10 @@ const props = defineProps({
   activeConversationId: { type: String, default: null },
 })
 defineEmits(['select', 'new', 'delete'])
+
+const router = useRouter()
+const route  = useRoute()
+const isChatsRoute = computed(() => route.path === '/chats')
 
 const sidebar = useSidebarStore()
 
@@ -283,8 +288,8 @@ function handlePin(c) {
   transition: background .12s;
 }
 .sb-action-row:hover { background: var(--sb-hover); }
-.sb-section-head { cursor: default; color: var(--sb-muted); font-size: 12px; }
-.sb-section-head:hover { background: transparent; }
+.sb-chats-btn { font-size: 14px; }
+.sb-chats-btn.active { background: var(--sb-active); color: var(--pri); }
 .sba-icon  { display: flex; align-items: center; color: inherit; flex-shrink: 0; }
 .sba-label { }
 
@@ -337,7 +342,7 @@ function handlePin(c) {
   user-select: none;
 }
 .avatar-info  { display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: left; }
-.avatar-name  { font-size: 16px; font-weight: 600; color: var(--sb-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avatar-name  { font-size: 14px; font-weight: 600; color: var(--sb-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .avatar-email { font-size: 13px; color: var(--sb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── User menu popup ── */

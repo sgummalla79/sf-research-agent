@@ -198,7 +198,7 @@ async def delete_conversation(
     conv = await db.conversations.get_by_id(conversation_id)
     if not conv or conv.user_id != current_user.sub:
         raise HTTPException(status_code=404, detail="Conversation not found.")
-    await db.conversations.delete(conversation_id)
+    await db.conversations.archive(conversation_id)
     return {"ok": True}
 
 

@@ -49,20 +49,39 @@ class UserRepository(BaseRepository):
     async def save_api_key(self, user_id: str, key_name: str, encrypted_value: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
         await self._exec(
-            "INSERT INTO user_api_keys (user_id, key_name, encrypted_value, updated_at)"
-            " VALUES (%s, %s, %s, %s)"
+            "INSERT INTO user_api_keys (user_id, key_name, encrypted_value, isactive, updated_at)"
+            " VALUES (%s, %s, %s, TRUE, %s)"
             " ON CONFLICT (user_id, key_name) DO UPDATE SET"
             "   encrypted_value = EXCLUDED.encrypted_value,"
+            "   isactive = TRUE,"
             "   updated_at = EXCLUDED.updated_at",
             (user_id, key_name, encrypted_value, now),
         )
 
     async def get_all_api_keys(self, user_id: str) -> dict[str, str]:
+        """Return {key_name: encrypted_value} for ACTIVE keys only — used by auth and LLM factory."""
         rows = await self._fetchall(
-            "SELECT key_name, encrypted_value FROM user_api_keys WHERE user_id = %s",
+            "SELECT key_name, encrypted_value FROM user_api_keys"
+            " WHERE user_id = %s AND isactive = TRUE",
             (user_id,),
         )
         return {r[0]: r[1] for r in rows}
+
+    async def get_api_key_statuses(self, user_id: str) -> dict[str, bool]:
+        """Return {key_name: isactive} for ALL stored keys — used by the providers UI."""
+        rows = await self._fetchall(
+            "SELECT key_name, isactive FROM user_api_keys WHERE user_id = %s",
+            (user_id,),
+        )
+        return {r[0]: bool(r[1]) for r in rows}
+
+    async def set_api_key_active(self, user_id: str, key_name: str, isactive: bool) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        await self._exec(
+            "UPDATE user_api_keys SET isactive = %s, updated_at = %s"
+            " WHERE user_id = %s AND key_name = %s",
+            (isactive, now, user_id, key_name),
+        )
 
     async def delete_api_key(self, user_id: str, key_name: str) -> None:
         await self._exec(

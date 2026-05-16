@@ -90,7 +90,6 @@ const PROVIDER_MODEL_DEFAULTS = {
   google:     ['gemini-2.5-pro', 'gemini-2.0-flash-001', 'gemini-1.5-pro'],
   perplexity: ['sonar-pro', 'sonar-reasoning-pro', 'sonar'],
   groq:       ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile'],
-  mistral:    ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest'],
 }
 
 // ── Slot-priority hints for Suggest ──────────────────────────────────────────

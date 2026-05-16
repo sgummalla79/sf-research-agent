@@ -68,7 +68,8 @@ class ConversationRepository(BaseRepository):
         rows = await self._fetchall(
             "SELECT id, user_id, title, chat_provider, chat_model, created_at, last_modified,"
             "       COALESCE(pinned, 0), pinned_at"
-            " FROM conversations WHERE user_id = %s ORDER BY last_modified DESC",
+            " FROM conversations WHERE user_id = %s AND COALESCE(archived, FALSE) = FALSE"
+            " ORDER BY last_modified DESC",
             (user_id,),
         )
         return [self._row_to_conv(r) for r in rows]
@@ -92,8 +93,11 @@ class ConversationRepository(BaseRepository):
             (title, conversation_id),
         )
 
-    async def delete(self, conversation_id: str) -> None:
-        await self._exec("DELETE FROM conversations WHERE id = %s", (conversation_id,))
+    async def archive(self, conversation_id: str) -> None:
+        await self._exec(
+            "UPDATE conversations SET archived = TRUE WHERE id = %s",
+            (conversation_id,),
+        )
 
     async def touch(self, conversation_id: str) -> None:
         now = datetime.now(timezone.utc).isoformat()

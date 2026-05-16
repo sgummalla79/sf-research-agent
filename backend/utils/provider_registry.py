@@ -17,7 +17,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Ordered list of provider IDs for display
-PROVIDER_ORDER = ["anthropic", "openai", "google", "perplexity", "groq", "mistral"]
+PROVIDER_ORDER = ["anthropic", "openai", "google", "perplexity", "groq"]
 
 PROVIDERS: dict[str, dict] = {
     "anthropic": {
@@ -67,12 +67,7 @@ PROVIDERS: dict[str, dict] = {
         "placeholder": "gsk_…",
         "key_label":   "Groq API Key",
     },
-    "mistral": {
-        "name":        "Mistral",
-        "description": "Mistral Large, Small, Nemo and more",
-        "placeholder": "…",
-        "key_label":   "Mistral API Key",
-    },
+
 }
 
 # Curated static list for providers that have no public models endpoint
@@ -110,7 +105,6 @@ async def fetch_models(
         "google":     _fetch_google,
         "perplexity": _fetch_perplexity,
         "groq":       _fetch_groq,
-        "mistral":    _fetch_mistral,
     }
     fn = fetchers.get(provider_id)
     if fn is None:
@@ -198,13 +192,3 @@ async def _fetch_groq(api_key: str) -> list[str]:
     return sorted(m.id for m in response.data)
 
 
-async def _fetch_mistral(api_key: str) -> list[str]:
-    import httpx
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.get(
-            "https://api.mistral.ai/v1/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return sorted(m["id"] for m in data.get("data", []))

@@ -166,13 +166,6 @@ const PROVIDER_GROUPS = [
       { model: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' },
     ],
   },
-  {
-    id: 'mistral', label: 'Mistral',
-    models: [
-      { model: 'mistral-large-latest',  label: 'Mistral Large' },
-      { model: 'mistral-medium-latest', label: 'Mistral Medium' },
-    ],
-  },
 ]
 
 // ── State ─────────────────────────────────────────────────────────────────────

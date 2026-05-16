@@ -2,118 +2,158 @@
   <div class="ps-wrap">
     <div class="ps-heading">
       <h2 class="ps-title">Providers</h2>
-      <p class="ps-subtitle">Connect your LLM providers. After connecting, the available models for that provider will be fetched automatically.</p>
+      <p class="ps-subtitle">Connect your LLM providers. Click a tile to add or update credentials.</p>
     </div>
 
     <div v-if="loading" class="ps-loading">Loading providers…</div>
 
-    <div v-else class="ps-list">
-      <div v-for="p in providers" :key="p.id" class="ps-card" :class="{ connected: p.connected }">
-        <!-- Card header -->
-        <div class="ps-card-header">
-          <div class="ps-card-info">
-            <div class="ps-name-row">
-              <span class="ps-name">{{ p.name }}</span>
-              <span class="ps-badge" :class="p.connected ? 'ok' : 'off'">
-                {{ p.connected ? 'Connected ✓' : 'Not connected' }}
-              </span>
-            </div>
-            <span class="ps-desc">{{ p.description }}</span>
-          </div>
+    <div v-else class="ps-grid">
+      <div
+        v-for="p in providers"
+        :key="p.id"
+        class="ps-tile"
+        :class="{ 'tile-connected': p.connected }"
+        @click="openModal(p)"
+      >
+        <div class="ps-tile-logo">
+          <img v-if="PROVIDER_LOGOS[p.id]" :src="PROVIDER_LOGOS[p.id]" :alt="p.name"
+               :class="{ 'logo-mono-black': MONO_BLACK.has(p.id), 'logo-mono-white': MONO_WHITE.has(p.id) }" />
+          <span v-else class="ps-logo-fallback"
+            :style="{ background: PROVIDER_COLORS[p.id]?.bg, color: PROVIDER_COLORS[p.id]?.fg }">
+            {{ p.name[0] }}
+          </span>
         </div>
 
-        <!-- Mode toggle (Anthropic only) -->
-        <div v-if="p.auth_modes" class="ps-mode-toggle">
-          <button
-            v-for="m in p.auth_modes"
-            :key="m.id"
-            class="ps-mode-btn"
-            :class="{ active: selectedMode[p.id] === m.id }"
-            @click="selectedMode[p.id] = m.id"
-          >{{ m.label }}</button>
+        <div class="ps-tile-body">
+          <span class="ps-tile-name">{{ p.name }}</span>
+          <span class="ps-tile-desc">{{ p.description }}</span>
         </div>
 
-        <!-- Key input row(s) -->
-        <template v-if="p.auth_modes">
-          <div
-            v-for="field in p.auth_modes.find(m => m.id === selectedMode[p.id])?.fields ?? []"
-            :key="field.key"
-            class="ps-field-group"
-          >
-            <span class="ps-field-label">{{ field.label }}</span>
-            <input
-              v-model="keyInputs[field.key]"
-              class="ps-input"
-              :class="{ 'ps-input-err': errors[p.id] }"
-              type="password"
-              :placeholder="field.placeholder"
-              :aria-label="field.label"
-              autocomplete="off"
-              @keydown.enter="connect(p.id)"
-            />
-          </div>
-          <div class="ps-key-row ps-key-row-actions">
-            <button
-              class="ps-btn-connect"
-              :disabled="connecting[p.id] || !modeFieldsFilled(p)"
-              @click="connect(p.id)"
-            >
-              {{ connecting[p.id] ? 'Connecting…' : (p.connected ? 'Update' : 'Connect') }}
-            </button>
-            <button
-              v-if="p.connected"
-              class="ps-btn-disconnect"
-              :disabled="disconnecting[p.id]"
-              @click="disconnect(p.id)"
-              title="Disconnect"
-            >✕</button>
-          </div>
-        </template>
-        <template v-else>
-          <div class="ps-key-row">
-            <input
-              v-model="keyInputs[p.id]"
-              class="ps-input"
-              :class="{ 'ps-input-err': errors[p.id] }"
-              type="password"
-              :placeholder="p.connected ? 'Enter new key to update…' : p.placeholder"
-              autocomplete="off"
-              @keydown.enter="connect(p.id)"
-            />
-            <button
-              class="ps-btn-connect"
-              :disabled="connecting[p.id] || !keyInputs[p.id]"
-              @click="connect(p.id)"
-            >
-              {{ connecting[p.id] ? 'Connecting…' : (p.connected ? 'Update' : 'Connect') }}
-            </button>
-            <button
-              v-if="p.connected"
-              class="ps-btn-disconnect"
-              :disabled="disconnecting[p.id]"
-              @click="disconnect(p.id)"
-              title="Disconnect"
-            >✕</button>
-          </div>
-        </template>
-        <p v-if="errors[p.id]" class="ps-err">{{ errors[p.id] }}</p>
+        <!-- Active/inactive pill — top-right corner, connected only -->
+        <button
+          v-if="p.connected"
+          class="ps-pill-toggle ps-pill-corner"
+          :class="p.isactive ? 'pill-active' : 'pill-inactive'"
+          :disabled="toggling[p.id]"
+          @click.stop="toggle(p.id)"
+        >
+          {{ p.isactive ? 'Active' : 'Inactive' }}
+        </button>
 
+        <div class="ps-tile-footer">
+          <span class="ps-badge" :class="p.connected ? 'ok' : 'off'">
+            {{ p.connected ? 'Connected ✓' : 'Not connected' }}
+          </span>
+        </div>
       </div>
     </div>
+
+    <!-- Modal -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="modal" class="ps-overlay" @click.self="closeModal">
+          <div class="ps-modal">
+            <div class="ps-modal-hdr">
+              <div class="ps-modal-logo">
+                <img v-if="PROVIDER_LOGOS[modal.id]" :src="PROVIDER_LOGOS[modal.id]" :alt="modal.name"
+                     :class="{ 'logo-mono-black': MONO_BLACK.has(modal.id), 'logo-mono-white': MONO_WHITE.has(modal.id) }" />
+                <span v-else class="ps-logo-fallback sm"
+                  :style="{ background: PROVIDER_COLORS[modal.id]?.bg, color: PROVIDER_COLORS[modal.id]?.fg }">
+                  {{ modal.name[0] }}
+                </span>
+              </div>
+              <div class="ps-modal-hdr-text">
+                <h3 class="ps-modal-title">{{ modal.name }}</h3>
+                <p class="ps-modal-desc">{{ modal.description }}</p>
+              </div>
+              <button class="ps-modal-close" @click="closeModal">✕</button>
+            </div>
+
+            <div v-for="field in TILE_FIELDS[modal.id]" :key="field.key" class="ps-field-group">
+              <label class="ps-field-label">{{ field.label }}</label>
+              <input
+                v-model="keyInputs[field.key]"
+                class="ps-input"
+                :class="{ 'ps-input-err': errors[modal.id] }"
+                type="password"
+                :placeholder="modal.connected ? 'Enter new value to update…' : field.placeholder"
+                autocomplete="off"
+                @keydown.enter="connect(modal.id)"
+              />
+            </div>
+
+            <p v-if="errors[modal.id]" class="ps-err">{{ errors[modal.id] }}</p>
+
+            <div class="ps-modal-actions">
+              <button
+                class="ps-btn-connect"
+                :disabled="connecting[modal.id] || !modalFieldsFilled"
+                @click="connect(modal.id)"
+              >
+                {{ connecting[modal.id] ? 'Connecting…' : (modal.connected ? 'Update' : 'Connect') }}
+              </button>
+              <button
+                v-if="modal.connected"
+                class="ps-btn-disconnect"
+                :disabled="disconnecting[modal.id]"
+                @click="disconnect(modal.id)"
+              >
+                {{ disconnecting[modal.id] ? 'Disconnecting…' : 'Disconnect' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
 import { apiFetch } from '../../composables/useFetch.js'
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+
+const logoModules = import.meta.glob('../../assets/logos/*.svg', { eager: true, query: '?url', import: 'default' })
+const PROVIDER_LOGOS = Object.fromEntries(
+  Object.entries(logoModules).map(([path, url]) => {
+    const id = path.split('/').pop().replace('.svg', '')
+    return [id, url]
+  })
+)
+
+// SVGs that are black (or currentColor) and need to be inverted in dark mode
+const MONO_BLACK = new Set(['openai', 'groq', 'perplexity'])
+// SVGs that are white and need to be inverted in light mode (none currently)
+const MONO_WHITE = new Set()
+
+const PROVIDER_COLORS = {
+  anthropic:  { bg: '#CC785C', fg: '#fff' },
+  openai:     { bg: '#0d0d0d', fg: '#fff' },
+  google:     { bg: '#4285F4', fg: '#fff' },
+  perplexity: { bg: '#1a1a2e', fg: '#20d9d2' },
+  groq:       { bg: '#F55036', fg: '#fff' },
+  bedrock:    { bg: '#FF9900', fg: '#fff' },
+}
+
+const TILE_FIELDS = {
+  anthropic:  [{ key: 'anthropic',     label: 'API Key',           placeholder: 'sk-ant-api03-…' }],
+  openai:     [{ key: 'openai',        label: 'API Key',           placeholder: 'sk-proj-…'       }],
+  google:     [{ key: 'google',        label: 'API Key',           placeholder: 'AIza…'            }],
+  perplexity: [{ key: 'perplexity',    label: 'API Key',           placeholder: 'pplx-…'           }],
+  groq:       [{ key: 'groq',          label: 'API Key',           placeholder: 'gsk_…'            }],
+  bedrock:    [
+    { key: 'bedrock_url',   label: 'Bedrock Base URL', placeholder: 'https://…' },
+    { key: 'bedrock_token', label: 'Auth Token',       placeholder: '…'         },
+  ],
+}
 
 const providers     = ref([])
 const loading       = ref(true)
+const modal         = ref(null)
 const keyInputs     = reactive({})
-const selectedMode  = reactive({})
 const errors        = reactive({})
 const connecting    = reactive({})
 const disconnecting = reactive({})
+const toggling      = reactive({})
 
 async function load() {
   loading.value = true
@@ -123,22 +163,12 @@ async function load() {
       const data = await res.json()
       providers.value = data.providers || []
       for (const p of providers.value) {
-        errors[p.id]        = ''
-        connecting[p.id]    = false
-
-        disconnecting[p.id] = false
-
-        if (p.auth_modes) {
-          // Initialize mode from backend active_mode
-          selectedMode[p.id] = p.active_mode || p.auth_modes[0].id
-          // Initialize a keyInput slot for every possible field across all modes
-          for (const m of p.auth_modes) {
-            for (const f of m.fields) {
-              keyInputs[f.key] = keyInputs[f.key] ?? ''
-            }
-          }
-        } else {
-          keyInputs[p.id] = keyInputs[p.id] ?? ''
+        errors[p.id]        = errors[p.id]        ?? ''
+        connecting[p.id]    = connecting[p.id]    ?? false
+        disconnecting[p.id] = disconnecting[p.id] ?? false
+        toggling[p.id]      = toggling[p.id]      ?? false
+        for (const f of (TILE_FIELDS[p.id] || [])) {
+          keyInputs[f.key] = keyInputs[f.key] ?? ''
         }
       }
     }
@@ -147,51 +177,45 @@ async function load() {
   }
 }
 
-function modeFieldsFilled(p) {
-  const mode = p.auth_modes.find(m => m.id === selectedMode[p.id])
-  if (!mode) return false
-  return mode.fields.every(f => (keyInputs[f.key] || '').trim())
+const modalFieldsFilled = computed(() => {
+  if (!modal.value) return false
+  return (TILE_FIELDS[modal.value.id] || []).every(f => (keyInputs[f.key] || '').trim())
+})
+
+function openModal(p) {
+  errors[p.id] = ''
+  modal.value  = p
 }
+function closeModal() { modal.value = null }
 
 async function connect(pid) {
   errors[pid]     = ''
   connecting[pid] = true
   try {
-    const p = providers.value.find(x => x.id === pid)
-    let body
-
-    if (p?.auth_modes) {
-      const mode = selectedMode[pid]
-      const modeFields = p.auth_modes.find(m => m.id === mode)?.fields ?? []
-      if (mode === 'bedrock') {
-        body = {
-          mode,
-          bedrock_url:   (keyInputs['anthropic_bedrock_url']   || '').trim(),
-          bedrock_token: (keyInputs['anthropic_bedrock_token'] || '').trim(),
-        }
-      } else {
-        body = { mode, api_key: (keyInputs[modeFields[0]?.key] || '').trim() }
-      }
+    let res
+    if (pid === 'bedrock') {
+      res = await apiFetch('/api/providers/bedrock/connect', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          bedrock_url:   keyInputs['bedrock_url'].trim(),
+          bedrock_token: keyInputs['bedrock_token'].trim(),
+        }),
+      })
     } else {
-      body = { api_key: (keyInputs[pid] || '').trim() }
+      res = await apiFetch(`/api/providers/${pid}/connect`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ api_key: keyInputs[pid].trim() }),
+      })
     }
-
-    const res  = await apiFetch(`/api/providers/${pid}/connect`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
-    })
     const data = await res.json()
     if (res.ok) {
-      // Clear inputs for all fields of this provider
-      if (p?.auth_modes) {
-        for (const m of p.auth_modes) {
-          for (const f of m.fields) keyInputs[f.key] = ''
-        }
-      } else {
-        keyInputs[pid] = ''
-      }
+      for (const f of (TILE_FIELDS[pid] || [])) keyInputs[f.key] = ''
       await load()
+      // Keep modal open so user can see the updated connected state
+      const updated = providers.value.find(p => p.id === pid)
+      if (updated) modal.value = updated
     } else {
       errors[pid] = (typeof data.detail === 'string' ? data.detail : null) || 'Connection failed.'
     }
@@ -202,15 +226,33 @@ async function connect(pid) {
   }
 }
 
-// refresh() removed — model lists are hardcoded in the frontend, no caching needed
-
 async function disconnect(pid) {
   disconnecting[pid] = true
   try {
-    const res = await apiFetch(`/api/providers/${pid}`, { method: 'DELETE' })
-    if (res.ok) await load()
+    const url = pid === 'bedrock' ? '/api/providers/bedrock' : `/api/providers/${pid}`
+    const res = await apiFetch(url, { method: 'DELETE' })
+    if (res.ok) {
+      await load()
+      const updated = providers.value.find(p => p.id === pid)
+      if (updated) modal.value = updated
+    }
   } finally {
     disconnecting[pid] = false
+  }
+}
+
+async function toggle(pid) {
+  toggling[pid] = true
+  try {
+    const url = pid === 'bedrock' ? '/api/providers/bedrock/toggle' : `/api/providers/${pid}/toggle`
+    const res = await apiFetch(url, { method: 'PATCH' })
+    if (res.ok) {
+      const data = await res.json()
+      const p = providers.value.find(x => x.id === pid)
+      if (p) p.isactive = data.isactive
+    }
+  } finally {
+    toggling[pid] = false
   }
 }
 
@@ -218,70 +260,146 @@ onMounted(load)
 </script>
 
 <style scoped>
-.ps-wrap { display: flex; flex-direction: column; gap: 32px; }
+.ps-wrap    { display: flex; flex-direction: column; gap: 28px; }
 .ps-heading { display: flex; flex-direction: column; gap: 6px; }
-.ps-title { font-size: 22px; font-weight: 700; color: var(--tx); margin: 0; }
+.ps-title   { font-size: 22px; font-weight: 700; color: var(--tx); margin: 0; }
 .ps-subtitle { font-size: 13px; color: var(--muted); margin: 0; }
-.ps-loading { font-size: 13px; color: var(--muted); }
+.ps-loading  { font-size: 13px; color: var(--muted); }
 
-.ps-list { display: flex; flex-direction: column; gap: 14px; }
+/* ── Tile grid ─────────────────────────────────────────────────────────────── */
+.ps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 14px;
+}
 
-.ps-card {
-  background: var(--inp); border: 1.5px solid var(--bdr);
-  border-radius: 12px; padding: 18px 20px;
+.ps-tile {
+  position: relative;
+  background: var(--inp);
+  border: 1.5px solid var(--bdr);
+  border-radius: 16px;
+  padding: 20px 16px 14px;
   display: flex; flex-direction: column; gap: 12px;
-  transition: border-color .2s;
+  cursor: pointer;
+  transition: border-color .18s, box-shadow .18s;
+  user-select: none;
 }
-.ps-card.connected { border-color: var(--success-bdr); }
 
-.ps-card-header { display: flex; align-items: flex-start; gap: 12px; }
-.ps-card-info { display: flex; flex-direction: column; gap: 4px; }
-.ps-name-row { display: flex; align-items: center; gap: 8px; }
-.ps-name { font-size: 15px; font-weight: 700; color: var(--tx); }
-.ps-desc { font-size: 12px; color: var(--muted); }
-.ps-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; flex-shrink: 0; white-space: nowrap; }
-.ps-badge.ok  { background: rgba(34,197,94,0.12); color: var(--success-tx); }
-.ps-badge.off { background: rgba(239,68,68,0.12); color: #f87171; }
-
-.ps-mode-toggle { display: flex; gap: 6px; }
-.ps-mode-btn {
-  padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
-  border: 1.5px solid var(--bdr); background: var(--surf); color: var(--muted);
-  cursor: pointer; transition: all .15s;
+.ps-pill-corner {
+  position: absolute;
+  top: 12px; right: 12px;
 }
-.ps-mode-btn:hover  { color: var(--tx); background: var(--inp); }
-.ps-mode-btn.active { border-color: var(--pri); color: var(--pri); background: var(--inp); }
+.ps-tile:hover       { border-color: var(--pri); box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.ps-tile.tile-connected     { border-color: rgba(34, 197, 94, .4); }
+.ps-tile:not(.tile-connected) { border-color: rgba(239, 68,  68, .4); }
+.ps-tile:hover { border-color: var(--pri); }
 
-.ps-field-group { display: flex; flex-direction: column; gap: 5px; }
+.ps-tile-logo { width: 44px; height: 44px; }
+.ps-tile-logo img { width: 44px; height: 44px; object-fit: contain; border-radius: 10px; }
+
+.ps-tile-body { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.ps-tile-name { font-size: 14px; font-weight: 700; color: var(--tx); }
+.ps-tile-desc { font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+
+.ps-tile-footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ── Shared: badge, pill, logo fallback ────────────────────────────────────── */
+.ps-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
+.ps-badge.ok  { background: #22c55e; color: #000; }
+.ps-badge.off { background: #ef4444; color: #fff; }
+
+.ps-pill-toggle {
+  padding: 3px 12px; border-radius: 99px;
+  font-size: 11px; font-weight: 600;
+  border: 1.5px solid; cursor: pointer;
+  transition: all .18s; flex-shrink: 0;
+}
+.ps-pill-toggle.pill-active   { background: rgba(34,197,94,.12); border-color: rgba(34,197,94,.4); color: #22c55e; }
+.ps-pill-toggle.pill-inactive { background: rgba(148,163,184,.1); border-color: var(--bdr); color: var(--muted); }
+.ps-pill-toggle:hover:not(:disabled).pill-active   { background: rgba(34,197,94,.22); }
+.ps-pill-toggle:hover:not(:disabled).pill-inactive { background: rgba(148,163,184,.2); color: var(--tx); }
+.ps-pill-toggle:disabled { opacity: .5; cursor: not-allowed; }
+
+.ps-logo-fallback {
+  width: 44px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700;
+}
+.ps-logo-fallback.sm { width: 36px; height: 36px; font-size: 16px; border-radius: 8px; }
+
+/* ── Modal overlay ─────────────────────────────────────────────────────────── */
+.ps-overlay {
+  position: fixed; inset: 0; z-index: 600;
+  background: rgba(0,0,0,.5); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+
+.ps-modal {
+  background: var(--surf);
+  border: 1px solid var(--bdr);
+  border-radius: 18px;
+  padding: 28px;
+  width: 420px; max-width: calc(100vw - 32px);
+  display: flex; flex-direction: column; gap: 18px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.25);
+}
+
+.ps-modal-hdr {
+  display: flex; align-items: flex-start; gap: 14px;
+}
+.ps-modal-logo { width: 36px; height: 36px; flex-shrink: 0; }
+.ps-modal-logo img { width: 36px; height: 36px; object-fit: contain; border-radius: 8px; }
+.ps-modal-hdr-text { flex: 1; min-width: 0; }
+.ps-modal-title { font-size: 16px; font-weight: 700; color: var(--tx); margin: 0 0 4px; }
+.ps-modal-desc  { font-size: 12px; color: var(--muted); margin: 0; }
+.ps-modal-close {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 16px; padding: 2px 6px;
+  border-radius: 6px; transition: color .15s, background .15s; flex-shrink: 0;
+}
+.ps-modal-close:hover { color: var(--tx); background: var(--hover); }
+
+.ps-field-group { display: flex; flex-direction: column; gap: 6px; }
 .ps-field-label { font-size: 12px; font-weight: 600; color: var(--muted); }
-.ps-key-row-actions { margin-top: 2px; }
-.ps-key-row { display: flex; gap: 8px; align-items: center; }
 .ps-input {
-  flex: 1; min-width: 0; padding: 9px 12px; border-radius: 8px;
-  border: 1.5px solid var(--bdr); background: var(--surf); font-size: 13px;
-  color: var(--tx); outline: none; transition: border-color .15s;
+  width: 100%; box-sizing: border-box;
+  padding: 10px 13px; border-radius: 10px;
+  border: 1.5px solid var(--bdr); background: var(--inp);
+  font-size: 13px; color: var(--tx); outline: none;
+  transition: border-color .15s;
 }
 .ps-input:focus   { border-color: var(--ifocus); }
 .ps-input-err     { border-color: var(--danger) !important; }
 .ps-input::placeholder { color: var(--muted); }
-.ps-err { font-size: 12px; color: var(--danger); margin: -6px 0 0; }
+.ps-err { font-size: 12px; color: var(--danger); margin: -8px 0 0; }
 
+.ps-modal-actions { display: flex; gap: 10px; }
 .ps-btn-connect {
-  padding: 9px 16px; background: var(--pri); color: var(--pri-fg);
-  border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
-  cursor: pointer; white-space: nowrap; transition: opacity .15s;
+  flex: 1; padding: 10px 18px;
+  background: var(--pri); color: var(--pri-fg);
+  border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: opacity .15s;
 }
 .ps-btn-connect:hover:not(:disabled) { opacity: .85; }
-.ps-btn-connect:disabled { opacity: .45; cursor: not-allowed; }
-
-.ps-btn-refresh, .ps-btn-disconnect {
-  width: 34px; height: 34px; border-radius: 8px; border: 1.5px solid var(--bdr);
-  background: var(--surf); color: var(--muted); font-size: 14px;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: color .15s, background .15s; flex-shrink: 0;
+.ps-btn-connect:disabled { opacity: .4; cursor: not-allowed; }
+.ps-btn-disconnect {
+  padding: 10px 16px; border-radius: 10px;
+  border: 1.5px solid var(--bdr); background: transparent;
+  color: var(--danger); font-size: 14px; font-weight: 600;
+  cursor: pointer; transition: background .15s, border-color .15s;
 }
-.ps-btn-refresh:hover:not(:disabled)    { color: var(--tx); background: var(--inp); }
-.ps-btn-disconnect:hover:not(:disabled) { color: var(--danger); background: var(--danger-h); }
-.ps-btn-refresh:disabled, .ps-btn-disconnect:disabled { opacity: .4; cursor: not-allowed; }
+.ps-btn-disconnect:hover:not(:disabled) { background: rgba(239,68,68,.08); border-color: var(--danger); }
+.ps-btn-disconnect:disabled { opacity: .4; cursor: not-allowed; }
 
+/* ── Logo colour adaptation ────────────────────────────────────────────────── */
+/* Black logos → white in dark mode */
+:root.dark .logo-mono-black { filter: invert(1); }
+/* White logos → black in light mode */
+:root:not(.dark) .logo-mono-white { filter: invert(1); }
+
+/* ── Modal transition ──────────────────────────────────────────────────────── */
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity .2s, transform .2s; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
+.modal-fade-enter-from .ps-modal, .modal-fade-leave-to .ps-modal { transform: scale(.96) translateY(8px); }
 </style>
