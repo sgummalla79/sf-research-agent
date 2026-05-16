@@ -4,7 +4,7 @@
 
     <!-- ══ LEFT — file tree ══ -->
     <aside class="cp-sidebar">
-      <button class="cp-back" @click="$emit('back')">
+      <button v-if="!embedded" class="cp-back" @click="$emit('back')">
         <span class="cp-back-arrow">←</span>
         <span>Back to Chat</span>
       </button>
@@ -137,6 +137,7 @@ import AgentPromptsSettings from './settings/AgentPromptsSettings.vue'
 import SkillDirectory       from './SkillDirectory.vue'
 import ConfirmDialog        from './ui/ConfirmDialog.vue'
 
+defineProps({ embedded: { type: Boolean, default: false } })
 defineEmits(['back'])
 
 const skills        = ref([])

@@ -28,7 +28,7 @@
 
     <!-- ── Content area ──────────────────────────────────────────────────── -->
     <!-- Skills section takes full height — no padding -->
-    <ConfigurationPage v-if="activeSection === 'skills'" />
+    <ConfigurationPage v-if="activeSection === 'skills'" :embedded="true" />
 
     <main class="sp-content" v-else>
       <ProvidersSettings    v-if="activeSection === 'providers'" />
