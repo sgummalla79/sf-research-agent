@@ -177,17 +177,11 @@ Run from the VPS (or your Mac if you set up kubeconfig above).
 
 ### 2.1 — Apply production namespace and manifests
 
+Files are prefixed so `00-namespace.yaml` always applies first:
+
 ```bash
 cd /root/pragna
-
-kubectl apply -f k8s/pragna/namespace.yaml
-kubectl apply -f k8s/pragna/cluster-issuer.yaml
-kubectl apply -f k8s/pragna/service-api.yaml
-kubectl apply -f k8s/pragna/service-ui.yaml
-kubectl apply -f k8s/pragna/deployment-api-blue.yaml
-kubectl apply -f k8s/pragna/deployment-api-green.yaml
-kubectl apply -f k8s/pragna/deployment-ui.yaml
-kubectl apply -f k8s/pragna/ingress.yaml
+kubectl apply -f k8s/pragna/
 ```
 
 ### 2.2 — Create the GHCR image pull secret
@@ -268,16 +262,11 @@ curl -s https://pragna.sgummallaworks.com/health
 
 ### 3.1 — Apply staging namespace and manifests
 
+Files are prefixed so `00-namespace.yaml` always applies first:
+
 ```bash
 cd /root/pragna
-
-kubectl apply -f k8s/pragna-staging/namespace.yaml
-kubectl apply -f k8s/pragna-staging/postgres.yaml
-kubectl apply -f k8s/pragna-staging/deployment-api.yaml
-kubectl apply -f k8s/pragna-staging/deployment-ui.yaml
-kubectl apply -f k8s/pragna-staging/service-api.yaml
-kubectl apply -f k8s/pragna-staging/service-ui.yaml
-kubectl apply -f k8s/pragna-staging/ingress.yaml
+kubectl apply -f k8s/pragna-staging/
 
 # Wait for postgres to be ready
 kubectl wait --for=condition=ready pod -l app=postgres \
