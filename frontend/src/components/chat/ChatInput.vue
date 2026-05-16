@@ -60,7 +60,7 @@
               Add files or photos
             </button>
             <input ref="fileInputEl" type="file" style="display:none"
-              accept=".pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg,.gif,.webp"
+              :accept="ALL_EXTS.join(',')"
               @change="onFileChange" />
 
             <!-- Skills — hover to open flyout submenu to the right -->
@@ -281,9 +281,9 @@ function setSkill(skillId) {
 defineExpose({ clear, setText, setSkill })
 
 // ── File handling ─────────────────────────────────────────────────────────────
-const MAX_MB   = 10
-const IMG_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp'])
-const ALL_EXTS = ['.pdf', '.docx', '.doc', '.txt', '.md', ...IMG_EXTS]
+const MAX_MB   = computed(() => app.uploadConfig.max_file_size_mb)
+const IMG_EXTS = computed(() => new Set(app.uploadConfig.allowed_image_exts))
+const ALL_EXTS = computed(() => [...app.uploadConfig.allowed_doc_exts, ...app.uploadConfig.allowed_image_exts])
 
 function clearFile() {
   if (imagePreviewUrl.value) URL.revokeObjectURL(imagePreviewUrl.value)
@@ -296,10 +296,10 @@ function setFile(file) {
   uploadError.value     = null
   imagePreviewUrl.value = null
   const ext = '.' + file.name.split('.').pop().toLowerCase()
-  if (!ALL_EXTS.includes(ext)) { uploadError.value = 'Unsupported file type.'; return }
-  if (file.size > MAX_MB * 1048576) { uploadError.value = `Max ${MAX_MB} MB.`; return }
+  if (!ALL_EXTS.value.includes(ext)) { uploadError.value = 'Unsupported file type.'; return }
+  if (file.size > MAX_MB.value * 1048576) { uploadError.value = `Max ${MAX_MB.value} MB.`; return }
   selectedFile.value = file
-  if (IMG_EXTS.has(ext)) imagePreviewUrl.value = URL.createObjectURL(file)
+  if (IMG_EXTS.value.has(ext)) imagePreviewUrl.value = URL.createObjectURL(file)
 }
 
 function onFileChange(e) { const f = e.target.files?.[0]; if (f) setFile(f) }

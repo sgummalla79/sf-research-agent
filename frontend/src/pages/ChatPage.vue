@@ -567,6 +567,7 @@ onMounted(async () => {
     sidebar.load(),
     loadSkills(),
     loadChatModels(),
+    app.loadAbout(),
   ])
 })
 </script>
