@@ -149,7 +149,7 @@ This file is the **single source of truth** for the architect pipeline. No pipel
 
 ```
 ---
-name: Technical Architect
+name: Architect
 id: architect
 description: >
   Formal Architecture Recommendation Document via a 5-stage pipeline.

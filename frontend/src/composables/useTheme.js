@@ -66,7 +66,6 @@ function applyTheme(themeId, isDark, _el = null) {
       --sbg:       ${a(isDark ? 0.12 : 0.08)}   !important;
       --stx:       ${color}                      !important;
       --sbdr:      ${a(isDark ? 0.28 : 0.25)}   !important;
-      --sb-active: ${a(isDark ? 0.15 : 0.10)}   !important;
       --ub:        ${color}                      !important;
       --uf:        ${fg}                         !important;
     }

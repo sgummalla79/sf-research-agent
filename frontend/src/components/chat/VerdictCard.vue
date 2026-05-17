@@ -8,15 +8,16 @@
         {{ badgeLabel }}
       </span>
     </div>
-    <p class="verdict-body">{{ feedback }}</p>
+    <div class="verdict-body"><MarkdownContent :text="feedback" /></div>
     <ul v-if="issues?.length" class="verdict-list">
-      <li v-for="(it, i) in issues" :key="i">{{ it }}</li>
+      <li v-for="(it, i) in issues" :key="i"><MarkdownContent :text="it" /></li>
     </ul>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import MarkdownContent from '../ui/MarkdownContent.vue'
 
 const props = defineProps({
   type:     { type: String,  required: true },   // review | approval
@@ -46,6 +47,8 @@ const badgeLabel = computed(() => {
   max-height: 120px; overflow-y: auto;
   scrollbar-width: thin;
 }
+.verdict-body :deep(.prose p:last-child) { margin-bottom: 0; }
+.verdict-list :deep(.prose p) { margin: 0; }
 .verdict-body::-webkit-scrollbar       { width: 4px; }
 .verdict-body::-webkit-scrollbar-track { background: transparent; }
 .verdict-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }

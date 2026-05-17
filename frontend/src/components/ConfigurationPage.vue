@@ -26,7 +26,8 @@
           <div class="cp-skill-row-wrap">
             <button class="cp-skill-row" @click="toggleSkill(skill)">
               <span class="cp-chevron">{{ expanded[skill.id] ? '▾' : '▸' }}</span>
-              <span class="cp-skill-icon">{{ skill.icon || '⚡' }}</span>
+              <img v-if="skillIconUrl(skill.id)" :src="skillIconUrl(skill.id)" class="cp-skill-icon-svg" :alt="skill.name" />
+              <span v-else class="cp-skill-icon">{{ skill.icon || '⚡' }}</span>
               <span class="cp-skill-name">{{ skill.name }}</span>
             </button>
             <button class="cp-skill-uninstall" title="Uninstall" @click.stop="confirmUninstall(skill)">
@@ -71,7 +72,8 @@
       <!-- Skill overview -->
       <div v-if="sel?.type === 'manifest' && activeSkill" class="cp-manifest">
         <div class="cp-manifest-header">
-          <span class="cp-manifest-icon">{{ activeSkill.icon || '⚡' }}</span>
+          <img v-if="skillIconUrl(activeSkill.id)" :src="skillIconUrl(activeSkill.id)" class="cp-manifest-icon-svg" :alt="activeSkill.name" />
+          <span v-else class="cp-manifest-icon">{{ activeSkill.icon || '⚡' }}</span>
           <div class="cp-manifest-header-body">
             <div class="cp-manifest-name-row">
               <span class="cp-manifest-name">{{ activeSkill.name }}</span>
@@ -136,6 +138,9 @@ import { apiFetch }         from '../composables/useFetch.js'
 import AgentPromptsSettings from './settings/AgentPromptsSettings.vue'
 import SkillDirectory       from './SkillDirectory.vue'
 import ConfirmDialog        from './ui/ConfirmDialog.vue'
+import { useSkillIcon }     from '../composables/useSkillIcon.js'
+
+const { skillIconUrl } = useSkillIcon()
 
 defineProps({ embedded: { type: Boolean, default: false } })
 defineEmits(['back'])
@@ -265,7 +270,7 @@ onMounted(fetchSkills)
 
 .cp-sidebar {
   width: 260px; flex-shrink: 0;
-  background: var(--surface); border-right: 1px solid var(--border);
+  background: var(--bg); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; overflow-y: auto;
 }
 .cp-tree-header {
@@ -302,7 +307,8 @@ onMounted(fetchSkills)
 
 .cp-chevron    { font-size: 11px; color: var(--muted); width: 10px; flex-shrink: 0; }
 .cp-chevron.sm { font-size: 9px; }
-.cp-skill-icon { font-size: 15px; flex-shrink: 0; }
+.cp-skill-icon      { font-size: 15px; flex-shrink: 0; }
+.cp-skill-icon-svg  { width: 18px; height: 18px; flex-shrink: 0; object-fit: contain; }
 .cp-skill-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .cp-subtree { padding-left: 12px; }
@@ -315,7 +321,7 @@ onMounted(fetchSkills)
   transition: background .13s, color .13s;
 }
 .cp-tree-file:hover, .cp-tree-folder-row:hover { background: var(--hover); color: var(--text); }
-.cp-tree-file.active { background: var(--sbg); color: var(--text); font-weight: 500; }
+.cp-tree-file.active { background: var(--hover); color: var(--text); font-weight: 500; }
 .cp-tree-file.indent { padding-left: 22px; }
 .cp-file-icon { font-size: 13px; flex-shrink: 0; }
 .cp-draft-dot { width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; margin-left: auto; }
@@ -326,6 +332,7 @@ onMounted(fetchSkills)
 
 .cp-manifest-header      { display: flex; align-items: flex-start; gap: 16px; }
 .cp-manifest-icon        { font-size: 40px; line-height: 1; flex-shrink: 0; }
+.cp-manifest-icon-svg   { width: 48px; height: 48px; flex-shrink: 0; object-fit: contain; }
 .cp-manifest-header-body { flex: 1; min-width: 0; }
 .cp-manifest-name-row    { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
 .cp-manifest-name        { font-size: 22px; font-weight: 700; color: var(--text); }

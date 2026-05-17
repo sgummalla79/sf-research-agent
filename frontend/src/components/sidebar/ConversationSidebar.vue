@@ -276,7 +276,7 @@ function handlePin(c) {
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: background .12s, color .12s; padding: 0;
 }
-.sb-collapse-btn:hover { background: rgba(128,128,128,0.15); color: var(--sb-tx); }
+.sb-collapse-btn:hover { background: var(--sb-hover); color: var(--sb-tx); }
 
 /* ── Action rows ── */
 .sb-action-row {
@@ -289,7 +289,7 @@ function handlePin(c) {
 }
 .sb-action-row:hover { background: var(--sb-hover); }
 .sb-chats-btn { font-size: 14px; }
-.sb-chats-btn.active { background: var(--sb-active); color: var(--pri); }
+.sb-chats-btn.active { background: var(--sb-active); }
 .sba-icon  { display: flex; align-items: center; color: inherit; flex-shrink: 0; }
 .sba-label { }
 
@@ -371,9 +371,9 @@ function handlePin(c) {
   background: transparent; color: var(--text); font-size: 13px;
   cursor: pointer; text-align: left; transition: background .12s;
 }
-.um-item:hover   { background: rgba(128,128,128,0.12); }
+.um-item:hover   { background: var(--bg); }
 .um-signout      { color: var(--text); }
-.um-signout:hover { background: var(--pri); color: var(--pri-fg); }
+.um-signout:hover { background: var(--bg); }
 
 .um-theme-row { display: flex; gap: 8px; padding: 4px 10px 8px; justify-content: center; }
 .um-swatch {

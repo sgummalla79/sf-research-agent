@@ -46,7 +46,7 @@ A direct conversation with Claude (no pipeline). Accessible from the main input 
 Structured 5-stage pipeline sessions. Triggered by selecting a flow from the **+** menu in the input box.
 
 Available flows:
-- **Technical Architect** — formal Architecture Recommendation Document via intake → discovery → research → review → approval
+- **Architect** — formal Architecture Recommendation Document via intake → discovery → research → review → approval
 
 ---
 

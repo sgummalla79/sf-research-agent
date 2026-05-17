@@ -89,7 +89,7 @@ Registry of all available skills on the platform. Populated at deployment time.
 skills:
   id          GUID PK
   skill_key   TEXT UNIQUE    -- e.g. "architect" (matches directory name on disk)
-  name        TEXT           -- e.g. "Technical Architect"
+  name        TEXT           -- e.g. "Architect"
   description TEXT
   icon        TEXT
   version     INTEGER

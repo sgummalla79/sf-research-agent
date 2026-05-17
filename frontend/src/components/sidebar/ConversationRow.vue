@@ -98,8 +98,8 @@ function saveRename() {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 .rename-input {
-  flex: 1; font-size: 13px; background: rgba(128,128,128,0.15);
-  border: 1px solid rgba(128,128,128,0.3); border-radius: 5px;
+  flex: 1; font-size: 13px; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 5px;
   padding: 2px 6px; outline: none; min-width: 0; color: var(--sb-tx);
 }
 
@@ -116,7 +116,7 @@ function saveRename() {
 .sb-row.menu-open .sb-more-btn,
 .sb-more-btn.active { opacity: 1; }
 .sb-more-btn:hover,
-.sb-more-btn.active { background: rgba(128,128,128,0.2); color: var(--sb-tx); }
+.sb-more-btn.active { background: var(--hover); color: var(--sb-tx); }
 
 .sb-ctx-menu {
   position: absolute; right: 0; top: calc(100% + 4px);

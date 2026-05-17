@@ -20,7 +20,8 @@
           :class="{ active: activeSection === item.id }"
           @click="activeSection = item.id"
         >
-          <span class="sp-nav-icon">{{ item.icon }}</span>
+          <img v-if="item.id === 'skills'" :src="skillIconUrl('architect')" class="sp-nav-icon-svg" alt="Skills" />
+          <span v-else class="sp-nav-icon">{{ item.icon }}</span>
           <span>{{ item.label }}</span>
         </button>
       </div>
@@ -44,6 +45,9 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { useSkillIcon } from '../composables/useSkillIcon.js'
+
+const { skillIconUrl } = useSkillIcon()
 import ConfigurationPage    from './ConfigurationPage.vue'
 import ProvidersSettings    from './settings/ProvidersSettings.vue'
 import AgentConfigSettings  from './settings/AgentConfigSettings.vue'
@@ -77,7 +81,7 @@ const navItems = [
 
 .sp-sidebar {
   width: 220px; flex-shrink: 0;
-  background: var(--surface);
+  background: var(--bg);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   padding: 20px 12px; gap: 24px;
@@ -104,8 +108,9 @@ const navItems = [
   transition: background .15s, color .15s;
 }
 .sp-nav-item:hover  { background: var(--hover); color: var(--text); }
-.sp-nav-item.active { background: var(--sbg); color: var(--text); font-weight: 600; }
-.sp-nav-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+.sp-nav-item.active { background: var(--hover); color: var(--text); font-weight: 600; }
+.sp-nav-icon     { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+.sp-nav-icon-svg { width: 18px; height: 18px; object-fit: contain; flex-shrink: 0; align-self: center; }
 
 .sp-content {
   flex: 1; min-width: 0; overflow-y: auto;

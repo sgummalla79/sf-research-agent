@@ -27,7 +27,8 @@
 
         <div v-for="skill in filtered" :key="skill.id" class="sd-card" :class="{ installed: skill.installed }">
           <div class="sd-card-top">
-            <span class="sd-card-icon">{{ skill.icon || '⚡' }}</span>
+            <img v-if="skillIconUrl(skill.id)" :src="skillIconUrl(skill.id)" class="sd-card-icon-svg" :alt="skill.name" />
+            <span v-else class="sd-card-icon">{{ skill.icon || '⚡' }}</span>
             <button v-if="skill.installed" class="sd-uninstall-btn" :disabled="busy[skill.id]"
               @click="toggle(skill)">
               {{ busy[skill.id] ? '…' : 'Uninstall' }}
@@ -52,7 +53,10 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
-import { apiFetch } from '../composables/useFetch.js'
+import { apiFetch }     from '../composables/useFetch.js'
+import { useSkillIcon } from '../composables/useSkillIcon.js'
+
+const { skillIconUrl } = useSkillIcon()
 
 const emit = defineEmits(['close', 'changed'])
 
@@ -147,7 +151,8 @@ onMounted(load)
 .sd-card.installed { border-color: var(--pri); }
 
 .sd-card-top  { display: flex; align-items: center; justify-content: space-between; }
-.sd-card-icon { font-size: 20px; }
+.sd-card-icon     { font-size: 20px; }
+.sd-card-icon-svg { width: 24px; height: 24px; object-fit: contain; }
 
 .sd-install-btn {
   display: flex; align-items: center; gap: 5px;

@@ -84,8 +84,9 @@
                   <button v-for="skill in props.skills" :key="skill.id"
                     class="cpm-item"
                     @click="$emit('skill-select', skill.id); plusMenuOpen = false; skillsOpen = false">
-                    <span class="cpm-skill-icon">{{ skill.icon || '⚡' }}</span>
-                    {{ skill.name }}
+                    <img v-if="skillIconUrl(skill.id)" :src="skillIconUrl(skill.id)" class="cpm-skill-icon-svg" :alt="skill.name" />
+                    <span v-else class="cpm-skill-icon">{{ skill.icon || '⚡' }}</span>
+                    <span class="cpm-skill-name">{{ skill.name }}</span>
                   </button>
                   <div class="cpm-divider" />
                 </template>
@@ -147,6 +148,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Privacy notice -->
+    <div class="ci-privacy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" aria-hidden="true">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      Incognito · stays on your device · never trains AI · not stored by providers
+    </div>
   </div>
 </template>
 
@@ -154,6 +164,9 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useAppStore }  from '../../stores/app'
 import ModelMenu        from '../ui/ModelMenu.vue'
+import { useSkillIcon } from '../../composables/useSkillIcon.js'
+
+const { skillIconUrl } = useSkillIcon()
 
 const props = defineProps({
   chatModels:        { type: Array,   default: () => [] },
@@ -332,11 +345,18 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 </script>
 
 <style scoped>
-.ci-outer { flex-shrink: 0; padding: 10px 20px 16px; background: var(--bg); }
+.ci-outer { flex-shrink: 0; padding: 10px 20px 12px; background: var(--bg); }
+
+.ci-privacy {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  margin-top: 8px;
+  font-size: 14px; color: var(--text);
+  user-select: none;
+}
 
 .chat-box {
   position: relative;
-  background: var(--surf);
+  background: var(--surface);
   border: 1px solid var(--bdr);
   border-radius: 18px;
   padding: 12px 14px 10px;
@@ -408,11 +428,14 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   width: 100%; padding: 9px 14px;
   background: none; border: none; cursor: pointer;
   font-size: 14px; color: var(--tx); text-align: left;
+  border-radius: 8px;
   transition: background .1s;
 }
 .cpm-item:hover { background: var(--hover); }
 .cpm-icon { flex-shrink: 0; color: var(--muted); }
-.cpm-skill-icon { font-size: 15px; flex-shrink: 0; }
+.cpm-skill-icon     { font-size: 15px; flex-shrink: 0; }
+.cpm-skill-icon-svg { width: 22px; height: 22px; object-fit: contain; flex-shrink: 0; align-self: center; }
+.cpm-skill-name     { align-self: center; line-height: 1; }
 .cpm-manage { color: var(--muted); }
 .cpm-divider { height: 1px; background: var(--bdr, var(--border)); margin: 4px 0; }
 .cpm-chevron { flex-shrink: 0; color: var(--muted); }

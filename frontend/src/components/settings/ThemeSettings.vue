@@ -54,7 +54,7 @@ function pick(id) {
   cursor: pointer; transition: border-color .13s, background .13s;
 }
 .ts-swatch:hover  { border-color: var(--pri); }
-.ts-swatch.active { border-color: var(--pri); background: var(--surface-2); }
+.ts-swatch.active { border-color: var(--pri); background: var(--hover); }
 
 .ts-dot   { width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0; }
 .ts-label { flex: 1; font-size: 13px; font-weight: 500; color: var(--text); text-align: left; }

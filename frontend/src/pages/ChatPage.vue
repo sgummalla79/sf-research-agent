@@ -14,7 +14,8 @@
 
       <!-- ── Active skill bar ──────────────────────────────────────────────── -->
       <div v-if="conv.isPipelineRunning && activeSkill" class="session-flow-bar">
-        <span class="sfb-icon">{{ activeSkill.icon }}</span>
+        <img v-if="skillIconUrl(activeSkill.id)" :src="skillIconUrl(activeSkill.id)" class="sfb-icon-svg" :alt="activeSkill.name" />
+        <span v-else class="sfb-icon">{{ activeSkill.icon }}</span>
         <span class="sfb-name">{{ activeSkill.name }}</span>
         <span class="sfb-label">active</span>
       </div>
@@ -212,6 +213,9 @@ import ChatInput        from '../components/chat/ChatInput.vue'
 import DocumentPanel    from '../components/document/DocumentPanel.vue'
 import SudarshanChakra  from '../components/SudarshanChakra.vue'
 import StatusBar        from '../components/ui/StatusBar.vue'
+import { useSkillIcon } from '../composables/useSkillIcon.js'
+
+const { skillIconUrl } = useSkillIcon()
 
 const conv      = useConversationStore()
 const sidebar   = useSidebarStore()
@@ -612,7 +616,8 @@ onMounted(async () => {
   border-bottom: 1px solid var(--sbdr);
   font-size: 12.5px; font-weight: 500; color: var(--stx);
 }
-.sfb-icon  { font-size: 14px; }
+.sfb-icon     { font-size: 14px; }
+.sfb-icon-svg { width: 16px; height: 16px; object-fit: contain; }
 .sfb-name  { font-weight: 600; }
 .sfb-label {
   margin-left: 2px; font-size: 10.5px; font-weight: 600;

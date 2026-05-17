@@ -441,8 +441,8 @@ onMounted(loadAll)
   background: none; border: none; cursor: pointer;
   text-align: left; width: 100%; transition: background .13s;
 }
-.ap-agent-row:hover  { background: var(--surface-2); }
-.ap-agent-row.active { background: var(--surface-2); border-left: 2px solid var(--pri); }
+.ap-agent-row:hover  { background: var(--hover); }
+.ap-agent-row.active { background: var(--hover); border-left: 2px solid var(--pri); }
 .ap-agent-label {
   font-size: 13px; font-weight: 500; color: var(--text);
   flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

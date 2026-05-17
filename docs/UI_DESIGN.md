@@ -40,44 +40,65 @@ The document panel slides in **inline** (not as an overlay), pushing the chat pa
 
 ## 2. Color System
 
-All colors use CSS custom properties on `.shell` so dark/light mode is a single class toggle.
-**Default mode is dark.**
+All colours use CSS custom properties. Dark mode is the default; light mode is opt-in.
 
-### Light mode
+### Named palette — dark mode
+
+Four named colours form the depth stack of the dark UI, ordered darkest → lightest:
+
+```
+┌──────────────────────────────────────────────┐
+│  Elevated  #333333          --surface         │  ← Menus, modals, cards
+├──────────────────────────────────────────────┤
+│  Lift      ≈#313131         --hover           │  ← Hover state (6% white on Ash)
+├──────────────────────────────────────────────┤
+│  Ash       #282828          --bg  --sb-bg     │  ← All page backgrounds
+├──────────────────────────────────────────────┤
+│  Ink       #1a1a1a          --surface-2       │  ← Inset inputs, chat box
+└──────────────────────────────────────────────┘
+```
+
+| Name | Hex | CSS token(s) | Role |
+|---|---|---|---|
+| **Ink** | `#1a1a1a` | `--surface-2` | Deepest layer — inset inputs, chat input box |
+| **Ash** | `#282828` | `--bg`, `--sb-bg` | All page backgrounds — canvas, sidebar, panels |
+| **Shade** | `#2c2c2c` | `--shade` | Agent message bubbles — between Ash and Lift |
+| **Lift** | `≈#313131` (`rgba(255,255,255,0.06)` on Ash) | `--hover`, `--sb-hover` | Hover state — one step above Ash, below Elevated |
+| **Elevated** | `#333333` | `--surface` | Menus, modals, cards, raised surfaces |
+
+**Interaction rules:**
+- **Hover** → **Lift** (`var(--hover)`) with `border-radius: 8px`
+- **Selected / active** → **Lift** (`var(--hover)`) — same level as hover, selection is communicated by other means (font-weight, accent border, icon change), not by going darker or brighter
+
+### Dark mode tokens
 
 | Token | Value | Usage |
 |---|---|---|
-| `--bg` | `#f1f5f9` | Chat pane background |
-| `--surf` | `#ffffff` | Cards, panels, bubbles |
-| `--surf2` | `#f8fafc` | Input backgrounds, hover |
-| `--bdr` | `#e2e8f0` | Borders, dividers |
-| `--tx` | `#0f172a` | Primary text |
-| `--muted` | `#64748b` | Secondary text, placeholders |
-| `--pri` | `#2563eb` | Primary actions, user bubbles |
+| `--bg` | `#282828` (Ash) | Main canvas, all page backgrounds |
+| `--surface` | `#333333` (Elevated) | Menus, modals, cards |
+| `--surface-2` | `#1a1a1a` (Ink) | Inset inputs, chat box |
+| `--hover` | `rgba(255,255,255,0.06)` (Lift ≈ #313131) | Menu item hover |
+| `--border` | `rgba(255,255,255,0.09)` | Dividers, borders |
+| `--text` | `#ececea` | Primary text |
+| `--muted` | `#888888` | Secondary text, placeholders |
+| `--pri` | `#c97040` | Accent — buttons, active states |
+| `--sb-bg` | `#282828` (Ash) | Sidebar background |
+| `--sb-hover` | `rgba(255,255,255,0.06)` (Lift) | Sidebar item hover |
+| `--sb-active` | `rgba(255,255,255,0.08)` (Lift+) | Active conversation row |
 
-### Dark mode (`.shell.dark`) — default
+### Light mode tokens
 
-| Token | Value |
-|---|---|
-| `--bg` | `#0f172a` |
-| `--surf` | `#1e293b` |
-| `--bdr` | `#334155` |
-| `--tx` | `#f1f5f9` |
-| `--muted` | `#94a3b8` |
-
-### Sidebar (always dark)
-
-| Token | Value |
-|---|---|
-| `--sb-bg` | `#1a2535` |
-| `--sb-hover` | `#243044` |
-| `--sb-active` | `#2d3f5a` |
-| `--sb-tx` | `#c8d4e6` |
-| `--sb-muted` | `#6b7f99` |
+| Token | Value | Usage |
+|---|---|---|
+| `--bg` | `#f5f5f4` | All page backgrounds |
+| `--surface` | `#ffffff` | Cards, panels |
+| `--surface-2` | `#f0efee` | Inset inputs |
+| `--hover` | `#ebebea` | Menu item hover |
+| `--text` | `#1a1a1a` | Primary text |
+| `--muted` | `#64748b` | Secondary text |
+| `--pri` | `#c97040` | Accent |
 
 ### Agent accent colours
-
-Each agent stage has a unique accent used in the progress bar and stage tags:
 
 | Agent | Colour |
 |---|---|
@@ -86,6 +107,28 @@ Each agent stage has a unique accent used in the progress bar and stage tags:
 | Research | `#ef4444` Red |
 | Review | `#f59e0b` Amber |
 | Approver | `#10b981` Emerald |
+
+### Color usage rules
+
+1. **No hardcoded hex values in components.** All colour references must use CSS custom properties (`var(--token)`). This ensures a single change in `App.vue` cascades everywhere automatically.
+2. **CSS variables are the single source of truth.** Never duplicate a colour by writing its hex value in a component — reference the token instead.
+3. **Standalone pages (Login, Callback) must also use global tokens.** These pages render inside the same `<html>` element and therefore inherit all `:root` CSS variables. There is no exception.
+4. **A colour change = one edit in `App.vue`.** If you need to touch more than one file to change a design token, it means something is hardcoded and must be fixed first.
+
+---
+
+## 2a. Icon System
+
+Skills use custom SVG icons served from `/public/icons/`. Two variants are provided per skill — one per theme.
+
+| File | Theme | Style |
+|---|---|---|
+| `/icons/skill-dark.svg` | Dark mode | White stroke, no fill, transparent bg |
+| `/icons/skill-light.svg` | Light mode | Dark stroke, no fill, transparent bg |
+
+Theme switching is handled by `useSkillIcon.js` composable which returns the correct URL based on `isDark`. The composable is used in all places where skill icons are rendered: ChatInput menu, SkillPalette, SkillDirectory, ConfigurationPage, SettingsPage nav, SkillsSettings.
+
+**Adding a new skill icon:** Place `skill-{id}-dark.svg` and `skill-{id}-light.svg` in `frontend/public/icons/` and add the skill id to `SKILL_SVG_ICONS` in `useSkillIcon.js`.
 
 ---
 
@@ -284,7 +327,7 @@ A 32px strip beneath the privacy banner (inside the chat pane), visible only whe
 
 | Type | Style |
 |---|---|
-| User | Right-aligned, `--pri` blue background, white text |
+| User | Right-aligned, Ink (`--surface-2`) background, primary text |
 | Agent text | Left-aligned, `--surf` background, `--bdr` border |
 | Document card | Blue border, clickable "View →" button, opens doc panel |
 | Preparing | Spinner + "Preparing your architecture document…" |
