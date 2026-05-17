@@ -4,9 +4,13 @@ Shared pytest fixtures.
 client:  full FastAPI app wired to pragna_test DB, auth dependency overridden.
 pool:    raw psycopg pool for repository-level tests.
 mock_db: lightweight mock DBContext (no DB needed).
+
+The FastAPI lifespan (DB pool + migrations + graph compilation) is session-scoped —
+it starts once for the entire test run and is torn down at the end. This prevents
+connection exhaustion from spinning up a new pool (min_size=1, max_size=10) per test.
+Between tests, only the data tables are truncated.
 """
 
-import asyncio
 import os
 import pytest
 import pytest_asyncio
@@ -39,49 +43,54 @@ _TRUNCATE_SQL = """
 
 # ── Shared user ───────────────────────────────────────────────────────────────
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def fake_user():
     from utils.auth import AuthUser
     return AuthUser(sub="test-user-001", email="test@example.com", name="Test User")
 
 
-# ── Full test client (real DB + mocked auth) ──────────────────────────────────
+# ── Session-scoped lifespan — starts once, shared across all tests ────────────
 
-@pytest_asyncio.fixture
-async def client(fake_user):
+@pytest_asyncio.fixture(scope="session")
+async def _app_session(fake_user):
     """
-    AsyncClient backed by pragna_test DB with the full FastAPI lifespan running.
-    Auth dependency is overridden — every request acts as fake_user.
-    Tables are truncated before yielding.
+    Boots the FastAPI app (DB pool, migrations, graph compilation) once per
+    test session. Yields the running app and its db state for reuse.
     """
-    from httpx import AsyncClient, ASGITransport
     from api.app import app
     from utils.auth import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: fake_user
 
-    # Explicitly trigger the ASGI lifespan (startup + shutdown).
-    # AsyncClient alone does not send the lifespan.startup event.
     async with app.router.lifespan_context(app):
-        db = app.state.db
-
-        async with db.pool.connection() as conn:
-            await conn.execute(_TRUNCATE_SQL)
-
-        await db.users.upsert(fake_user.sub, fake_user.email, fake_user.name, None)
-
-        async with AsyncClient(
-            transport=ASGITransport(app=app),
-            base_url="http://test",
-            headers={"Content-Type": "application/json"},
-        ) as ac:
-            yield ac
-
-    # Drain the event loop's default executor so its idle worker threads
-    # don't outlive the test and trigger pytest-timeout during teardown.
-    await asyncio.get_event_loop().shutdown_default_executor()
+        yield app
 
     app.dependency_overrides.clear()
+
+
+# ── Full test client (real DB + mocked auth) ──────────────────────────────────
+
+@pytest_asyncio.fixture
+async def client(_app_session, fake_user):
+    """
+    Per-test AsyncClient. Reuses the session-scoped app (no new pool per test).
+    Truncates all data tables before yielding so each test starts clean.
+    """
+    from httpx import AsyncClient, ASGITransport
+
+    db = _app_session.state.db
+
+    async with db.pool.connection() as conn:
+        await conn.execute(_TRUNCATE_SQL)
+
+    await db.users.upsert(fake_user.sub, fake_user.email, fake_user.name, None)
+
+    async with AsyncClient(
+        transport=ASGITransport(app=_app_session),
+        base_url="http://test",
+        headers={"Content-Type": "application/json"},
+    ) as ac:
+        yield ac
 
 
 # ── Raw pool for repository-level tests ──────────────────────────────────────
