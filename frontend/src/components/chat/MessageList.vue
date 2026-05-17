@@ -14,15 +14,22 @@
         v-for="(msg, i) in messages"
         :key="i"
         :msg="msg"
+        :is-latest="i === lastAgentIndex"
         @open-document="$emit('open-document', $event)"
       />
+
+      <!-- Brand logo shown below last message when conversation is active -->
+      <div v-if="messages.length" class="ml-logo">
+        <SudarshanChakra :size="28" color="var(--pri)" />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue'
-import MessageBubble from './MessageBubble.vue'
+import { ref, watch, nextTick, computed } from 'vue'
+import MessageBubble   from './MessageBubble.vue'
+import SudarshanChakra from '../SudarshanChakra.vue'
 
 const props = defineProps({
   messages:    { type: Array,   default: () => [] },
@@ -32,6 +39,17 @@ const props = defineProps({
 defineEmits(['open-document'])
 
 const listEl = ref(null)
+
+// Index of the last agent text bubble — always shows copy button
+const lastAgentIndex = computed(() => {
+  for (let i = props.messages.length - 1; i >= 0; i--) {
+    const m = props.messages[i]
+    if (m.role === 'agent' && !['document','preparing','reviewing','approving','review_result','approval_result'].includes(m.type)) {
+      return i
+    }
+  }
+  return -1
+})
 
 // Auto-scroll to bottom when messages change or streaming
 watch(
@@ -57,7 +75,7 @@ watch(
   max-width: 720px;
   width: 100%;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 20px 100px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -66,5 +84,6 @@ watch(
 
 .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; }
 .empty-hint  { font-size: 15px; color: var(--muted); }
+.ml-logo { display: flex; justify-content: flex-start; padding-top: 8px; margin-left: 8px; opacity: 1; }
 .empty-hint kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; font-family: monospace; background: var(--surface-2); }
 </style>

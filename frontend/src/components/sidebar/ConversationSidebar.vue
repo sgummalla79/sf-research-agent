@@ -266,6 +266,7 @@ function handlePin(c) {
 
 /* ── Header ── */
 .sb-header { display: flex; align-items: center; gap: 10px; padding: 13px 10px 8px; flex-shrink: 0; }
+.sb-header :deep(svg) { filter: brightness(1.4) saturate(1.3); }
 .sb-app-name {
   flex: 1; font-size: 22px; font-weight: 700; color: var(--sb-tx);
   font-family: 'Martel', serif; letter-spacing: -0.3px;
