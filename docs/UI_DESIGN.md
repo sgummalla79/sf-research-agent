@@ -6,9 +6,7 @@ The application shell uses a **column flex layout** with three layers:
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  PRIVACY BANNER (full width, always visible)                     │
-├──────────────────────────────────────────────────────────────────┤
-│  SHELL BODY (flex row, takes remaining height)                   │
+│  SHELL BODY (flex row, takes full height)                        │
 │  ┌──────────────────┬──────────────────┬───────────────────────┐ │
 │  │ SIDEBAR (240px)  │  CHAT PANE       │  DOC PANEL (0→42%)   │ │
 │  │ (always dark)    │  (flex: 1)       │  (slides in inline)  │ │
@@ -16,7 +14,7 @@ The application shell uses a **column flex layout** with three layers:
 │  │  App Name   [⊟] │  Progress strip  │  Document header      │ │
 │  │  [+] New Chat    │  Messages area   │  Rendered markdown    │ │
 │  │  [💬] Chats     │  Input panel     │                       │ │
-│  │  ─ Pinned ─      │  Banners         │                       │ │
+│  │  ─ Pinned ─      │  Privacy notice  │                       │ │
 │  │  Chat-1          │                  │                       │ │
 │  │  ─ Recent ─      │                  │                       │ │
 │  │  Chat-2          │                  │                       │ │
@@ -36,6 +34,8 @@ The chat pane switches between two views:
 
 The document panel slides in **inline** (not as an overlay), pushing the chat pane narrower.
 
+Clicking any sidebar item (conversation, New Chat) while on the Chats page navigates back to the chat view automatically.
+
 ---
 
 ## 2. Color System
@@ -44,47 +44,51 @@ All colours use CSS custom properties. Dark mode is the default; light mode is o
 
 ### Named palette — dark mode
 
-Four named colours form the depth stack of the dark UI, ordered darkest → lightest:
+Five named colours form the depth stack of the dark UI, ordered darkest → lightest:
 
 ```
 ┌──────────────────────────────────────────────┐
 │  Elevated  #333333          --surface         │  ← Menus, modals, cards
 ├──────────────────────────────────────────────┤
-│  Lift      ≈#313131         --hover           │  ← Hover state (6% white on Ash)
+│  Lift      ≈#313131         --hover           │  ← Hover & active states
+├──────────────────────────────────────────────┤
+│  Shade     #2c2c2c          --shade           │  ← Agent message bubbles
 ├──────────────────────────────────────────────┤
 │  Ash       #282828          --bg  --sb-bg     │  ← All page backgrounds
 ├──────────────────────────────────────────────┤
-│  Ink       #1a1a1a          --surface-2       │  ← Inset inputs, chat box
+│  Ink       #1a1a1a          --surface-2       │  ← Inset inputs, user bubbles
 └──────────────────────────────────────────────┘
 ```
 
 | Name | Hex | CSS token(s) | Role |
 |---|---|---|---|
-| **Ink** | `#1a1a1a` | `--surface-2` | Deepest layer — inset inputs, chat input box |
-| **Ash** | `#282828` | `--bg`, `--sb-bg` | All page backgrounds — canvas, sidebar, panels |
-| **Shade** | `#2c2c2c` | `--shade` | Agent message bubbles — between Ash and Lift |
-| **Lift** | `≈#313131` (`rgba(255,255,255,0.06)` on Ash) | `--hover`, `--sb-hover` | Hover state — one step above Ash, below Elevated |
-| **Elevated** | `#333333` | `--surface` | Menus, modals, cards, raised surfaces |
+| **Ink** | `#1a1a1a` | `--surface-2` | Deepest layer — inset inputs, user message bubbles |
+| **Ash** | `#282828` | `--bg`, `--sb-bg` | All page backgrounds — canvas, sidebar, settings, panels |
+| **Shade** | `#2c2c2c` | `--shade` | Agent message bubbles |
+| **Lift** | `≈#313131` (`rgba(255,255,255,0.06)` on Ash) | `--hover`, `--sb-hover`, `--sb-active` | Hover and active/selected states |
+| **Elevated** | `#333333` | `--surface` | Menus, modals, cards, chat input box |
 
 **Interaction rules:**
 - **Hover** → **Lift** (`var(--hover)`) with `border-radius: 8px`
-- **Selected / active** → **Lift** (`var(--hover)`) — same level as hover, selection is communicated by other means (font-weight, accent border, icon change), not by going darker or brighter
+- **Selected / active** → **Lift** (`var(--hover)`) — same level as hover; selection is communicated by other means (font-weight, accent border) not by a different background
+- **Exception — avatar menu items:** hover uses **Ash** (`var(--bg)`) since the popup itself sits on Lift, creating a subtle pressed-in feel
 
 ### Dark mode tokens
 
 | Token | Value | Usage |
 |---|---|---|
 | `--bg` | `#282828` (Ash) | Main canvas, all page backgrounds |
-| `--surface` | `#333333` (Elevated) | Menus, modals, cards |
-| `--surface-2` | `#1a1a1a` (Ink) | Inset inputs, chat box |
-| `--hover` | `rgba(255,255,255,0.06)` (Lift ≈ #313131) | Menu item hover |
+| `--surface` | `#333333` (Elevated) | Menus, modals, cards, chat input box |
+| `--surface-2` | `#1a1a1a` (Ink) | Inset inputs, user message bubbles |
+| `--shade` | `#2c2c2c` (Shade) | Agent message bubbles |
+| `--hover` | `rgba(255,255,255,0.06)` (Lift ≈ #313131) | Hover and active/selected states |
 | `--border` | `rgba(255,255,255,0.09)` | Dividers, borders |
 | `--text` | `#ececea` | Primary text |
 | `--muted` | `#888888` | Secondary text, placeholders |
-| `--pri` | `#c97040` | Accent — buttons, active states |
+| `--pri` | `#c97040` (default Gold theme) | Accent — buttons, focus rings |
 | `--sb-bg` | `#282828` (Ash) | Sidebar background |
 | `--sb-hover` | `rgba(255,255,255,0.06)` (Lift) | Sidebar item hover |
-| `--sb-active` | `rgba(255,255,255,0.08)` (Lift+) | Active conversation row |
+| `--sb-active` | `rgba(255,255,255,0.06)` (Lift) | Active conversation row |
 
 ### Light mode tokens
 
@@ -94,9 +98,10 @@ Four named colours form the depth stack of the dark UI, ordered darkest → ligh
 | `--surface` | `#ffffff` | Cards, panels |
 | `--surface-2` | `#f0efee` | Inset inputs |
 | `--hover` | `#ebebea` | Menu item hover |
+| `--sb-active` | `var(--hover)` | Active sidebar item |
 | `--text` | `#1a1a1a` | Primary text |
 | `--muted` | `#64748b` | Secondary text |
-| `--pri` | `#c97040` | Accent |
+| `--pri` | `#b85c2a` | Accent |
 
 ### Agent accent colours
 
@@ -110,10 +115,11 @@ Four named colours form the depth stack of the dark UI, ordered darkest → ligh
 
 ### Color usage rules
 
-1. **No hardcoded hex values in components.** All colour references must use CSS custom properties (`var(--token)`). This ensures a single change in `App.vue` cascades everywhere automatically.
+1. **No hardcoded hex values in components.** All colour references must use CSS custom properties (`var(--token)`). A single change in `App.vue` cascades everywhere automatically.
 2. **CSS variables are the single source of truth.** Never duplicate a colour by writing its hex value in a component — reference the token instead.
-3. **Standalone pages (Login, Callback) must also use global tokens.** These pages render inside the same `<html>` element and therefore inherit all `:root` CSS variables. There is no exception.
-4. **A colour change = one edit in `App.vue`.** If you need to touch more than one file to change a design token, it means something is hardcoded and must be fixed first.
+3. **Standalone pages (Login, Callback) must also use global tokens.** These pages inherit all `:root` CSS variables. No exception.
+4. **A colour change = one edit in `App.vue`.** If touching more than one file is needed, something is hardcoded and must be fixed first.
+5. **Themes control accent only.** `useTheme.js` may only override accent tokens (`--pri`, `--pri-fg`, `--sbg`, `--stx`, `--sbdr`). Structural layout tokens like `--sb-active` must never be overridden by theme injection.
 
 ---
 
@@ -134,21 +140,23 @@ Theme switching is handled by `useSkillIcon.js` composable which returns the cor
 
 ## 3. Privacy Banner
 
-A permanent slim banner at the very top of the shell, above all content:
+Removed from the top of the shell. Privacy information is now shown as a **notice line below the chat input**:
 
 ```
-🔒  All conversations are incognito · Data never leaves your machine ·
-    Your inputs are never used to train AI models · No data is persisted by model providers
+🔒  Incognito · stays on your device · never trains AI · not stored by providers
 ```
 
-- Background: muted green tint (`rgba(16,185,129,0.08)`)
-- Border-bottom: green tint (`rgba(16,185,129,0.2)`)
-- Text: 13px, green tones in both light (`#065f46`) and dark (`#6ee7b7`) mode
-- Always visible — cannot be dismissed
+- Font: 14px, `var(--text)`, normal weight
+- Centred below the chat input box
+- Always visible, cannot be dismissed
 
 ---
 
 ## 4. Sidebar
+
+### Background
+
+The entire sidebar uses **Ash** (`var(--bg)`) as its background — same as the main canvas.
 
 ### Expanded state (240px)
 
@@ -166,11 +174,11 @@ RECENT
   Experience Cloud SSO             📍✏️🗑
 ```
 
-- App name left-aligned, collapse icon (open-sidebar SVG) right-aligned
+- App name left-aligned, collapse icon right-aligned
 - Pinned and Recent sections have uppercase muted section headers
-- Pinned rows show unpin (📌) action; recent rows show pin (📍) action
 - Hover reveals: pin/unpin, rename, delete buttons
-- Active session highlighted in `--sb-active`
+- Active session: **Lift** background (`--sb-active`)
+- Chats button active: **Lift** background only — no text colour change
 
 ### Collapsed state (52px)
 
@@ -180,38 +188,37 @@ RECENT
 [💬]  ← Chats
 ```
 
-- All buttons centered, icon-only, `title` attribute provides tooltip
+All buttons centered, icon-only, `title` attribute provides tooltip.
 
-### Chats icon
+### Navigation behaviour
 
-Two overlapping speech bubbles SVG — represents multiple chats.
+Clicking any sidebar item (conversation row, New Chat button) while on the `/chats` page navigates back to `/` automatically before restoring or resetting the conversation.
 
 ---
 
 ## 5. Shell Footer
 
-A full-width row shared between the sidebar avatar area and the token usage bar. A single `border-top` line spans the entire width, perfectly aligned.
+A full-width row shared between the sidebar avatar area and the token usage bar.
 
 ### Avatar area
 
-- Width matches the sidebar (240px expanded / 52px collapsed), transitions with it
-- Contains a circular avatar button (user silhouette icon)
-- Click opens the **user menu popup** (see Section 6)
+- Width matches the sidebar, transitions with it
+- Contains avatar button (initials or photo)
+- Hover: **Lift** (`var(--sb-hover)`)
+- Click opens the **user menu popup**
 
 ### Token usage bar
 
-- Fills the remaining width (flex: 1)
-- Always visible when a session with usage data is active
-- Shows: **Session totals** cell + one cell per model used
-- Each cell: model name (e.g. "Claude Sonnet 4.6") · `↑ input ↓ output` · `est. $X.XXX`
-- Models shown: only those actually used in the session (dynamic, not fixed slots)
-- Sorted by cost descending
+- Fills remaining width (flex: 1)
+- Shows: Session totals + one cell per model used
+- Each cell: model name · `↑ input ↓ output` · `est. $X.XXX`
+- Models shown dynamically (only those used in the session), sorted by cost
 
 ---
 
 ## 6. User Menu
 
-Triggered by clicking the avatar button in the shell footer. Pops up above the button.
+Triggered by clicking the avatar button. Pops up above the button. Background: **Lift** (`var(--hover)`).
 
 ```
   ⚙  Settings
@@ -219,99 +226,62 @@ Triggered by clicking the avatar button in the shell footer. Pops up above the b
   ─────────
   Appearance
   🌙 Dark mode  (or ☀️ Light mode)
+  ─────────
+  Sign out
 ```
 
+- Menu items hover: **Ash** (`var(--bg)`) — pressed-in feel against Lift background
+- Sign out hover: **Ash** (same as all other menu items — no accent colour)
 - Transition: fade + slide-up (0.15s)
 - Closes on any click outside
 
-### Settings Modal
+### Settings Page
 
-Opens from the user menu. Full-width modal, centered.
+Full-page view (replaces chat pane). Three-pane layout:
 
 ```
-┌─ Settings ─────────────────────────────────────────────────────┐
-│  API Keys                                                        │
-│  Keys are encrypted at rest. Leave a field empty to keep key.   │
-│                                                                  │
-│  Anthropic API Key              [Configured ✓]                  │
-│  Intake · Discovery · Research · Review · Approver               │
-│  [••••••••••••••••••••••]                                       │
-│                                                                  │
-│  Perplexity API Key             [Not set]                       │
-│  Research Agent — live web search (Sonar Pro)                    │
-│  [pplx-…                       ]                                │
-│  ⚠ Invalid Perplexity API key — check perplexity.ai/settings   │
-│                                                                  │
-│  Google API Key                 [Configured ✓]                  │
-│  Research Agent — architectural patterns (Gemini 2.5 Pro)        │
-│  [••••••••••••••••••••••]                                       │
-│                                                  [Validating…]  │
-└────────────────────────────────────────────────────────────────┘
+┌──────────────┬──────────────────────────────────────────────────┐
+│ Settings nav │  Content area                                     │
+│ (Ash bg)     │  (Ash bg)                                        │
+│              │                                                   │
+│  ← Back      │  [tab-specific content]                          │
+│  Providers   │                                                   │
+│  Skills      │                                                   │
+│  Agents      │                                                   │
+│  Prompts     │                                                   │
+│  Usage       │                                                   │
+│  Theme       │                                                   │
+└──────────────┴──────────────────────────────────────────────────┘
 ```
 
-- Each key shows **Configured ✓** (green) or **Not set** (red) badge
-- Keys are validated against the provider's API before saving
-- Invalid keys show a red border + inline error message
-- Button shows "Validating…" during the API check (runs in parallel, ~2–4s)
-- Empty fields are skipped (partial update allowed)
+- All pane backgrounds: **Ash**
+- Skills tab renders the ConfigurationPage (3-pane: settings nav + file tree + content), all panes Ash
+- Active nav item: **Lift** background + `font-weight: 600`
 
 ### Usage Modal
 
-Opens from the user menu. Shows token usage and estimated cost.
-
-```
-┌─ Usage & Cost Estimate ────────────────────────────────────────┐
-│  All Sessions (12 with usage data)                               │
-│  ┌──────────────┬──────────────┬──────────────┐                │
-│  │ ↑ 284.5K     │ ↓ 98.3K      │ est. $2.33   │                │
-│  │ Input        │ Output       │ Cost          │               │
-│  └──────────────┴──────────────┴──────────────┘                │
-│                                                                  │
-│  By Model                                                        │
-│  Model                     ↑ Input  ↓ Output  Est. cost        │
-│  Claude Sonnet 4.6          180K     60K       $1.47            │
-│  Gemini 2.5 Pro              55K     22K       $0.29            │
-│  Perplexity Sonar Pro        45K     15K       $0.34            │
-│  Claude Haiku 4.5             4.5K   1.3K      $0.009           │
-│                                                                  │
-│  Prices are estimates based on published API rates.              │
-└────────────────────────────────────────────────────────────────┘
-```
+Opens from the user menu. Shows token usage and estimated cost by model.
 
 ---
 
 ## 7. Chats Full-Page View
 
-Triggered by clicking the chats icon. Replaces the chat pane content.
-
-```
-Chats                                        [+ New chat]
-
-🔍  Search your chats...
-
-Your conversations
-─────────────────────────────────────────────
-Kong API Token Review
-Last message 2 days ago
-─────────────────────────────────────────────
-Service Cloud Migration for Retail
-Last message 7 days ago
-```
+Triggered by clicking the Chats icon. Renders in the main slot (sidebar remains visible).
 
 - Search is real-time, filters as user types
+- Clicking a conversation navigates to `/` and restores that conversation
 - Rows show pin/unpin, rename, delete actions on hover
 
 ---
 
 ## 8. Agent Progress Bar
 
-A 32px strip beneath the privacy banner (inside the chat pane), visible only when an agent is working:
+A 32px strip inside the chat pane, visible only when an agent is working:
 
 - Per-agent tinted background (very subtle, 7% opacity)
-- Animated shimmer sweeps left → right (3.5s loop, `linear`)
-- Opacity: 50% — visible but not harsh
-- Pulsing dot + "Discovery Agent is working…" label centered
-- Collapses to 0 height (CSS transition) when no agent is running
+- Animated shimmer sweeps left → right (3.5s loop)
+- Pulsing dot + "Discovery Agent is working…" label centred
+- Collapses to 0 height (CSS transition) when idle
 
 | Agent | Shimmer colour |
 |---|---|
@@ -325,46 +295,94 @@ A 32px strip beneath the privacy banner (inside the chat pane), visible only whe
 
 ## 9. Message Bubbles
 
+### Colors
+
+| Role | Background | Border | Alignment |
+|---|---|---|---|
+| User | **Ink** (`--surface-2`) | none | Right |
+| Agent | **Ash** (`--bg`) | none | Left |
+
+### Copy button
+
+Both user and agent bubbles have a copy-to-clipboard button rendered **outside** the bubble, below it:
+
+- Agent: bottom-left aligned
+- User: bottom-right aligned
+- Hidden by default; appears on hover of the bubble area
+- On click: copies raw markdown content; icon switches to a green checkmark for 2 seconds
+- Hover background: **Lift** (`var(--hover)`)
+
+### Markdown rendering
+
+**All LLM response content is rendered as markdown** (`MarkdownContent` component). This applies to:
+- Regular chat text bubbles
+- VerdictCard feedback text
+- VerdictCard critical issues list
+
+### Bubble types
+
 | Type | Style |
 |---|---|
-| User | Right-aligned, Ink (`--surface-2`) background, primary text |
-| Agent text | Left-aligned, `--surf` background, `--bdr` border |
-| Document card | Blue border, clickable "View →" button, opens doc panel |
-| Preparing | Spinner + "Preparing your architecture document…" |
-| Reviewing | Spinner + description text |
-| Review result (pass) | Green tinted card, ✅ badge |
-| Review result (fail) | Red tinted card, ❌ badge, critical issues list |
-| Approval result | Green (approved 🎉) or amber (rejected 🔄) card |
-
-Each agent message has a small stage tag above the bubble (e.g. "DISCOVERY AGENT") in the agent's accent colour.
+| User text | Ink background, right-aligned |
+| Agent text | Ash background, left-aligned, markdown rendered |
+| Document card | Blue border, clickable "View →" button |
+| Preparing / Reviewing / Approving | Spinner + status label (Ink background card) |
+| Review result (pass) | Green tinted card, ✅ badge, markdown feedback |
+| Review result (fail) | Red tinted card, ❌ badge, markdown feedback + issues |
+| Approval result | Green (approved 🎉) or amber (rejected 🔄) card, markdown feedback |
 
 ---
 
-## 10. Input Panels
+## 10. Input Panel
+
+### Chat input box
+
+```
+┌─────────────────────────────────────────────────────┐  ← Elevated bg
+│  [file chip if attached]                            │
+│  textarea (placeholder: "Message or type / …")     │
+│  ─────────────────────────────────────────────────  │
+│  [+]  [Architect ▾]  [model selector]    [Send →]  │
+└─────────────────────────────────────────────────────┘
+🔒 Incognito · stays on your device · never trains AI · not stored by providers
+```
+
+- Outer wrapper: **Ash** background
+- Input box: **Elevated** background, rounded corners
+- Privacy notice: 14px, `var(--text)`, centred below the box
+- Dragging a file over the box highlights the border in accent colour
+
+### Skill palette (`/` trigger)
+
+Typing `/` opens the skill palette above the input:
+
+- Lists installed skills with SVG icon + name
+- Keyboard navigable (↑↓ Enter Escape)
+- Hover/active row: **Lift**
+- Hovering a row shows a description panel to the right
 
 ### Initial state (no session)
 
 - Mode toggle: "✏️ Write Brief" / "📎 Upload File"
-- Write Brief: multi-row textarea + "Start Session →" button (placeholder: "Describe your project…")
+- Write Brief: textarea + "Start Session →" button
 - Upload File: drag-and-drop zone, accepts PDF/DOCX/TXT/MD/PNG/JPG/GIF/WebP
 
-### Intake confirmation (after file upload)
+### Intake confirmation (after upload)
 
-- Full-panel card showing the extracted understanding
+- Full-panel card with extracted understanding
 - Optional corrections textarea
 - "Looks right — start discovery →" button
-- Graph is paused until confirmed
 
 ### Discovery reply
 
-- Single question: inline textarea + Send button (Enter key submits)
+- Single question: inline textarea + Send
 - Multiple questions: one labelled textarea per question + "Send All Answers →"
 
 ---
 
 ## 11. Document Right Panel
 
-Opens as an **inline right panel** (not an overlay) when the user clicks "View →" on a document card. The chat pane narrows; the doc panel grows from 0 → 42% width.
+Opens inline when the user clicks "View →" on a document card. Chat pane narrows; doc panel grows 0 → 42%.
 
 ```
 📄 Architecture Document v2      [⬇ Markdown] [⬇ PDF] [✕]
@@ -373,15 +391,15 @@ Opens as an **inline right panel** (not an overlay) when the user clicks "View �
 ```
 
 - Transition: `width 0.25s ease`
-- Header: dark (`--hbg`), title + download buttons
-- Body: full markdown rendering with 28px side padding
-- Close button (✕) returns panel to 0 width
+- Header: dark, title + download buttons
+- Body: full markdown rendering, 28px side padding
+- Close (✕) collapses to 0 width
 
 ---
 
 ## 12. Delete Confirmation Dialog
 
-Centered modal with blurred backdrop:
+Centred modal with blurred backdrop:
 
 ```
 Delete conversation?
@@ -391,9 +409,8 @@ This cannot be undone.
                     [Cancel]  [Delete]
 ```
 
-- Triggered by any delete action (sidebar or chats page)
 - Cancel or clicking outside dismisses
-- Delete button: red (`#dc2626`)
+- Delete button: red (`var(--danger)`)
 
 ---
 
@@ -402,8 +419,9 @@ This cannot be undone.
 Toggle: 🌙 / ☀️ in the user menu (avatar → Appearance).
 
 - **Default: dark mode**
-- Implemented via a single `.dark` class on `.shell`
+- Implemented via `html.dark` class set by `useDarkMode` composable
+- System preference used as fallback via `@media (prefers-color-scheme: dark)`
 - All colours are CSS variables — no JavaScript colour logic
 - Transition is instant
 
-The sidebar and shell footer are always dark regardless of theme.
+Themes (Gold, Sky Blue, Green, Purple, Red, White) change only the accent colour (`--pri` and derived tokens). They never override structural layout tokens.
