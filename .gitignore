@@ -62,3 +62,4 @@ k8s/pragna-staging/secret.yaml
 
 # ── Local dev scripts (personal, not shared) ──────────────
 scripts/local-db.sh
+.env
