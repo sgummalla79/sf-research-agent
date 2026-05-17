@@ -88,12 +88,6 @@
 
         <div v-if="publishMsg" class="cp-publish-msg" :class="publishMsg.type">{{ publishMsg.text }}</div>
 
-        <!-- Pipeline flow diagram -->
-        <div v-if="skillManifest" class="cp-manifest-section">
-          <div class="cp-manifest-label">Pipeline Flow</div>
-          <SkillFlowDiagram :stages="skillManifest.stages" :labels="skillManifest.labels" />
-        </div>
-
         <div class="cp-manifest-section">
           <div class="cp-manifest-label">Agents</div>
           <div class="cp-agent-list">
@@ -137,12 +131,11 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, watch, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { apiFetch }         from '../composables/useFetch.js'
 import AgentPromptsSettings from './settings/AgentPromptsSettings.vue'
 import SkillDirectory       from './SkillDirectory.vue'
 import ConfirmDialog        from './ui/ConfirmDialog.vue'
-import SkillFlowDiagram     from './skill/SkillFlowDiagram.vue'
 
 defineProps({ embedded: { type: Boolean, default: false } })
 defineEmits(['back'])
@@ -159,16 +152,7 @@ const uninstallTarget = ref(null)
 const publishing    = ref(false)
 const publishMsg    = ref(null)
 
-const activeSkill   = computed(() => skills.value.find(s => s.id === sel.value?.skillId) ?? null)
-const skillManifest = ref(null)
-
-watch(activeSkill, async (skill) => {
-  if (!skill) { skillManifest.value = null; return }
-  try {
-    const res = await apiFetch(`/api/skills/${skill.skill_key}/manifest`)
-    if (res.ok) skillManifest.value = await res.json()
-  } catch (_) { skillManifest.value = null }
-}, { immediate: true })
+const activeSkill = computed(() => skills.value.find(s => s.id === sel.value?.skillId) ?? null)
 
 async function fetchSkills() {
   loading.value = true

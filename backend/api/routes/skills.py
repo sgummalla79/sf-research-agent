@@ -207,54 +207,6 @@ async def uninstall_skill(
     return {"ok": True, "skill": skill_id}
 
 
-# ── Manifest (pipeline + stage details for flow diagram) ─────────────────────
-
-@router.get("/{skill_id}/manifest")
-async def get_skill_manifest(
-    skill_id:     str,
-    request:      Request,
-    current_user: AuthUser = Depends(get_current_user),
-):
-    """Return full pipeline manifest including stage configs for building flow diagrams."""
-    skill_registry = request.app.state.skill_registry
-    entry          = skill_registry.get(skill_id)
-    if not entry:
-        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
-
-    manifest = entry.manifest
-    stages   = []
-    for stage_id in manifest.pipeline:
-        stage = manifest.stages.get(stage_id)
-        if not stage:
-            continue
-        stages.append({
-            "id":            stage.id,
-            "execution":     stage.execution,
-            "agent":         stage.agent,
-            "on_pass":       stage.on_pass,
-            "on_fail":       stage.on_fail,
-            "on_approve":    stage.on_approve,
-            "on_reject":     stage.on_reject,
-            "max_revisions": stage.max_revisions,
-            "fanout": [
-                {"agent": b.agent, "llm_slot": b.llm_slot}
-                for b in (stage.fanout or [])
-            ],
-            "merge": {
-                "agent":    stage.merge.agent,
-                "llm_slot": stage.merge.llm_slot,
-            } if stage.merge else None,
-        })
-
-    return {
-        "skill":    skill_id,
-        "name":     manifest.name,
-        "pipeline": manifest.pipeline,
-        "stages":   stages,
-        "labels":   manifest.agent_labels,
-    }
-
-
 # ── Suggest agent config ───────────────────────────────────────────────────────
 
 @router.get("/{skill_id}/suggest-config")
