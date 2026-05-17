@@ -72,6 +72,7 @@ async def test_invoke_snapshot_no_agents_returns_400(client):
 
 
 @pytest.mark.e2e
+@pytest.mark.live
 async def test_invoke_returns_streaming_response(client):
     """A valid invoke should return 200 with text/event-stream content type."""
     conv_id, snap_id = await _installed_conversation(client)
@@ -80,13 +81,12 @@ async def test_invoke_returns_streaming_response(client):
         f"/api/conversations/{conv_id}/skills/{snap_id}/invoke",
         json={"brief": "build a simple REST API for a todo app"},
     )
-    # The pipeline starts streaming — we expect 200 with SSE content type.
-    # We don't consume the full stream here; that's covered in test_stream_graph.py.
     assert resp.status_code == 200
     assert "text/event-stream" in resp.headers.get("content-type", "")
 
 
 @pytest.mark.e2e
+@pytest.mark.live
 async def test_invoke_sets_execution_id_header(client):
     conv_id, snap_id = await _installed_conversation(client)
 
@@ -101,11 +101,11 @@ async def test_invoke_sets_execution_id_header(client):
 # ── stages ─────────────────────────────────────────────────────────────────────
 
 @pytest.mark.e2e
+@pytest.mark.live
 async def test_get_stages_empty_for_new_execution(client):
     """A freshly created execution has no stages recorded yet."""
     conv_id, snap_id = await _installed_conversation(client)
 
-    # Start an execution (don't consume stream)
     invoke_resp = await client.post(
         f"/api/conversations/{conv_id}/skills/{snap_id}/invoke",
         json={"brief": "build a file storage service"},
