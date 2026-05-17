@@ -31,6 +31,9 @@ from repositories.message_repository import MessageRepository
 from repositories.artifact_repository import ArtifactRepository
 from repositories.usage_repository import UsageRepository
 from repositories.user_llm_models_repository import UserLLMModelsRepository
+from repositories.model_pricing_repository import ModelPricingRepository
+from repositories.model_catalog_repository import ModelCatalogRepository
+from repositories.provider_registry_repository import ProviderRegistryRepository
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +55,9 @@ class DBContext:
     artifacts:     ArtifactRepository
     usage:         UsageRepository
     llm_models:    UserLLMModelsRepository
+    model_pricing:   ModelPricingRepository
+    model_catalog:     ModelCatalogRepository
+    provider_registry: ProviderRegistryRepository
 
 
 @asynccontextmanager
@@ -99,6 +105,9 @@ async def get_db():
             artifacts     = ArtifactRepository(pool),
             usage         = UsageRepository(pool),
             llm_models    = UserLLMModelsRepository(pool),
+            model_pricing = ModelPricingRepository(pool),
+            model_catalog     = ModelCatalogRepository(pool),
+            provider_registry = ProviderRegistryRepository(pool),
         )
 
         log.info("DBContext ready — all repositories initialised")

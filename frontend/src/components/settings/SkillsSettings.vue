@@ -24,7 +24,8 @@
     <div v-else class="ss-list">
       <div v-for="skill in installedSkills" :key="skill.id" class="ss-card">
         <div class="ss-card-left">
-          <span class="ss-card-icon">{{ skill.icon || '⚡' }}</span>
+          <img v-if="skillIconUrl(skill.skill_key)" :src="skillIconUrl(skill.skill_key)" class="ss-card-icon-svg" :alt="skill.name" />
+          <span v-else class="ss-card-icon">{{ skill.icon || '⚡' }}</span>
           <div class="ss-card-body">
             <span class="ss-card-name">{{ skill.name }}</span>
             <span class="ss-card-desc">{{ skill.description }}</span>
@@ -47,8 +48,11 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
-import { apiFetch }    from '../../composables/useFetch'
-import SkillDirectory  from '../SkillDirectory.vue'
+import { apiFetch }     from '../../composables/useFetch'
+import SkillDirectory   from '../SkillDirectory.vue'
+import { useSkillIcon } from '../../composables/useSkillIcon.js'
+
+const { skillIconUrl } = useSkillIcon()
 
 const skills   = ref([])
 const loading  = ref(true)
@@ -118,7 +122,8 @@ onMounted(load)
   background: var(--surface-2); border: 1px solid var(--border);
 }
 .ss-card-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.ss-card-icon { font-size: 20px; flex-shrink: 0; }
+.ss-card-icon     { font-size: 20px; flex-shrink: 0; }
+.ss-card-icon-svg { width: 28px; height: 28px; flex-shrink: 0; object-fit: contain; }
 .ss-card-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ss-card-name { font-size: 14px; font-weight: 600; color: var(--text); }
 .ss-card-desc { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

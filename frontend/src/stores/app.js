@@ -8,14 +8,32 @@
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { apiFetch } from '../composables/useFetch'
 
 export const useAppStore = defineStore('app', () => {
-  const view        = ref('chat')       // current top-level view
-  const settingsTab = ref('providers')  // which tab is active when settings opens
+  const view        = ref('chat')
+  const settingsTab = ref('providers')
+
+  const uploadConfig = ref({
+    max_file_size_mb:   10,
+    allowed_image_exts: ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
+    allowed_doc_exts:   ['.pdf', '.docx', '.doc', '.txt', '.md'],
+  })
+
+  async function loadAbout() {
+    try {
+      const res = await apiFetch('/api/about')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.upload) uploadConfig.value = data.upload
+      }
+    } catch (_) {}
+  }
 
   function openChat()                        { view.value = 'chat' }
   function openSettings(tab = 'providers')   { settingsTab.value = tab; view.value = 'settings' }
+  function openSkills()                      { settingsTab.value = 'skills'; view.value = 'settings' }
   function openConfiguration()               { view.value = 'configuration' }
 
-  return { view, settingsTab, openChat, openSettings, openConfiguration }
+  return { view, settingsTab, uploadConfig, loadAbout, openChat, openSettings, openSkills, openConfiguration }
 })

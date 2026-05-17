@@ -41,10 +41,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-:root { --cb-bg: #f5f5f4; --cb-tx: #1a1a1a; --cb-muted: #737373; --cb-pri: #b85c2a; --cb-err: #b91c1c; }
-@media (prefers-color-scheme: dark) {
-  :root { --cb-bg: #1a1a1a; --cb-tx: #ececea; --cb-muted: #888888; --cb-pri: #f5a55a; --cb-err: #fca5a5; }
-}
+:root { --cb-bg: var(--bg); --cb-tx: var(--text); --cb-muted: var(--muted); --cb-pri: var(--pri); --cb-err: var(--danger); }
 .cb-shell {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
   background: var(--cb-bg);

@@ -14,7 +14,8 @@
 
       <!-- ── Active skill bar ──────────────────────────────────────────────── -->
       <div v-if="conv.isPipelineRunning && activeSkill" class="session-flow-bar">
-        <span class="sfb-icon">{{ activeSkill.icon }}</span>
+        <img v-if="skillIconUrl(activeSkill.id)" :src="skillIconUrl(activeSkill.id)" class="sfb-icon-svg" :alt="activeSkill.name" />
+        <span v-else class="sfb-icon">{{ activeSkill.icon }}</span>
         <span class="sfb-name">{{ activeSkill.name }}</span>
         <span class="sfb-label">active</span>
       </div>
@@ -42,7 +43,7 @@
 
           <ChatInput
             ref="chatInputRef"
-            :chat-models="chatModels"
+            :chat-models="filteredChatModels"
             :skills="skills"
             :is-pipeline-running="false"
             :is-streaming="conv.isStreaming"
@@ -138,7 +139,7 @@
           <ChatInput
             v-if="!conv.isPipelineRunning"
             ref="chatInputRef"
-            :chat-models="chatModels"
+            :chat-models="filteredChatModels"
             :skills="skills"
             :is-pipeline-running="false"
             :is-streaming="conv.isStreaming"
@@ -212,6 +213,9 @@ import ChatInput        from '../components/chat/ChatInput.vue'
 import DocumentPanel    from '../components/document/DocumentPanel.vue'
 import SudarshanChakra  from '../components/SudarshanChakra.vue'
 import StatusBar        from '../components/ui/StatusBar.vue'
+import { useSkillIcon } from '../composables/useSkillIcon.js'
+
+const { skillIconUrl } = useSkillIcon()
 
 const conv      = useConversationStore()
 const sidebar   = useSidebarStore()
@@ -224,6 +228,9 @@ const { panel: docPanel, open: openDoc, close: closeDoc, downloadMD, downloadPDF
 const app = useAppStore()
 const openSettings      = (tab) => app.openSettings(tab)
 const openConfiguration = ()    => app.openConfiguration()
+
+// Reload sidebar when backend emits session_titled — no polling needed
+watch(() => conv.conversationTitle, (title) => { if (title) sidebar.load() })
 
 // ── Stage labels ───────────────────────────────────────────────────────────────
 const stageLabels = {
@@ -295,9 +302,14 @@ const firstName = computed(() => {
 
 // ── Skills + models ────────────────────────────────────────────────────────────
 const skills        = ref([])
-const chatModels    = ref([])
-const modelsLoaded  = ref(false)
-const noProviders   = computed(() => modelsLoaded.value && chatModels.value.length === 0)
+const chatModels         = ref([])
+const modelsLoaded       = ref(false)
+const noProviders        = computed(() => modelsLoaded.value && chatModels.value.length === 0)
+const filteredChatModels = computed(() =>
+  conv.lockedProvider
+    ? chatModels.value.filter(m => m.provider === conv.lockedProvider)
+    : chatModels.value
+)
 
 // The skill currently being run (for the session flow bar)
 const activeSkillId = ref(null)
@@ -316,28 +328,6 @@ async function loadSkills() {
   } catch (_) {}
 }
 
-// Fallback models shown when a provider is connected but hasn't been refreshed yet
-const PROVIDER_DEFAULTS = {
-  anthropic:  [
-    { model: 'claude-sonnet-4-6', display: 'Sonnet 4.6', description: 'Balanced performance' },
-    { model: 'claude-opus-4-7',   display: 'Opus 4.7',   description: 'Most powerful' },
-    { model: 'claude-haiku-4-5-20251001', display: 'Haiku 4.5', description: 'Fast and lightweight' },
-  ],
-  openai:     [
-    { model: 'gpt-4o',      display: 'GPT-4o',      description: 'Advanced reasoning' },
-    { model: 'gpt-4o-mini', display: 'GPT-4o Mini', description: 'Fast and affordable' },
-  ],
-  google:     [
-    { model: 'gemini-1.5-pro',   display: 'Gemini 1.5 Pro',   description: 'Advanced reasoning' },
-    { model: 'gemini-1.5-flash', display: 'Gemini 1.5 Flash', description: 'Fast and efficient' },
-  ],
-  perplexity: [
-    { model: 'sonar-pro', display: 'Sonar Pro', description: 'Web-grounded search' },
-  ],
-  groq: [
-    { model: 'llama-3.3-70b-versatile', display: 'Llama 3.3 70B', description: 'Fast inference' },
-  ],
-}
 
 async function loadChatModels() {
   try {
@@ -345,11 +335,13 @@ async function loadChatModels() {
     if (!res.ok) return
     const data   = await res.json()
     chatModels.value = (data.models || []).map((m, i) => ({
-      model:       m.model_id,
-      display:     m.display_name,
-      description: '',
-      provider:    m.provider,
-      default:     i === 0,
+      model:        m.model_id,
+      display:      m.display_name,
+      description:  '',
+      provider:     m.provider,
+      providerName: m.provider_name,
+      capabilities: m.capabilities || {},
+      default:      i === 0,
     }))
   } catch (_) {
   } finally {
@@ -357,31 +349,6 @@ async function loadChatModels() {
   }
 }
 
-function modelDisplay(modelId) {
-  const map = {
-    'claude-opus-4-7':             'Opus 4.7',
-    'claude-sonnet-4-6':           'Sonnet 4.6',
-    'claude-haiku-4-5-20251001':   'Haiku 4.5',
-    'gpt-4o':                      'GPT-4o',
-    'gpt-4o-mini':                 'GPT-4o Mini',
-    'gemini-2.0-flash-001':        'Gemini 2.0 Flash',
-    'gemini-1.5-pro':              'Gemini 1.5 Pro',
-  }
-  return map[modelId] || modelId
-}
-
-function modelDescription(modelId, provider) {
-  if (provider === 'anthropic') {
-    if (modelId.includes('opus'))   return 'Most powerful Claude model'
-    if (modelId.includes('sonnet')) return 'Balanced performance'
-    if (modelId.includes('haiku'))  return 'Fast and lightweight'
-  }
-  if (provider === 'openai') {
-    if (modelId.includes('mini')) return 'Fast and affordable'
-    return 'Advanced reasoning'
-  }
-  return ''
-}
 
 function fmtTokens(n) { return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n) }
 function fmtCost(c)   { return c < 0.01  ? `$${c.toFixed(6)}`           : `$${c.toFixed(5)}` }
@@ -604,6 +571,7 @@ onMounted(async () => {
     sidebar.load(),
     loadSkills(),
     loadChatModels(),
+    app.loadAbout(),
   ])
 })
 </script>
@@ -648,7 +616,8 @@ onMounted(async () => {
   border-bottom: 1px solid var(--sbdr);
   font-size: 12.5px; font-weight: 500; color: var(--stx);
 }
-.sfb-icon  { font-size: 14px; }
+.sfb-icon     { font-size: 14px; }
+.sfb-icon-svg { width: 16px; height: 16px; object-fit: contain; }
 .sfb-name  { font-weight: 600; }
 .sfb-label {
   margin-left: 2px; font-size: 10.5px; font-weight: 600;

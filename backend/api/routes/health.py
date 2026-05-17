@@ -15,7 +15,15 @@ def _read_version() -> str:
 
 @router.get("/api/about")
 async def about():
-    return {"version": _read_version()}
+    from config import MAX_FILE_SIZE_MB, ALLOWED_IMAGE_EXTS, ALLOWED_DOC_EXTS
+    return {
+        "version":            _read_version(),
+        "upload": {
+            "max_file_size_mb":   MAX_FILE_SIZE_MB,
+            "allowed_image_exts": ALLOWED_IMAGE_EXTS,
+            "allowed_doc_exts":   ALLOWED_DOC_EXTS,
+        },
+    }
 
 
 @router.get("/health")

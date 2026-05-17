@@ -12,78 +12,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-PROVIDER_ORDER = ["anthropic", "openai", "google", "perplexity", "groq"]
-
-PROVIDERS: dict[str, dict] = {
-    "anthropic": {
-        "name":        "Anthropic",
-        "description": "Claude Opus, Sonnet, Haiku",
-        "placeholder": "sk-ant-api03-…",
-        "key_label":   "Anthropic API Key",
-        "auth_modes": [
-            {
-                "id":    "direct",
-                "label": "Direct API",
-                "fields": [
-                    {"key": "anthropic", "label": "API Key", "placeholder": "sk-ant-api03-…"},
-                ],
-            },
-            {
-                "id":    "bedrock",
-                "label": "AWS Bedrock",
-                "fields": [
-                    {"key": "anthropic_bedrock_url",   "label": "Bedrock Base URL", "placeholder": "https://…"},
-                    {"key": "anthropic_bedrock_token", "label": "Auth Token",       "placeholder": "…"},
-                ],
-            },
-        ],
-    },
-    "openai": {
-        "name":        "OpenAI",
-        "description": "GPT-4o, o3, o4-mini and more",
-        "placeholder": "sk-proj-…",
-        "key_label":   "OpenAI API Key",
-    },
-    "google": {
-        "name":        "Google",
-        "description": "Gemini models",
-        "placeholder": "AIza…",
-        "key_label":   "Google API Key",
-    },
-    "perplexity": {
-        "name":        "Perplexity",
-        "description": "Sonar search-grounded models",
-        "placeholder": "pplx-…",
-        "key_label":   "Perplexity API Key",
-    },
-    "groq": {
-        "name":        "Groq",
-        "description": "Fast inference — Llama, Mixtral, Gemma",
-        "placeholder": "gsk_…",
-        "key_label":   "Groq API Key",
-    },
-}
-
-# Bedrock has no /models endpoint — fixed list from AWS docs
-_BEDROCK_MODELS = [
-    "us.anthropic.claude-opus-4-7",
-    "us.anthropic.claude-sonnet-4-6",
-    "us.anthropic.claude-haiku-4-5-20251001",
-]
 
 # OpenAI non-chat model prefixes to exclude
 _OPENAI_EXCLUDE_PREFIXES = (
     "text-embedding", "tts-", "whisper-", "dall-e", "davinci", "babbage",
     "text-moderation", "gpt-3.5-turbo-instruct", "ft:", "o1-mini-2024",
 )
-
-# Perplexity has no public models endpoint
-_PERPLEXITY_MODELS = [
-    "sonar-pro",
-    "sonar",
-    "sonar-reasoning-pro",
-    "sonar-deep-research",
-]
 
 
 def _prettify(model_id: str) -> str:
@@ -126,27 +60,34 @@ def _model_entry(model_id: str) -> dict:
 
 
 async def fetch_models(
-    provider_id:  str,
-    api_key:      str,
-    mode:         str = "direct",
-    bedrock_url:  str = "",
+    provider_id:   str,
+    api_key:       str,
+    mode:          str = "direct",
+    bedrock_url:   str = "",
     bedrock_token: str = "",
+    catalog_models: list[dict] | None = None,
 ) -> list[dict]:
     """
     Fetch available models for the given provider.
     Returns list[{"model_id": str, "display_name": str}], sorted by model_id.
+
+    catalog_models — required for providers without a model listing API
+    (bedrock, perplexity). Pass rows from db.model_catalog.get_by_provider().
     Raises on auth failure or network error.
     """
     if provider_id == "anthropic":
         return await _fetch_anthropic(api_key, mode=mode,
                                       bedrock_url=bedrock_url,
-                                      bedrock_token=bedrock_token)
+                                      bedrock_token=bedrock_token,
+                                      catalog_models=catalog_models or [])
+
+    if provider_id == "perplexity":
+        return await _fetch_perplexity(api_key, catalog_models=catalog_models or [])
 
     fetchers = {
-        "openai":     _fetch_openai,
-        "google":     _fetch_google,
-        "perplexity": _fetch_perplexity,
-        "groq":       _fetch_groq,
+        "openai": _fetch_openai,
+        "google": _fetch_google,
+        "groq":   _fetch_groq,
     }
     fn = fetchers.get(provider_id)
     if fn is None:
@@ -157,23 +98,27 @@ async def fetch_models(
 # ── Per-provider fetchers ─────────────────────────────────────────────────────
 
 async def _fetch_anthropic(
-    api_key: str,
-    mode: str = "direct",
-    bedrock_url: str = "",
-    bedrock_token: str = "",
+    api_key:        str,
+    mode:           str = "direct",
+    bedrock_url:    str = "",
+    bedrock_token:  str = "",
+    catalog_models: list[dict] | None = None,
 ) -> list[dict]:
     import anthropic
     if mode == "bedrock":
+        if not catalog_models:
+            raise ValueError("No Bedrock models found in catalog. Add them via Settings → Providers.")
         client = anthropic.AsyncAnthropicBedrock(
             base_url=bedrock_url,
             api_key=bedrock_token,
         )
+        # Validate connectivity using the first catalog model
         await client.messages.create(
-            model=_BEDROCK_MODELS[1],
+            model=catalog_models[0]["model_id"],
             max_tokens=1,
             messages=[{"role": "user", "content": "hi"}],
         )
-        return sorted([_model_entry(m) for m in _BEDROCK_MODELS], key=lambda x: x["model_id"])
+        return sorted(catalog_models, key=lambda x: x["model_id"])
     else:
         client   = anthropic.AsyncAnthropic(api_key=api_key)
         response = await client.models.list(limit=100)
@@ -207,10 +152,12 @@ async def _fetch_google(api_key: str) -> list[dict]:
     return sorted([_model_entry(m) for m in ids], key=lambda x: x["model_id"])
 
 
-async def _fetch_perplexity(api_key: str) -> list[dict]:
+async def _fetch_perplexity(api_key: str, catalog_models: list[dict] | None = None) -> list[dict]:
     if not api_key.startswith("pplx-"):
         raise ValueError("Perplexity API keys begin with 'pplx-'. Please check your key.")
-    return [_model_entry(m) for m in _PERPLEXITY_MODELS]
+    if not catalog_models:
+        raise ValueError("No Perplexity models found in catalog. Add them via Settings → Providers.")
+    return catalog_models
 
 
 async def _fetch_groq(api_key: str) -> list[dict]:

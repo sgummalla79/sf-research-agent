@@ -10,25 +10,6 @@ Priority at execution start:
   3. Smart pick from connected providers using slot preference
 """
 
-# Best model per provider per slot
-_PROVIDER_SLOT_MODEL: dict[str, dict[str, str]] = {
-    "anthropic": {
-        "default":  "claude-sonnet-4-6",
-        "approver": "claude-opus-4-7",
-    },
-    "google": {
-        "default":              "gemini-2.0-flash",
-        "researcher_reasoning": "gemini-2.5-pro",
-    },
-    "perplexity": {
-        "default":           "sonar-pro",
-        "researcher_search": "sonar-pro",
-    },
-    "openai": {
-        "default": "gpt-4o",
-    },
-}
-
 # Ordered provider preference per slot
 _SLOT_PREFERENCE: dict[str, list[str]] = {
     "researcher_search":    ["perplexity", "google", "anthropic", "openai"],
@@ -59,40 +40,56 @@ def available_providers(user_keys: dict) -> set[str]:
     return providers
 
 
-def smart_pick(slot: str, connected: set[str]) -> dict:
+def smart_pick(slot: str, connected: set[str], active_models: list[dict] | None = None) -> dict:
     """
-    Pick the best available provider/model for a slot from connected providers.
-    Raises ValueError if no providers are connected.
+    Pick the best available provider/model for a slot from the user's active models.
+
+    Resolution order:
+      1. First connected provider in the slot preference list that has active models
+      2. Any other connected provider that has active models
+
+    Raises ValueError if no connected provider has active models.
     """
-    preference = _SLOT_PREFERENCE.get(slot, _DEFAULT_PREFERENCE)
-    for provider in preference:
-        if provider in connected:
-            models = _PROVIDER_SLOT_MODEL.get(provider, {})
-            model  = models.get(slot) or models.get("default", "")
-            if model:
-                return {"provider": provider, "model": model}
+    if not active_models:
+        raise ValueError(
+            "No models are activated. "
+            "Go to Settings → Providers, open a connected provider, and activate at least one model."
+        )
+
+    def _pick_for_provider(provider: str) -> dict | None:
+        if provider not in connected:
+            return None
+        provider_models = [m for m in active_models if m["provider"] == provider]
+        if not provider_models:
+            return None
+        return {"provider": provider, "model": provider_models[0]["model_id"]}
+
+    for provider in _SLOT_PREFERENCE.get(slot, _DEFAULT_PREFERENCE):
+        result = _pick_for_provider(provider)
+        if result:
+            return result
 
     for provider in connected:
-        models = _PROVIDER_SLOT_MODEL.get(provider, {})
-        model  = models.get("default", "")
-        if model:
-            return {"provider": provider, "model": model}
+        result = _pick_for_provider(provider)
+        if result:
+            return result
 
     raise ValueError(
-        "No LLM providers are configured. "
-        "Go to Settings → Providers and connect at least one provider."
+        "No active models found for any connected provider. "
+        "Go to Settings → Providers and activate at least one model."
     )
 
 
-def smart_pick_for_agent(agent_key: str, slot: str, connected: set[str]) -> dict:
+def smart_pick_for_agent(agent_key: str, slot: str, connected: set[str], active_models: list[dict] | None = None) -> dict:
     """Smart pick for a specific agent using its slot's preference order."""
-    return smart_pick(slot, connected)
+    return smart_pick(slot, connected, active_models)
 
 
 def resolve_agent_config(
-    agent_slot_map: dict[str, str],   # {agent_key: slot} from skill manifest
-    snapshot_cfg:   dict[str, dict],  # {agent_key: {provider, model}} from conversation_skill_agents
+    agent_slot_map: dict[str, str],    # {agent_key: slot} from skill manifest
+    snapshot_cfg:   dict[str, dict],   # {agent_key: {provider, model}} from conversation_skill_agents
     connected:      set[str],
+    active_models:  list[dict] | None = None,
 ) -> dict[str, dict]:
     """
     Resolve the final per-agent config for an execution.
@@ -110,6 +107,6 @@ def resolve_agent_config(
         if provider and model and provider in connected:
             resolved[agent_key] = {"provider": provider, "model": model}
         else:
-            resolved[agent_key] = smart_pick(slot, connected)
+            resolved[agent_key] = smart_pick(slot, connected, active_models)
 
     return resolved

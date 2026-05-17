@@ -195,7 +195,7 @@ onMounted(() => {
 
 .login-shell {
   min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: #1a1a1a; padding: 20px;
+  background: var(--bg); padding: 20px;
 }
 .login-card {
   width: 100%; max-width: 380px;
@@ -257,21 +257,21 @@ onMounted(() => {
 
 /* ── Light mode overrides ─────────────────────────────────────────────── */
 @media (prefers-color-scheme: light) {
-  .login-shell  { background: #f5f5f4; }
-  .login-card   { background: #ffffff; border-color: #e5e5e3; box-shadow: 0 20px 60px rgba(0,0,0,0.08); }
-  .login-app-name { color: #1a1a1a; }
-  .login-app-sub  { color: #737373; }
-  .login-error  { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
-  .lf-input     { background: #ffffff; border-color: #e5e5e3; color: #1a1a1a; }
-  .lf-input:focus { border-color: #b85c2a; }
-  .lf-input::placeholder { color: #737373; }
-  .login-divider { color: #737373; }
+  .login-shell  { background: var(--bg); }
+  .login-card   { background: var(--surface); border-color: var(--border); box-shadow: 0 20px 60px rgba(0,0,0,0.08); }
+  .login-app-name { color: var(--text); }
+  .login-app-sub  { color: var(--muted); }
+  .login-error  { background: var(--fail-bg); border-color: #fecaca; color: var(--fail-tx); }
+  .lf-input     { background: var(--surface); border-color: var(--border); color: var(--text); }
+  .lf-input:focus { border-color: var(--pri); }
+  .lf-input::placeholder { color: var(--muted); }
+  .login-divider { color: var(--muted); }
   .login-divider::before,
-  .login-divider::after { background: #e5e5e3; }
-  .login-loading { color: #737373; }
-  .login-btn.primary { background: #b85c2a; }
-  .login-btn.primary:hover:not(:disabled) { background: #a04e22; }
-  .login-btn.social { background: #ffffff; color: #1a1a1a; border-color: #e5e5e3; }
-  .login-btn.social:hover { border-color: #737373; }
+  .login-divider::after { background: var(--border); }
+  .login-loading { color: var(--muted); }
+  .login-btn.primary { background: var(--pri); }
+  .login-btn.primary:hover:not(:disabled) { background: var(--ifocus); }
+  .login-btn.social { background: var(--surface); color: var(--text); border-color: var(--border); }
+  .login-btn.social:hover { border-color: var(--muted); }
 }
 </style>

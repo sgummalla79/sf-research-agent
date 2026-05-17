@@ -153,7 +153,7 @@ onUnmounted(() => { document.removeEventListener('click', onOutsideClick); clear
   cursor: pointer; transition: background .12s; white-space: nowrap;
 }
 .fm-item:hover    { background: var(--hover); }
-.fm-item.selected { background: var(--sbg); }
+.fm-item.selected { background: var(--hover); }
 .fm-item-label    { font-size: 13px; font-weight: 500; color: var(--tx); }
 .fm-item svg      { color: var(--pri); flex-shrink: 0; }
 </style>

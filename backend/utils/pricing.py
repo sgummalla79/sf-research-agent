@@ -1,25 +1,39 @@
 """
-LLM model pricing — used for cost estimation only.
-All prices are per 1,000,000 tokens (input / output).
-Update these constants when provider pricing changes.
+LLM pricing — costs are loaded from the model_pricing DB table at startup.
+Call load_pricing_cache(db) once during app lifespan before any cost calculations.
+Update prices via the API without redeploying.
 """
 
-MODEL_PRICING: dict[str, dict[str, float]] = {
-    "claude-sonnet-4-6":         {"input":  3.00, "output": 15.00},
-    "claude-haiku-4-5-20251001": {"input":  0.80, "output":  4.00},
-    "sonar-pro":                 {"input":  3.00, "output": 15.00},
-    "gemini-2.5-pro":            {"input":  1.25, "output": 10.00},
-}
+import logging
+from datetime import datetime, timezone
+
+log = logging.getLogger(__name__)
+
+# In-memory cache: {model_id: {"input": float, "output": float}}
+# Populated at startup from DB — sync-safe for LangGraph threads.
+_cache: dict[str, dict[str, float]] = {}
+
+
+async def load_pricing_cache(db) -> None:
+    """Load all model prices from DB into memory. Called once at app startup."""
+    rows = await db.model_pricing.get_all()
+    _cache.clear()
+    for row in rows:
+        _cache[row.model_id] = {
+            "input":  row.input_usd_per_1m,
+            "output": row.output_usd_per_1m,
+        }
+    log.info("Pricing cache loaded — %d models", len(_cache))
 
 
 def cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
-    p = MODEL_PRICING.get(model, {"input": 0.0, "output": 0.0})
+    """Compute cost in USD from cached pricing. Returns 0.0 if model not in cache."""
+    p = _cache.get(model, {"input": 0.0, "output": 0.0})
     return round((input_tokens * p["input"] + output_tokens * p["output"]) / 1_000_000, 6)
 
 
 def usage_record(agent: str, model: str, metadata: dict | None) -> dict:
     """Build a usage record dict from LangChain usage_metadata."""
-    from datetime import datetime, timezone
     m   = metadata or {}
     inp = m.get("input_tokens", 0)
     out = m.get("output_tokens", 0)

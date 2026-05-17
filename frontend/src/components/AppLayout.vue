@@ -48,6 +48,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useSidebarStore }      from '../stores/sidebar'
 import { useConversationStore } from '../stores/conversation'
 import { useAppStore }          from '../stores/app'
@@ -61,6 +62,7 @@ const props = defineProps({
   activeConversationId: { type: String, default: null },
 })
 
+const router  = useRouter()
 const sidebar = useSidebarStore()
 const conv    = useConversationStore()
 const app     = useAppStore()
@@ -69,12 +71,14 @@ const app     = useAppStore()
 function onSelectConversation(id) {
   app.openChat()
   conv.restore(id)
+  router.push('/')
 }
 
 function onNewConversation() {
   app.openChat()
   conv.reset()
   sidebar.load()
+  router.push('/')
 }
 
 // ── Delete flow ────────────────────────────────────────────────────────────────

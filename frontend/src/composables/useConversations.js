@@ -36,8 +36,8 @@ export function useConversations() {
       method: 'POST',
       body:   JSON.stringify({
         title,
-        chat_provider: chatProvider || 'anthropic',
-        chat_model:    chatModel    || 'claude-sonnet-4-6',
+        chat_provider: chatProvider,
+        chat_model:    chatModel,
       }),
     })
     return data

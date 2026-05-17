@@ -9,9 +9,10 @@ POST   /api/providers/{id}/connect        — save API key + seed models
 PATCH  /api/providers/{id}/toggle         — toggle provider isactive (cascades to models)
 DELETE /api/providers/{id}               — remove API key + delete models
 
-GET    /api/providers/{id}/models         — list models with isactive for provider
-PATCH  /api/providers/{id}/models/{mid}  — toggle one model active/inactive
-POST   /api/providers/{id}/refresh        — re-fetch models from LLM API, reset all inactive
+GET    /api/providers/{id}/models                      — list models with isactive for provider
+PATCH  /api/providers/{id}/models/{mid}               — toggle one model active/inactive
+PUT    /api/providers/{id}/models/{mid}/display-name  — update model display name
+POST   /api/providers/{id}/refresh                    — re-fetch models from LLM API, reset all inactive
 
 GET    /api/models/active                 — all active models across providers (for dropdowns)
 GET    /api/providers/model-info          — metadata for a specific model
@@ -25,7 +26,6 @@ from pydantic import BaseModel
 
 from utils.auth import AuthUser, get_current_user
 from utils.key_encryption import encrypt
-from utils.provider_registry import PROVIDERS, PROVIDER_ORDER
 
 log    = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/providers")
@@ -56,8 +56,11 @@ async def _fetch_and_seed_models(
     fetch_error: str | None = None
     models = []
 
+    catalog = await db.model_catalog.get_by_provider(provider_key)
+    catalog_models = [{"model_id": c.model_id, "display_name": c.display_name} for c in catalog]
+
     try:
-        models = await fetch_models(provider_key, api_key)
+        models = await fetch_models(provider_key, api_key, catalog_models=catalog_models)
     except Exception as exc:
         fetch_error = str(exc)
         log.warning("Could not fetch models for provider '%s': %s", provider_key, exc)
@@ -79,17 +82,19 @@ async def list_providers(request: Request, current_user: AuthUser = Depends(get_
     db           = request.app.state.db
     key_statuses = await db.users.get_llm_provider_key_statuses(current_user.sub)
 
+    registry  = await db.provider_registry.get_all()
     providers = []
-    for pid in PROVIDER_ORDER:
-        info     = PROVIDERS.get(pid, {})
+    for entry in registry:
+        pid      = entry.provider_key
         has_key  = pid in key_statuses
         isactive = key_statuses.get(pid, False)
         providers.append({
             "id":          pid,
-            "name":        info.get("name", pid),
+            "name":        entry.name,
             "connected":   has_key,
             "isactive":    isactive,
-            "description": info.get("description", ""),
+            "description": entry.description,
+            "auth_config": entry.auth_config,
         })
 
     # AWS Bedrock virtual tile
@@ -119,8 +124,8 @@ async def connect_bedrock(
     await db.users.save_llm_provider_key(current_user.sub, "anthropic_bedrock_token", encrypt(body.bedrock_token, current_user.sub))
     await db.users.save_llm_provider_key(current_user.sub, "anthropic_mode",          encrypt("bedrock",           current_user.sub))
 
-    from utils.provider_registry import _BEDROCK_MODELS, _model_entry
-    models = [_model_entry(m) for m in _BEDROCK_MODELS]
+    catalog = await db.model_catalog.get_by_provider("bedrock")
+    models  = [{"model_id": c.model_id, "display_name": c.display_name} for c in catalog]
     await db.llm_models.seed(current_user.sub, "bedrock", models)
     return {"ok": True, "provider": "bedrock", "models_seeded": len(models)}
 
@@ -178,9 +183,10 @@ async def connect_provider(
     request:      Request,
     current_user: AuthUser = Depends(get_current_user),
 ):
-    if provider_id not in PROVIDERS:
+    db    = request.app.state.db
+    entry = await db.provider_registry.get_by_key(provider_id)
+    if not entry:
         raise HTTPException(status_code=404, detail=f"Unknown provider: {provider_id}")
-    db  = request.app.state.db
     # Ensure user row exists before any FK-referencing inserts
     await db.users.upsert(current_user.sub, current_user.email, current_user.name, None)
     enc = encrypt(body.api_key, current_user.sub)
@@ -251,6 +257,27 @@ async def toggle_model(
     return {"ok": True, "provider": provider_id, "model_id": model_id, "isactive": new_state}
 
 
+class RenameModelRequest(BaseModel):
+    display_name: str
+
+
+@router.put("/{provider_id}/models/{model_id:path}/display-name")
+async def rename_model(
+    provider_id:  str,
+    model_id:     str,
+    body:         RenameModelRequest,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    if not body.display_name.strip():
+        raise HTTPException(status_code=422, detail="display_name cannot be empty.")
+    db   = request.app.state.db
+    found = await db.llm_models.rename(current_user.sub, provider_id, model_id, body.display_name)
+    if not found:
+        raise HTTPException(status_code=404, detail="Model not found.")
+    return {"ok": True, "provider": provider_id, "model_id": model_id, "display_name": body.display_name.strip()}
+
+
 @router.post("/{provider_id}/refresh")
 async def refresh_provider_models(
     provider_id:  str,
@@ -262,8 +289,8 @@ async def refresh_provider_models(
     statuses = await db.users.get_llm_provider_key_statuses(current_user.sub)
 
     if provider_id == "bedrock":
-        from utils.provider_registry import _BEDROCK_MODELS, _model_entry
-        models = [_model_entry(m) for m in _BEDROCK_MODELS]
+        catalog = await db.model_catalog.get_by_provider("bedrock")
+        models  = [{"model_id": c.model_id, "display_name": c.display_name} for c in catalog]
         await db.llm_models.seed(current_user.sub, "bedrock", models)
         return {"ok": True, "provider": "bedrock", "models_seeded": len(models)}
 

@@ -14,7 +14,7 @@ async def test_migration_applies_cleanly():
     """Verify that migration 0001 creates all 16 expected tables."""
     from psycopg_pool import AsyncConnectionPool
 
-    url = os.getenv("TEST_DATABASE_URL", "postgresql://pragna:pragna@localhost:5432/pragna_test")
+    url = os.getenv("TEST_DATABASE_URL", "postgresql://pragna:pragna_dev@localhost:5432/pragna_test")
 
     async with AsyncConnectionPool(url, min_size=1, max_size=2, kwargs={"autocommit": True}, open=False) as pool:
         await pool.open(wait=True)
@@ -30,7 +30,7 @@ async def test_migration_applies_cleanly():
         alembic_cfg.set_main_option("script_location", str(backend_dir / "alembic"))
         command.upgrade(alembic_cfg, "head")
 
-        # Verify all 16 tables exist
+        # Verify all expected tables exist
         expected_tables = {
             "skills", "agents",
             "users", "user_llm_providers", "user_config", "user_skills",
@@ -38,7 +38,8 @@ async def test_migration_applies_cleanly():
             "conversations", "conversation_skills", "conversation_skill_agents",
             "conversation_skill_executions", "conversation_skill_execution_stages",
             "conversation_messages", "conversation_artifacts",
-            "token_usage",
+            "token_usage", "user_llm_models",
+            "model_pricing", "provider_catalog", "provider_registry",
         }
 
         async with pool.connection() as conn:

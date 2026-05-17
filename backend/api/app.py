@@ -119,6 +119,11 @@ async def lifespan(app: FastAPI):
         # ── Seed DB from disk ─────────────────────────────────────────────
         await seed_skills(db, skill_registry)
 
+        # ── Load pricing cache ────────────────────────────────────────────
+        from utils.pricing import load_pricing_cache
+        await load_pricing_cache(db)
+        logger.info("Pricing cache ready")
+
         # ── Compile graphs ─────────────────────────────────────────────────
         engine = SkillEngine()
         graphs: dict = {}

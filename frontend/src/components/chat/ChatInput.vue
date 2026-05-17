@@ -60,44 +60,45 @@
               Add files or photos
             </button>
             <input ref="fileInputEl" type="file" style="display:none"
-              accept=".pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg,.gif,.webp"
+              :accept="ALL_EXTS.join(',')"
               @change="onFileChange" />
 
             <!-- Skills — hover to open flyout submenu to the right -->
-            <template v-if="props.skills.length">
-              <div class="cpm-divider" />
-              <div class="cpm-skills-wrap"
-                @mouseenter="skillsOpen = true"
-                @mouseleave="skillsOpen = false">
-                <button class="cpm-item">
-                  <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
-                    <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-                  </svg>
-                  <span style="flex:1; text-align:left">Skills</span>
-                  <svg class="cpm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="11" height="11">
-                    <polyline points="9 18 15 12 9 6"/>
-                  </svg>
-                </button>
+            <div class="cpm-divider" />
+            <div class="cpm-skills-wrap"
+              @mouseenter="skillsOpen = true"
+              @mouseleave="skillsOpen = false">
+              <button class="cpm-item">
+                <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+                </svg>
+                <span style="flex:1; text-align:left">Skills</span>
+                <svg class="cpm-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="11" height="11">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
 
-                <!-- Flyout submenu — appears to the right -->
-                <div v-if="skillsOpen" class="cpm-flyout">
+              <!-- Flyout submenu — appears to the right -->
+              <div v-if="skillsOpen" class="cpm-flyout">
+                <template v-if="props.skills.length">
                   <button v-for="skill in props.skills" :key="skill.id"
                     class="cpm-item"
                     @click="$emit('skill-select', skill.id); plusMenuOpen = false; skillsOpen = false">
-                    <span class="cpm-skill-icon">{{ skill.icon || '⚡' }}</span>
-                    {{ skill.name }}
+                    <img v-if="skillIconUrl(skill.id)" :src="skillIconUrl(skill.id)" class="cpm-skill-icon-svg" :alt="skill.name" />
+                    <span v-else class="cpm-skill-icon">{{ skill.icon || '⚡' }}</span>
+                    <span class="cpm-skill-name">{{ skill.name }}</span>
                   </button>
                   <div class="cpm-divider" />
-                  <button class="cpm-item cpm-manage"
-                    @click="app.openConfiguration(); plusMenuOpen = false; skillsOpen = false">
-                    <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
-                      <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
-                    </svg>
-                    Manage skills
-                  </button>
-                </div>
+                </template>
+                <button class="cpm-item cpm-manage"
+                  @click="app.openSkills(); plusMenuOpen = false; skillsOpen = false">
+                  <svg class="cpm-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="16" height="16">
+                    <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                  </svg>
+                  Manage skills
+                </button>
               </div>
-            </template>
+            </div>
           </div>
         </div>
 
@@ -109,7 +110,7 @@
           <!-- Model picker -->
           <div v-if="!props.isPipelineRunning && props.chatModels.length" class="cb-model-wrap">
             <button class="cb-model-btn" @click.stop="modelPickerOpen = !modelPickerOpen">
-              {{ selectedModel.display }}
+              {{ selectedModel?.display ?? '…' }}
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="10" height="10">
                 <polyline points="6 9 12 15 18 9"/>
               </svg>
@@ -126,9 +127,9 @@
           <!-- Adaptive Thinking — hidden while pipeline is running -->
           <button v-if="!props.isPipelineRunning && props.chatModels.length"
             class="cb-adaptive-btn"
-            :class="{ on: extendedThinking, 'cb-adaptive-off': selectedModel.provider !== 'anthropic' }"
-            :disabled="selectedModel.provider !== 'anthropic'"
-            :title="selectedModel.provider === 'anthropic'
+            :class="{ on: extendedThinking, 'cb-adaptive-off': !selectedModel?.capabilities?.extended_thinking }"
+            :disabled="!selectedModel?.capabilities?.extended_thinking"
+            :title="selectedModel?.capabilities?.extended_thinking
               ? 'Adaptive Thinking — Claude thinks deeper before responding'
               : 'Adaptive Thinking is only available for Anthropic Claude models'"
             @click.stop="extendedThinking = !extendedThinking">
@@ -147,6 +148,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Privacy notice -->
+    <div class="ci-privacy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" aria-hidden="true">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+      Incognito · stays on your device · never trains AI · not stored by providers
+    </div>
   </div>
 </template>
 
@@ -154,6 +164,9 @@
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useAppStore }  from '../../stores/app'
 import ModelMenu        from '../ui/ModelMenu.vue'
+import { useSkillIcon } from '../../composables/useSkillIcon.js'
+
+const { skillIconUrl } = useSkillIcon()
 
 const props = defineProps({
   chatModels:        { type: Array,   default: () => [] },
@@ -171,19 +184,17 @@ const app  = useAppStore()
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const text                  = ref('')
-const selectedModel         = ref({ model: 'claude-sonnet-4-6', display: 'Sonnet 4.6', description: 'Responsive everyday work', provider: 'anthropic' })
+const selectedModel         = ref(null)
 const extendedThinking      = ref(true)
 const plusMenuOpen          = ref(false)
 const skillsOpen            = ref(false)
 const modelPickerOpen       = ref(false)
-const PROVIDER_LABELS = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', perplexity: 'Perplexity', groq: 'Groq' }
-
 const modelGroups = computed(() => {
   const map = {}
   for (const m of props.chatModels) {
     const p = m.provider || 'other'
-    if (!map[p]) map[p] = { key: p, label: PROVIDER_LABELS[p] || p, items: [] }
-    map[p].items.push({ label: m.display, value: m, selected: selectedModel.value.model === m.model })
+    if (!map[p]) map[p] = { key: p, label: m.providerName || p, items: [] }
+    map[p].items.push({ label: m.display, value: m, selected: selectedModel.value?.model === m.model })
   }
   return Object.values(map)
 })
@@ -208,16 +219,16 @@ const canSend = computed(() =>
   (!!selectedFile.value || !!text.value.trim())
 )
 
-// Sync default model when chatModels arrive (async from parent)
+// Sync selected model when chatModels list changes (provider lock narrows the list)
 watch(() => props.chatModels, (models) => {
   if (!models.length) return
-  const def = models.find(m => m.default) || models[0]
-  if (def) selectedModel.value = def
+  const still = selectedModel.value && models.find(m => m.model === selectedModel.value.model)
+  if (!still) selectedModel.value = models.find(m => m.default) || models[0]
 }, { immediate: true })
 
 // Keep Adaptive Thinking in sync with chosen provider
-watch(() => selectedModel.value.provider, (provider) => {
-  extendedThinking.value = provider === 'anthropic'
+watch(() => selectedModel.value?.capabilities?.extended_thinking, (supported) => {
+  extendedThinking.value = !!supported
 }, { immediate: true })
 
 // ── Slash command — delegate palette to parent ────────────────────────────────
@@ -283,9 +294,9 @@ function setSkill(skillId) {
 defineExpose({ clear, setText, setSkill })
 
 // ── File handling ─────────────────────────────────────────────────────────────
-const MAX_MB   = 10
-const IMG_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp'])
-const ALL_EXTS = ['.pdf', '.docx', '.doc', '.txt', '.md', ...IMG_EXTS]
+const MAX_MB   = computed(() => app.uploadConfig.max_file_size_mb)
+const IMG_EXTS = computed(() => new Set(app.uploadConfig.allowed_image_exts))
+const ALL_EXTS = computed(() => [...app.uploadConfig.allowed_doc_exts, ...app.uploadConfig.allowed_image_exts])
 
 function clearFile() {
   if (imagePreviewUrl.value) URL.revokeObjectURL(imagePreviewUrl.value)
@@ -298,10 +309,10 @@ function setFile(file) {
   uploadError.value     = null
   imagePreviewUrl.value = null
   const ext = '.' + file.name.split('.').pop().toLowerCase()
-  if (!ALL_EXTS.includes(ext)) { uploadError.value = 'Unsupported file type.'; return }
-  if (file.size > MAX_MB * 1048576) { uploadError.value = `Max ${MAX_MB} MB.`; return }
+  if (!ALL_EXTS.value.includes(ext)) { uploadError.value = 'Unsupported file type.'; return }
+  if (file.size > MAX_MB.value * 1048576) { uploadError.value = `Max ${MAX_MB.value} MB.`; return }
   selectedFile.value = file
-  if (IMG_EXTS.has(ext)) imagePreviewUrl.value = URL.createObjectURL(file)
+  if (IMG_EXTS.value.has(ext)) imagePreviewUrl.value = URL.createObjectURL(file)
 }
 
 function onFileChange(e) { const f = e.target.files?.[0]; if (f) setFile(f) }
@@ -309,8 +320,8 @@ function onDrop(e)       { isDragging.value = false; const f = e.dataTransfer?.f
 
 // ── Submit ────────────────────────────────────────────────────────────────────
 const opts = () => ({
-  model:            selectedModel.value.model,
-  provider:         selectedModel.value.provider || 'anthropic',
+  model:            selectedModel.value?.model,
+  provider:         selectedModel.value?.provider,
   extendedThinking: extendedThinking.value,
 })
 
@@ -334,11 +345,18 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 </script>
 
 <style scoped>
-.ci-outer { flex-shrink: 0; padding: 10px 20px 16px; background: var(--bg); }
+.ci-outer { flex-shrink: 0; padding: 10px 20px 12px; background: var(--bg); }
+
+.ci-privacy {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  margin-top: 8px;
+  font-size: 14px; color: var(--text);
+  user-select: none;
+}
 
 .chat-box {
   position: relative;
-  background: var(--surf);
+  background: var(--surface);
   border: 1px solid var(--bdr);
   border-radius: 18px;
   padding: 12px 14px 10px;
@@ -410,11 +428,14 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   width: 100%; padding: 9px 14px;
   background: none; border: none; cursor: pointer;
   font-size: 14px; color: var(--tx); text-align: left;
+  border-radius: 8px;
   transition: background .1s;
 }
 .cpm-item:hover { background: var(--hover); }
 .cpm-icon { flex-shrink: 0; color: var(--muted); }
-.cpm-skill-icon { font-size: 15px; flex-shrink: 0; }
+.cpm-skill-icon     { font-size: 15px; flex-shrink: 0; }
+.cpm-skill-icon-svg { width: 22px; height: 22px; object-fit: contain; flex-shrink: 0; align-self: center; }
+.cpm-skill-name     { align-self: center; line-height: 1; }
 .cpm-manage { color: var(--muted); }
 .cpm-divider { height: 1px; background: var(--bdr, var(--border)); margin: 4px 0; }
 .cpm-chevron { flex-shrink: 0; color: var(--muted); }

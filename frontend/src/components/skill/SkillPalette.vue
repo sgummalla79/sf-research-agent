@@ -24,7 +24,8 @@
         @mouseenter="activeIndex = i; hoveredIndex = i"
         @mouseleave="hoveredIndex = null"
       >
-        <span class="pr-icon">{{ skill.icon || '⚡' }}</span>
+        <img v-if="skillIconUrl(skill.id)" :src="skillIconUrl(skill.id)" class="pr-icon-svg" :alt="skill.name" />
+        <span v-else class="pr-icon">{{ skill.icon || '⚡' }}</span>
         <span class="pr-name">{{ skill.name }}</span>
       </button>
     </div>
@@ -39,6 +40,9 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useSkillIcon } from '../../composables/useSkillIcon.js'
+
+const { skillIconUrl } = useSkillIcon()
 
 const props = defineProps({
   skills: { type: Array,  default: () => [] },
@@ -100,12 +104,14 @@ defineExpose({ navigateUp, navigateDown, selectActive, filtered })
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 8px 14px;
   background: none; border: none; cursor: pointer; text-align: left;
+  border-radius: 8px;
   transition: background .1s;
 }
 .palette-row.active,
 .palette-row:hover { background: var(--hover); }
 
-.pr-icon { font-size: 14px; flex-shrink: 0; width: 18px; text-align: center; }
+.pr-icon     { font-size: 14px; flex-shrink: 0; width: 18px; text-align: center; }
+.pr-icon-svg { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; }
 .pr-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; }
 
 /* Description panel — absolutely positioned to the right, never shifts layout */

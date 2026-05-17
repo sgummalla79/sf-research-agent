@@ -36,9 +36,10 @@ def _pick_title_model(agent_cfg: dict | None) -> tuple[str, str]:
         if p and m:
             return p, m
     # Nothing configured — smart-pick from connected providers
+    from utils.user_context import get_active_models
     connected = available_providers(_user_keys.get() or {})
     try:
-        pick = smart_pick("default", connected)
+        pick = smart_pick("default", connected, get_active_models())
         return pick["provider"], pick["model"]
     except ValueError:
         return "", ""
@@ -98,11 +99,11 @@ async def _stream_graph(
     Run the LangGraph pipeline and emit SSE events.
     Persists artifacts after research, records token usage, updates execution status.
     """
-    from utils.user_context import _user_keys, get_anthropic_mode, register_execution_keys, unregister_execution_keys
+    from utils.user_context import _user_keys, get_anthropic_mode, get_active_models, register_execution_keys, unregister_execution_keys
 
     live_keys = _user_keys.get()
     if live_keys and execution_id:
-        register_execution_keys(execution_id, live_keys, get_anthropic_mode())
+        register_execution_keys(execution_id, live_keys, get_anthropic_mode(), get_active_models())
 
     config = {**config, "recursion_limit": 100}
 
@@ -363,6 +364,12 @@ async def invoke_skill(
         )
 
     await db.conversations.touch(conversation_id)
+
+    # Load user's active models and store in context so smart_pick uses them
+    from utils.user_context import set_active_models
+    raw_models    = await db.llm_models.get_active(current_user.sub)
+    active_models = [{"provider": m.provider_key, "model_id": m.model_id} for m in raw_models]
+    set_active_models(active_models)
 
     # Auto-title on first invocation (brief becomes the title source)
     if not conv.title and (body.brief or body.raw_document_text):

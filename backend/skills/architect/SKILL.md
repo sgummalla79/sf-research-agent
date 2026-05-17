@@ -1,5 +1,5 @@
 ---
-name: Technical Architect
+name: Architect
 id: architect
 description: >
   Formal Architecture Recommendation Document via a 5-stage pipeline.

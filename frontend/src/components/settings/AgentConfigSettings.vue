@@ -86,18 +86,6 @@ import { apiFetch } from '../../composables/useFetch'
 import { useProvidersStore } from '../../stores/providers'
 import ModelMenu from '../ui/ModelMenu.vue'
 
-// ── Slot-priority hints for Suggest ──────────────────────────────────────────
-const SLOT_PRIORITY = {
-  intake:               ['anthropic:claude-sonnet', 'openai:gpt-4o', 'google:gemini-2.0-flash'],
-  discovery:            ['anthropic:claude-sonnet', 'openai:gpt-4o', 'google:gemini-2.0-flash'],
-  researcher_search:    ['perplexity:sonar-pro', 'openai:gpt-4o', 'anthropic:claude-sonnet'],
-  researcher_reasoning: ['google:gemini-2.5-pro', 'anthropic:claude-opus', 'openai:o3'],
-  researcher_writer:    ['anthropic:claude-sonnet', 'openai:gpt-4o', 'google:gemini-2.0-flash'],
-  reviewer:             ['anthropic:claude-opus', 'openai:o3', 'google:gemini-2.5-pro'],
-  approver:             ['anthropic:claude-opus', 'openai:o3', 'google:gemini-2.5-pro'],
-}
-
-const PROVIDER_LABELS = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google', perplexity: 'Perplexity', groq: 'Groq' }
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const skillAgents      = ref([])       // [{skillKey, name, icon, agents: [...]}]
@@ -114,16 +102,16 @@ const hasAnyModels = computed(() => activeModels.value.length > 0)
 const modelsByProvider = computed(() => {
   const map = {}
   for (const m of activeModels.value) {
-    if (!map[m.provider]) map[m.provider] = []
-    map[m.provider].push(m)
+    if (!map[m.provider]) map[m.provider] = { name: m.provider_name || m.provider, models: [] }
+    map[m.provider].models.push(m)
   }
   return map
 })
 
 function getModelGroups(selKey) {
-  return Object.entries(modelsByProvider.value).map(([pid, models]) => ({
+  return Object.entries(modelsByProvider.value).map(([pid, { name, models }]) => ({
     key:   pid,
-    label: PROVIDER_LABELS[pid] || pid,
+    label: name,
     items: models.map(m => ({
       label:    m.display_name,
       value:    `${pid}::${m.model_id}`,
@@ -136,7 +124,8 @@ function getSelectedLabel(selKey) {
   const val = selections[selKey]
   if (!val) return '— select model —'
   const [pid, mid] = val.split('::')
-  const m = (modelsByProvider.value[pid] || []).find(m => m.model_id === mid)
+  const entry = modelsByProvider.value[pid]
+  const m = (entry?.models || []).find(m => m.model_id === mid)
   return m ? m.display_name : mid
 }
 
@@ -160,7 +149,11 @@ async function load() {
     ])
 
     if (modelsRes.ok) {
-      activeModels.value = (await modelsRes.json()).models || []
+      const data = await modelsRes.json()
+      activeModels.value = (data.models || []).map(m => ({
+        ...m,
+        provider_name: m.provider_name || m.provider,
+      }))
     }
 
     // Fetch agents for each installed skill
@@ -210,35 +203,28 @@ function clearSkill(skillKey) {
 }
 
 // ── Suggest ────────────────────────────────────────────────────────────────────
-function suggestSkill(skillKey, agents) {
-  let suggested = 0
-  for (const agent of agents) {
-    const slot     = agent.slot || agent.agent_key
-    const priority = SLOT_PRIORITY[slot] || []
-    let   picked   = null
-
-    for (const hint of priority) {
-      const [preferPid, preferModel] = hint.split(':')
-      const models = modelsByProvider.value[preferPid] || []
-      if (!models.length) continue
-      const match = models.find(m => m.model_id.toLowerCase().includes(preferModel.toLowerCase()))
-      if (match) { picked = `${preferPid}::${match.model_id}`; break }
-      picked = `${preferPid}::${models[0].model_id}`; break
+async function suggestSkill(skillKey, agents) {
+  try {
+    const res = await apiFetch(`/api/skills/${skillKey}/suggest-config`)
+    if (!res.ok) {
+      saveMsgs[skillKey] = { type: 'err', text: 'No connected providers. Add API keys in Providers first.' }
+      return
     }
-
-    if (!picked && activeModels.value.length) {
-      const first = activeModels.value[0]
-      picked = `${first.provider}::${first.model_id}`
+    const { suggestions } = await res.json()
+    let suggested = 0
+    for (const agent of agents) {
+      const pick = suggestions[agent.agent_key]
+      if (pick) {
+        selections[`${skillKey}::${agent.agent_key}`] = `${pick.provider}::${pick.model}`
+        suggested++
+      }
     }
-
-    if (picked) {
-      selections[`${skillKey}::${agent.agent_key}`] = picked
-      suggested++
-    }
+    saveMsgs[skillKey] = suggested > 0
+      ? { type: 'ok',  text: `Suggested models for ${suggested} agent${suggested !== 1 ? 's' : ''}. Review and save.` }
+      : { type: 'err', text: 'No connected providers. Add API keys in Providers first.' }
+  } catch (_) {
+    saveMsgs[skillKey] = { type: 'err', text: 'Failed to fetch suggestions.' }
   }
-  saveMsgs[skillKey] = suggested > 0
-    ? { type: 'ok',  text: `Suggested models for ${suggested} agent${suggested !== 1 ? 's' : ''}. Review and save.` }
-    : { type: 'err', text: 'No connected providers. Add API keys in Providers first.' }
 }
 
 // ── Save ───────────────────────────────────────────────────────────────────────

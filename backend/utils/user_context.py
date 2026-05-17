@@ -24,8 +24,9 @@ log = logging.getLogger(__name__)
 
 _user_keys:      ContextVar[dict] = ContextVar("user_keys",      default={})
 _anthropic_mode: ContextVar[str]  = ContextVar("anthropic_mode", default="direct")
+_active_models:  ContextVar[list] = ContextVar("active_models",  default=[])
 
-# Execution-scoped store: {execution_id: {"keys": {...}, "mode": "direct"|"bedrock"}}
+# Execution-scoped store: {execution_id: {"keys": {...}, "mode": "...", "active_models": [...]}}
 _execution_store:      dict[str, dict] = {}
 _execution_store_lock: threading.Lock  = threading.Lock()
 
@@ -35,12 +36,22 @@ def set_user_context(keys: dict, anthropic_mode: str = "direct") -> None:
     _anthropic_mode.set(anthropic_mode)
 
 
-def register_execution_keys(execution_id: str, keys: dict, mode: str = "direct") -> None:
-    """Store decrypted keys for an execution so node threads can retrieve them."""
+def set_active_models(models: list[dict]) -> None:
+    """Store the user's active models in the current async context."""
+    _active_models.set(models)
+
+
+def get_active_models() -> list[dict]:
+    """Return active models from context, falling back to empty list."""
+    return _active_models.get()
+
+
+def register_execution_keys(execution_id: str, keys: dict, mode: str = "direct", active_models: list[dict] | None = None) -> None:
+    """Store decrypted keys (and optionally active models) for an execution so node threads can retrieve them."""
     if not execution_id or not keys:
         return
     with _execution_store_lock:
-        _execution_store[execution_id] = {"keys": keys, "mode": mode}
+        _execution_store[execution_id] = {"keys": keys, "mode": mode, "active_models": active_models or []}
     log.debug("register_execution_keys  execution=%s  providers=%s", execution_id, list(keys.keys()))
 
 
@@ -58,6 +69,11 @@ def get_execution_keys(execution_id: str) -> dict:
 def get_execution_mode(execution_id: str) -> str:
     with _execution_store_lock:
         return _execution_store.get(execution_id, {}).get("mode", "direct")
+
+
+def get_execution_active_models(execution_id: str) -> list[dict]:
+    with _execution_store_lock:
+        return _execution_store.get(execution_id, {}).get("active_models", [])
 
 
 def get_user_key(provider: str) -> str:

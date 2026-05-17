@@ -69,9 +69,12 @@ async def classify_skill_choice(
     from utils.llm_factory import build_llm
     from langchain_core.messages import SystemMessage, HumanMessage
 
+    db        = request.app.state.db
     connected = connected_providers()
+    raw_models = await db.llm_models.get_active(current_user.sub)
+    active_models = [{"provider": m.provider_key, "model_id": m.model_id} for m in raw_models]
     try:
-        pick = smart_pick("default", connected)
+        pick = smart_pick("default", connected, active_models)
         llm  = build_llm(pick["provider"], pick["model"])
     except ValueError:
         return {"skill_id": "none"}
@@ -124,8 +127,10 @@ async def validate_brief(
     from langchain_core.messages import SystemMessage, HumanMessage
 
     connected = connected_providers()
+    raw_models = await db.llm_models.get_active(current_user.sub)
+    active_models = [{"provider": m.provider_key, "model_id": m.model_id} for m in raw_models]
     try:
-        pick = smart_pick("default", connected)
+        pick = smart_pick("default", connected, active_models)
         llm  = build_llm(pick["provider"], pick["model"])
     except ValueError:
         return {"valid": True, "reason": "ok", "message": ""}
@@ -200,3 +205,45 @@ async def uninstall_skill(
 
     await db.user_skills.uninstall(current_user.sub, skill.id)
     return {"ok": True, "skill": skill_id}
+
+
+# ── Suggest agent config ───────────────────────────────────────────────────────
+
+@router.get("/{skill_id}/suggest-config")
+async def suggest_agent_config(
+    skill_id:     str,
+    request:      Request,
+    current_user: AuthUser = Depends(get_current_user),
+):
+    """
+    Return smart-picked provider+model for each agent in the skill,
+    using the user's active models and slot preferences from defaults.py.
+    """
+    db             = request.app.state.db
+    skill_registry = request.app.state.skill_registry
+
+    skill = await db.skills.get_by_key(skill_id)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not found.")
+
+    registry_entry = skill_registry.get(skill_id)
+    if not registry_entry:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_id}' not loaded.")
+
+    agent_slot_map = registry_entry.manifest.agent_slot_map
+
+    from utils.user_context import connected_providers
+    from framework.defaults import smart_pick
+    connected     = connected_providers()
+    raw_models    = await db.llm_models.get_active(current_user.sub)
+    active_models = [{"provider": m.provider_key, "model_id": m.model_id} for m in raw_models]
+
+    suggestions = {}
+    for agent_key, slot in agent_slot_map.items():
+        try:
+            pick = smart_pick(slot, connected, active_models)
+            suggestions[agent_key] = {"provider": pick["provider"], "model": pick["model"]}
+        except ValueError:
+            suggestions[agent_key] = None
+
+    return {"skill": skill_id, "suggestions": suggestions}

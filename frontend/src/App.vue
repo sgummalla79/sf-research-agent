@@ -40,7 +40,7 @@ html, body, #app { height: 100%; }
   /* Sidebar-specific (now same bg as main, hover/active relative to --bg) */
   --sb-bg:     #f5f5f4;
   --sb-hover:  #ebebea;
-  --sb-active: rgba(184,92,42,0.1);
+  --sb-active: var(--hover);
   --sb-tx:     #1a1a1a;
   --sb-muted:  #737373;
   /* Aliases for legacy components */
@@ -54,17 +54,18 @@ html, body, #app { height: 100%; }
 /* ── Dark mode — via html.dark class set by useDarkMode ── */
 /*
    Two background colors only:
-     Ink  #1a1a1a  — base layer (sidebar, main canvas, inset inputs)
-     Ash  #282828  — elevated layer (menus, modals, panels, cards, hover)
+     Ink  #1a1a1a  — inset inputs, hover state (darker on Ash)
+     Ash  #282828  — base background for all pages, sidebar, panels
 */
 html.dark {
-  --bg:        #1a1a1a;   /* Ink */
-  --surface:   #282828;   /* Ash */
+  --bg:        #282828;   /* Ash — all page backgrounds */
+  --surface:   #333333;   /* elevated above Ash — menus, modals, cards */
   --surface-2: #1a1a1a;   /* Ink — inset / input areas */
+  --shade:     #2c2c2c;   /* Shade — agent message bubbles, between Ash and Lift */
   --border:    rgba(255,255,255,0.09);
   --text:      #ececea;
   --muted:     #888888;
-  --hover:     #282828;   /* Ash */
+  --hover:     rgba(255,255,255,0.06);   /* subtle light on Ash */
   --ifocus:    #c97040;
   --pri:       #c97040;
   --pri-fg:    #ffffff;
@@ -76,9 +77,9 @@ html.dark {
   --pass-bg:   #0d1f10; --pass-tx: #86efac;
   --fail-bg:   #1f0d0d; --fail-tx: #fca5a5;
   --draft-bg:  #1c1400; --draft-tx: #fcd34d;
-  --sb-bg:     #1a1a1a;   /* Ink */
-  --sb-hover:  #282828;   /* Ash */
-  --sb-active: #282828;   /* Ash */
+  --sb-bg:     #282828;   /* Ash */
+  --sb-hover:  rgba(255,255,255,0.06);   /* subtle light on Ash */
+  --sb-active: rgba(255,255,255,0.06);   /* Lift — same as --hover */
   --sb-tx:     #d9d9d7;
   --sb-muted:  #5e5e5e;
   --tx:    var(--text);
@@ -91,13 +92,14 @@ html.dark {
 /* System dark fallback when no explicit class is set yet */
 @media (prefers-color-scheme: dark) {
   :root:not(.dark):not([data-light]) {
-    --bg:        #1a1a1a;   /* Ink */
-    --surface:   #282828;   /* Ash */
+    --bg:        #282828;   /* Ash — all page backgrounds */
+    --surface:   #333333;   /* elevated above Ash */
     --surface-2: #1a1a1a;   /* Ink */
+    --shade:     #2c2c2c;   /* Shade — agent message bubbles */
     --border:    rgba(255,255,255,0.09);
     --text:      #ececea;
     --muted:     #888888;
-    --hover:     #282828;   /* Ash */
+    --hover:     rgba(255,255,255,0.06);   /* subtle light on Ash */
     --ifocus:    #c97040;
     --pri:       #c97040;
     --pri-fg:    #ffffff;
@@ -109,9 +111,9 @@ html.dark {
     --pass-bg:   #0d1f10; --pass-tx: #86efac;
     --fail-bg:   #1f0d0d; --fail-tx: #fca5a5;
     --draft-bg:  #1c1400; --draft-tx: #fcd34d;
-    --sb-bg:     #1a1a1a;   /* Ink */
-    --sb-hover:  #282828;   /* Ash */
-    --sb-active: #282828;   /* Ash */
+    --sb-bg:     #282828;   /* Ash */
+    --sb-hover:  rgba(255,255,255,0.06);   /* subtle light on Ash */
+    --sb-active: rgba(255,255,255,0.06);   /* Lift — same as --hover */
     --sb-tx:     #d9d9d7;
     --sb-muted:  #5e5e5e;
     --tx:    var(--text);
