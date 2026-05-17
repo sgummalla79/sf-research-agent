@@ -89,7 +89,7 @@ function copyContent() {
 .message.user  { align-self: flex-end; align-items: flex-end; }
 .message.agent { align-self: flex-start; align-items: flex-start; }
 
-.bubble { padding: 12px 16px; border-radius: 12px; font-size: 15px; line-height: 1.7; }
+.bubble { padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
 .user  .bubble { background: var(--surface-2); color: var(--text); border-bottom-right-radius: 4px; }
 .agent .bubble { background: var(--bg); color: var(--text); border-bottom-left-radius: 4px; }
 

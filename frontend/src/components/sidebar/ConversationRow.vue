@@ -94,11 +94,11 @@ function saveRename() {
 .sb-row.active   { background: var(--sb-active); }
 
 .sb-row-title {
-  flex: 1; font-size: 14px; color: var(--sb-tx);
+  flex: 1; font-size: 13px; color: var(--sb-tx);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 .rename-input {
-  flex: 1; font-size: 14px; background: var(--surface-2);
+  flex: 1; font-size: 13px; background: var(--surface-2);
   border: 1px solid var(--border); border-radius: 5px;
   padding: 2px 6px; outline: none; min-width: 0; color: var(--sb-tx);
 }

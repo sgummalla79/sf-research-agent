@@ -90,7 +90,7 @@ const navItems = [
 .sp-back {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 10px; border-radius: 8px;
-  font-size: 14px; font-weight: 500; color: var(--muted);
+  font-size: 13px; font-weight: 500; color: var(--muted);
   cursor: pointer; border: none; background: none;
   transition: background .15s, color .15s; text-align: left; width: 100%;
 }
@@ -102,7 +102,7 @@ const navItems = [
 .sp-nav-item {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 12px; border-radius: 8px;
-  font-size: 14px; font-weight: 500; color: var(--muted);
+  font-size: 13px; font-weight: 500; color: var(--muted);
   background: none; border: none; cursor: pointer;
   text-align: left; width: 100%;
   transition: background .15s, color .15s;
