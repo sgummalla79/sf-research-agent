@@ -30,6 +30,6 @@ const subtitle = computed(() => LABELS[props.stage]?.sub      || '')
 
 <style scoped>
 .status-card { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--border); }
-.sc-title { font-size: 13px; font-weight: 600; color: var(--text); margin: 0 0 2px; }
-.sc-sub   { font-size: 12px; color: var(--muted); margin: 0; }
+.sc-title { font-size: 18px; font-weight: 600; color: var(--text); margin: 0 0 2px; }
+.sc-sub   { font-size: 16px; color: var(--muted); margin: 0; }
 </style>

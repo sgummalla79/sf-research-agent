@@ -430,7 +430,7 @@ onMounted(load)
   padding: 20px 16px 14px;
   display: flex; flex-direction: column; gap: 12px;
   cursor: pointer;
-  transition: border-color .18s, box-shadow .18s;
+  transition: border-color .18s, border-width .18s, box-shadow .18s;
   user-select: none;
 }
 
@@ -438,10 +438,10 @@ onMounted(load)
   position: absolute;
   top: 12px; right: 12px;
 }
-.ps-tile:hover       { border-color: var(--pri); box-shadow: 0 4px 16px rgba(0,0,0,.1); }
-.ps-tile.tile-connected     { border-color: rgba(34, 197, 94, .4); }
-.ps-tile:not(.tile-connected) { border-color: rgba(239, 68,  68, .4); }
-.ps-tile:hover { border-color: var(--pri); }
+.ps-tile.tile-connected                  { border-color: rgba(34, 197, 94, .4); }
+.ps-tile:not(.tile-connected)            { border-color: rgba(239, 68,  68, .4); }
+.ps-tile.tile-connected:hover            { border-color: rgba(34, 197, 94, .9); border-width: 2.5px; box-shadow: 0 4px 16px rgba(0,0,0,.1); }
+.ps-tile:not(.tile-connected):hover      { border-color: rgba(239, 68,  68, .9); border-width: 2.5px; box-shadow: 0 4px 16px rgba(0,0,0,.1); }
 
 .ps-tile-logo { width: 44px; height: 44px; }
 .ps-tile-logo img { width: 44px; height: 44px; object-fit: contain; border-radius: 10px; }

@@ -45,7 +45,7 @@
         <button
           v-if="!msg.isStreaming"
           class="copy-btn"
-          :class="{ copied, visible: hovered || copied }"
+          :class="{ copied, visible: hovered || copied || (props.isLatest && msg.role === 'agent') }"
           @click="copyContent"
           title="Copy"
         >
@@ -70,7 +70,10 @@ import StatusCard      from './StatusCard.vue'
 import VerdictCard     from './VerdictCard.vue'
 import MarkdownContent from '../ui/MarkdownContent.vue'
 
-const props = defineProps({ msg: { type: Object, required: true } })
+const props = defineProps({
+  msg:      { type: Object,  required: true },
+  isLatest: { type: Boolean, default: false },
+})
 defineEmits(['open-document'])
 
 const copied  = ref(false)
@@ -89,12 +92,15 @@ function copyContent() {
 .message.user  { align-self: flex-end; align-items: flex-end; }
 .message.agent { align-self: flex-start; align-items: flex-start; }
 
-.bubble { padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+.bubble { padding: 10px 14px; border-radius: 12px; font-size: 18px; line-height: 1.6; }
 .user  .bubble { background: var(--surface-2); color: var(--text); border-bottom-right-radius: 4px; }
 .agent .bubble { background: var(--bg); color: var(--text); border-bottom-left-radius: 4px; }
 
-.bubble-wrap { display: flex; flex-direction: column; gap: 4px; }
-.user .bubble-wrap { align-items: flex-end; }
+.bubble-wrap { display: flex; flex-direction: column; gap: 2px; }
+.agent .bubble-wrap { align-items: flex-start; }
+.user  .bubble-wrap { align-items: flex-end; }
+.agent .copy-btn { margin-left: 14px; }
+.user  .copy-btn { margin-right: 0; }
 
 .copy-btn {
   display: flex; align-items: center; justify-content: center;

@@ -4,7 +4,8 @@
     12-pointed serrated rim · 12 spokes · two rings · central hub.
   -->
   <svg :width="size" :height="size" viewBox="0 0 100 100" fill="none"
-    xmlns="http://www.w3.org/2000/svg">
+    xmlns="http://www.w3.org/2000/svg"
+    :class="{ 'sc-spin': spin }">
 
     <!-- Outer 12-pointed star -->
     <polygon
@@ -52,8 +53,19 @@
 const props = defineProps({
   size:        { type: [Number, String], default: 24 },
   color:       { type: String,          default: '#f5a55a' },
-  strokeWidth: { type: Number,          default: 3 },   // thicker by default for visibility
+  strokeWidth: { type: Number,          default: 3 },
+  spin:        { type: Boolean,         default: false },
 })
-// expose as short alias for template
 const sw = props.strokeWidth
 </script>
+
+<style scoped>
+.sc-spin {
+  animation: chakra-spin 3s linear infinite;
+  transform-origin: center;
+}
+@keyframes chakra-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+</style>

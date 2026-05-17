@@ -27,7 +27,7 @@
           </div>
           <div class="us-divider" />
           <div class="us-stat">
-            <span class="us-val us-cost">{{ fmtCost(totals.cost_usd) }}</span>
+            <span class="us-val us-cost">Approx. {{ fmtCost(totals.cost_usd) }}</span>
             <span class="us-lbl">Est. cost</span>
           </div>
         </div>
