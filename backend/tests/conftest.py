@@ -6,6 +6,7 @@ pool:    raw psycopg pool for repository-level tests.
 mock_db: lightweight mock DBContext (no DB needed).
 """
 
+import asyncio
 import os
 import pytest
 import pytest_asyncio
@@ -75,6 +76,10 @@ async def client(fake_user):
             headers={"Content-Type": "application/json"},
         ) as ac:
             yield ac
+
+    # Drain the event loop's default executor so its idle worker threads
+    # don't outlive the test and trigger pytest-timeout during teardown.
+    await asyncio.get_event_loop().shutdown_default_executor()
 
     app.dependency_overrides.clear()
 
