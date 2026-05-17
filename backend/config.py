@@ -9,7 +9,7 @@ load_dotenv()
 _app_env  = os.getenv("APP_ENV", "dev")
 _env_file = Path(__file__).parent / f".env.{_app_env}"
 if _env_file.exists():
-    load_dotenv(_env_file, override=True)
+    load_dotenv(_env_file, override=False)
 
 # ── Database (PostgreSQL only) ────────────────────────────────────────────────
 DATABASE_URL: str = os.getenv("DATABASE_URL", "")
