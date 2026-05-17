@@ -99,8 +99,8 @@ function copyContent() {
 .bubble-wrap { display: flex; flex-direction: column; gap: 2px; }
 .agent .bubble-wrap { align-items: flex-start; }
 .user  .bubble-wrap { align-items: flex-end; }
-.agent .copy-btn { margin-left: 8px; }
-.user  .copy-btn { margin-right: 14px; }
+.agent .copy-btn { margin-left: 14px; }
+.user  .copy-btn { margin-right: 0; }
 
 .copy-btn {
   display: flex; align-items: center; justify-content: center;

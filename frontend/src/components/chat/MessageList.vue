@@ -28,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, computed } from 'vue'
+import { ref, watch, nextTick, computed, onMounted } from 'vue'
 import MessageBubble   from './MessageBubble.vue'
 import SudarshanChakra from '../SudarshanChakra.vue'
 
@@ -65,14 +65,17 @@ const thinkingHint = computed(() => {
   return text.length > 72 ? text.slice(0, 72).trimEnd() + '…' : text
 })
 
-// Auto-scroll to bottom when messages change or streaming
-watch(
-  () => [props.messages.length, props.isStreaming],
-  async () => {
-    await nextTick()
-    if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight
-  },
-)
+const scrollToBottom = async () => {
+  await nextTick()
+  if (listEl.value) listEl.value.scrollTop = listEl.value.scrollHeight
+}
+
+// Scroll on mount and when conversation is switched (array reference changes)
+onMounted(scrollToBottom)
+watch(() => props.messages, scrollToBottom)
+
+// Scroll when messages are added or streaming changes
+watch(() => [props.messages.length, props.isStreaming], scrollToBottom)
 </script>
 
 <style scoped>
