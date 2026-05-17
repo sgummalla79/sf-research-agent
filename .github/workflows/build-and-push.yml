@@ -48,6 +48,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.environment == 'production' && 'main' || 'staging' }}
 
       - uses: actions/setup-python@v5
         with:
@@ -73,6 +75,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.environment == 'production' && 'main' || 'staging' }}
 
       - uses: actions/setup-node@v4
         with:
@@ -102,6 +106,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: staging
 
       - name: Short SHA
         id: sha
@@ -233,6 +239,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
@@ -340,6 +347,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Deploy via blue-green script
         uses: appleboy/ssh-action@v1.0.3
