@@ -106,7 +106,7 @@ describe('send button', () => {
   })
 
   it('emits submit with text and opts on button click', async () => {
-    const w = factory()
+    const w = factory({ chatModels: [{ model: 'gpt-4o', display: 'GPT-4o', provider: 'openai', default: true }] })
     await w.find('textarea').setValue('hello world')
     await w.find('button.cb-send').trigger('click')
     const emitted = w.emitted('submit')
