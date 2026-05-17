@@ -6,63 +6,74 @@
       :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
       class="sfd-svg"
     >
-      <!-- Connector lines -->
+      <defs>
+        <marker id="arrow-main" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill="var(--bdr)" />
+        </marker>
+        <marker id="arrow-fail" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill="#f08c00" />
+        </marker>
+        <marker id="arrow-reject" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 z" fill="#e03131" />
+        </marker>
+      </defs>
+
+      <!-- Lane tracks -->
+      <line
+        v-for="t in tracks"
+        :key="`track-${t.lane}`"
+        :x1="PADDING_X"
+        :y1="laneY(t.lane)"
+        :x2="svgWidth - PADDING_X"
+        :y2="laneY(t.lane)"
+        class="sfd-track"
+      />
+
+      <!-- Connections -->
       <g v-for="c in connections" :key="c.key">
-        <!-- Straight horizontal line -->
-        <line v-if="c.type === 'line'"
-          :x1="c.x1" :y1="c.y1" :x2="c.x2" :y2="c.y2"
-          class="sfd-line"
-        />
-        <!-- Elbow: horizontal then vertical then horizontal -->
-        <path v-else-if="c.type === 'elbow'"
-          :d="elbowPath(c)"
-          class="sfd-line" fill="none"
-        />
-        <!-- Feedback arc below -->
-        <path v-else-if="c.type === 'feedback'"
+        <!-- Feedback arcs below the diagram -->
+        <path
+          v-if="c.type === 'feedback'"
           :d="feedbackPath(c)"
-          class="sfd-feedback" fill="none"
+          :class="`sfd-feedback sfd-feedback-${c.variant}`"
+          fill="none"
+          :marker-end="`url(#arrow-${c.variant})`"
+        />
+        <!-- Fork / merge diagonals -->
+        <path
+          v-else-if="c.type === 'fork' || c.type === 'merge'"
+          :d="bezier(c.x1, laneY(c.l1), c.x2, laneY(c.l2))"
+          :class="`sfd-branch sfd-branch-${c.color}`"
+          fill="none"
+          marker-end="url(#arrow-main)"
+        />
+        <!-- Straight horizontal -->
+        <line
+          v-else
+          :x1="c.x1" :y1="laneY(c.lane)"
+          :x2="c.x2" :y2="laneY(c.lane)"
+          class="sfd-conn"
+          marker-end="url(#arrow-main)"
         />
       </g>
 
-      <!-- Junction dots -->
-      <circle
-        v-for="d in dots"
-        :key="d.key"
-        :cx="d.x" :cy="d.y" :r="DOT_R"
-        class="sfd-dot"
-      />
-
-      <!-- Boxes -->
-      <g v-for="n in nodes" :key="n.key" class="sfd-node-group">
-        <rect
-          :x="n.x - BOX_W / 2"
-          :y="n.y - BOX_H / 2"
-          :width="BOX_W"
-          :height="BOX_H"
-          :rx="BOX_R"
-          class="sfd-box"
+      <!-- Nodes -->
+      <g v-for="n in nodes" :key="n.key">
+        <circle
+          :cx="n.x" :cy="laneY(n.lane)" :r="NODE_R"
+          :class="`sfd-node sfd-node-${n.color}`"
         />
-        <text
-          :x="n.x"
-          :y="n.y - 6"
-          text-anchor="middle"
-          class="sfd-box-label"
-        >{{ n.line1 }}</text>
+        <text :x="n.x" :y="laneY(n.lane) + 1" text-anchor="middle" class="sfd-icon">
+          {{ n.icon }}
+        </text>
+        <text :x="n.x" :y="laneY(n.lane) + NODE_R + 15" text-anchor="middle" class="sfd-label">
+          {{ n.line1 }}
+        </text>
         <text
           v-if="n.line2"
-          :x="n.x"
-          :y="n.y + 10"
-          text-anchor="middle"
-          class="sfd-box-label sfd-box-label-sub"
+          :x="n.x" :y="laneY(n.lane) + NODE_R + 28"
+          text-anchor="middle" class="sfd-label sfd-label-sub"
         >{{ n.line2 }}</text>
-        <text
-          v-else
-          :x="n.x"
-          :y="n.y + 7"
-          text-anchor="middle"
-          class="sfd-box-label"
-        >{{ n.line1 }}</text>
       </g>
 
       <!-- Feedback labels -->
@@ -70,9 +81,9 @@
         v-for="c in connections.filter(x => x.type === 'feedback')"
         :key="`lbl-${c.key}`"
         :x="(c.x1 + c.x2) / 2"
-        :y="svgHeight - 6"
+        :y="svgHeight - 8"
         text-anchor="middle"
-        class="sfd-fb-label"
+        :class="`sfd-fb-label sfd-fb-label-${c.variant}`"
       >{{ c.label }}</text>
     </svg>
   </div>
@@ -86,176 +97,162 @@ const props = defineProps({
   labels: { type: Object, default: () => ({}) },
 })
 
-// ── Layout constants ────────────────────────────────────────────────────────
-const BOX_W      = 130
-const BOX_H      = 48
-const BOX_R      = 10
-const DOT_R      = 5
-const COL_W      = 170   // horizontal distance between box centres
-const LANE_H     = 80    // vertical distance between lanes
-const PAD_X      = 80
-const PAD_TOP    = 60
-const PAD_BOT    = 60
-const FB_DIP     = 36
+const NODE_R      = 18
+const LANE_H      = 76
+const COL_W       = 130
+const PADDING_X   = 56
+const PADDING_TOP = 48
+const PADDING_BOT = 72
+const FB_DIP      = 42   // how far feedback arcs dip below bottom lane
 
-// ── Build layout from stage data ────────────────────────────────────────────
+const STAGE_COLOR = {
+  intake:    'intake',
+  discovery: 'discovery',
+  fanout:    'branch',
+  merge:     'merge',
+  review:    'review',
+  approval:  'approval',
+  complete:  'done',
+}
+const STAGE_ICON = {
+  intake:    '📥',
+  discovery: '🔍',
+  fanout:    '🔎',
+  merge:     '✍️',
+  review:    '📋',
+  approval:  '✅',
+  complete:  '🏁',
+}
+
+// ── Layout builder ──────────────────────────────────────────────────────────
 const layout = computed(() => {
   const nodes       = []
   const connections = []
-  const dots        = []
-  const MAIN        = 0   // main lane index (centre)
+  const MAIN        = 1
   let   col         = 0
-  let   prevBoxRight = null
-  let   prevY        = null
+  let   prevX       = null
 
-  const boxX   = (c) => PAD_X + c * COL_W
-  const laneY  = (lane) => PAD_TOP + (lane + 1) * LANE_H
-  const mainY  = () => laneY(MAIN)
-
-  const addBox = (key, c, lane, line1, line2 = null) => {
-    const x = boxX(c)
-    const y = laneY(lane)
-    nodes.push({ key, x, y, line1, line2 })
-    return { x, y, left: x - BOX_W / 2, right: x + BOX_W / 2 }
+  const addNode = (key, lane, color, icon, label) => {
+    const x      = PADDING_X + col * COL_W
+    const parts  = label.split(':').map(s => s.trim())
+    nodes.push({ key, lane, x, color, icon, line1: parts[0], line2: parts[1] ?? null })
+    return x
   }
 
-  const hLine = (x1, x2, y) =>
-    connections.push({ key: `l${col}-${x1}`, type: 'line', x1, y1: y, x2, y2: y })
+  const straight = (x1, x2, lane) =>
+    connections.push({ key: `s${col}`, type: 'straight', x1: x1 + NODE_R, x2: x2 - NODE_R, lane })
 
   for (const stage of props.stages) {
     if (stage.execution === 'fanout_merge') {
-      // ── Fork dot ──────────────────────────────────────────────────────────
-      const forkX = boxX(col)
-      if (prevBoxRight !== null) hLine(prevBoxRight, forkX, mainY())
-      dots.push({ key: `fork-dot-${col}`, x: forkX, y: mainY() })
-
+      const forkX = PADDING_X + col * COL_W
+      if (prevX !== null) straight(prevX, forkX, MAIN)
       col++
-      const branches = stage.fanout ?? []
-      const bLanes   = branches.length > 1 ? [-1, 1] : [-1]
-      const branchBoxes = []
+
+      const branches  = stage.fanout ?? []
+      const bLanes    = branches.length > 1 ? [0, 2] : [0]
+      const bXs       = []
 
       for (let i = 0; i < branches.length; i++) {
-        const bLane = MAIN + bLanes[i]
+        const bLane = bLanes[i]
+        const bX    = PADDING_X + col * COL_W
         const lbl   = props.labels[branches[i].agent] || branches[i].agent
-        const parts = lbl.split(':').map(s => s.trim())
-        const box   = addBox(`branch-${i}`, col, bLane, parts[0], parts[1] ?? null)
-        // elbow from fork dot to branch box
-        connections.push({
-          key: `fork-elbow-${i}`, type: 'elbow',
-          fx: forkX, fy: mainY(), tx: box.left, ty: box.y,
-        })
-        branchBoxes.push(box)
+        addNode(`branch-${i}`, bLane, 'branch', STAGE_ICON.fanout, lbl)
+        connections.push({ key: `fork-${i}`, type: 'fork', x1: forkX, l1: MAIN, x2: bX - NODE_R, l2: bLane, color: 'branch' })
+        bXs.push({ x: bX, lane: bLane })
       }
       col++
 
-      // ── Merge dot ─────────────────────────────────────────────────────────
-      const mergeX  = boxX(col)
-      const mergeY  = mainY()
-      dots.push({ key: `merge-dot-${col}`, x: mergeX, y: mergeY })
-      for (const b of branchBoxes) {
-        connections.push({
-          key: `merge-elbow-${b.y}`, type: 'elbow',
-          fx: b.x, fy: b.y, tx: mergeX, ty: mergeY, reverse: true,
-        })
-      }
-      col++
-
-      // ── Writer box ────────────────────────────────────────────────────────
+      const mergeX = PADDING_X + col * COL_W
       const mLabel = props.labels[stage.merge?.agent] || stage.merge?.agent || 'Writer'
-      const mParts = mLabel.split(':').map(s => s.trim())
-      const mBox   = addBox(`merge-box-${col}`, col, MAIN, mParts[0], mParts[1] ?? null)
-      hLine(mergeX, mBox.left, mergeY)
-      prevBoxRight = mBox.right
-      prevY        = mBox.y
+      addNode(`merge-${col}`, MAIN, 'merge', STAGE_ICON.merge, mLabel)
+      for (const b of bXs)
+        connections.push({ key: `merge-${b.lane}`, type: 'merge', x1: b.x + NODE_R, l1: b.lane, x2: mergeX - NODE_R, l2: MAIN, color: 'merge' })
+
+      prevX = mergeX
       col++
-
     } else {
-      // ── Linear stage ──────────────────────────────────────────────────────
-      const lbl   = props.labels[stage.agent] || stage.id
-      const parts = lbl.split(':').map(s => s.trim())
-      const box   = addBox(stage.id, col, MAIN, parts[0], parts[1] ?? null)
-
-      if (prevBoxRight !== null) hLine(prevBoxRight, box.left, mainY())
+      const x   = PADDING_X + col * COL_W
+      const lbl = props.labels[stage.agent] || stage.id
+      if (prevX !== null) straight(prevX, x, MAIN)
+      addNode(stage.id, MAIN, STAGE_COLOR[stage.id] || 'done', STAGE_ICON[stage.id] || '⚙️', lbl)
 
       // Feedback arcs
-      const writerBox = nodes.find(n => n.key.startsWith('merge-box'))
-      if (stage.on_fail && writerBox) {
-        connections.push({ key: `fail-${stage.id}`, type: 'feedback', x1: writerBox.x, x2: box.x, y: mainY(), label: '↺ fail' })
+      const researchNode = nodes.find(n => n.key === 'merge-' + (nodes.findIndex(n2 => n2.key.startsWith('merge')) + 1) || n.key.startsWith('merge'))
+      if (stage.on_fail && researchNode) {
+        connections.push({ key: `fail-${stage.id}`, type: 'feedback', x1: researchNode.x, x2: x, label: '↺ fail', variant: 'fail' })
       }
-      if (stage.on_reject && writerBox) {
-        connections.push({ key: `rej-${stage.id}`, type: 'feedback', x1: writerBox.x, x2: box.x, y: mainY(), label: '↺ reject' })
+      if (stage.on_reject && researchNode) {
+        connections.push({ key: `rej-${stage.id}`, type: 'feedback', x1: researchNode.x, x2: x, label: '↺ reject', variant: 'reject' })
       }
 
-      prevBoxRight = box.right
-      prevY        = box.y
+      prevX = x
       col++
     }
   }
 
-  // ── Done box ──────────────────────────────────────────────────────────────
-  const doneBox = addBox('done', col, MAIN, 'Done')
-  if (prevBoxRight !== null) hLine(prevBoxRight, doneBox.left, mainY())
+  // Done node
+  const doneX = PADDING_X + col * COL_W
+  if (prevX !== null) straight(prevX, doneX, MAIN)
+  nodes.push({ key: 'done', lane: MAIN, x: doneX, color: 'done', icon: STAGE_ICON.complete, line1: 'Done', line2: null })
 
-  // Total lanes needed
-  const hasTopBranch = nodes.some(n => n.y < laneY(MAIN))
-  const hasBotBranch = nodes.some(n => n.y > laneY(MAIN))
-  const totalLanes   = 1 + (hasTopBranch ? 1 : 0) + (hasBotBranch ? 1 : 0)
-
-  return { nodes, connections, dots, totalLanes, cols: col + 1 }
+  const totalLanes = nodes.some(n => n.lane === 0 || n.lane === 2) ? 3 : 1
+  return { nodes, connections, totalLanes, cols: col + 1 }
 })
 
 const nodes       = computed(() => layout.value.nodes)
 const connections = computed(() => layout.value.connections)
-const dots        = computed(() => layout.value.dots)
 const totalLanes  = computed(() => layout.value.totalLanes)
 const totalCols   = computed(() => layout.value.cols)
 
-const svgWidth  = computed(() => PAD_X * 2 + totalCols.value * COL_W)
-const svgHeight = computed(() => PAD_TOP + (totalLanes.value + 1) * LANE_H + PAD_BOT + FB_DIP)
+const svgWidth  = computed(() => PADDING_X * 2 + totalCols.value * COL_W)
+const svgHeight = computed(() => PADDING_TOP + totalLanes.value * LANE_H + PADDING_BOT + FB_DIP)
 
-// Elbow path: horizontal from fork/merge dot, then vertical, then horizontal to box
-const elbowPath = (c) => {
-  const midX = (c.fx + c.tx) / 2
-  if (c.reverse) {
-    // from box right edge to merge dot
-    return `M ${c.fx} ${c.fy} H ${midX} V ${c.ty} H ${c.tx}`
-  }
-  // from fork dot to box left edge
-  return `M ${c.fx} ${c.fy} H ${midX} V ${c.ty} H ${c.tx}`
+const laneY  = (lane) => PADDING_TOP + lane * LANE_H
+const bezier = (x1, y1, x2, y2) => {
+  const cx = (x1 + x2) / 2
+  return `M ${x1} ${y1} C ${cx} ${y1}, ${cx} ${y2}, ${x2} ${y2}`
 }
-
 const feedbackPath = (c) => {
-  const bot = c.y + BOX_H / 2 + FB_DIP
-  return `M ${c.x2} ${c.y + BOX_H / 2} V ${bot} Q ${(c.x1 + c.x2) / 2} ${bot + 16} ${c.x1} ${bot} V ${c.y + BOX_H / 2}`
+  const bot = laneY(totalLanes.value - 1) + NODE_R + FB_DIP
+  return `M ${c.x2} ${laneY(1) + NODE_R} L ${c.x2} ${bot} Q ${(c.x1 + c.x2) / 2} ${bot + 18} ${c.x1} ${bot} L ${c.x1} ${laneY(1) + NODE_R}`
 }
 </script>
 
 <style scoped>
-.sfd-wrap { overflow-x: auto; padding: 4px 0 8px; }
-.sfd-svg  { display: block; }
+.sfd-wrap  { overflow-x: auto; padding: 4px 0 12px; }
+.sfd-svg   { display: block; }
 
-/* Lines */
-.sfd-line     { stroke: var(--bdr); stroke-width: 2; }
-.sfd-feedback { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 5 3; }
+.sfd-track { stroke: var(--bdr); stroke-width: 1.5; }
+.sfd-conn  { stroke: var(--bdr); stroke-width: 2; }
 
-/* Junction dots */
-.sfd-dot { fill: var(--bdr); }
+/* Bezier branches */
+.sfd-branch        { stroke-width: 2; stroke-dasharray: 5 3; }
+.sfd-branch-branch { stroke: #1098ad; }
+.sfd-branch-merge  { stroke: #0ca678; }
 
-/* Boxes */
-.sfd-box {
-  fill:   var(--surf);
-  stroke: var(--bdr);
-  stroke-width: 1.5;
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,.18));
-}
-.sfd-node-group:hover .sfd-box {
-  stroke: var(--tx);
-}
+/* Feedback arcs */
+.sfd-feedback         { stroke-width: 1.5; stroke-dasharray: 5 3; }
+.sfd-feedback-fail    { stroke: #f08c00; }
+.sfd-feedback-reject  { stroke: #e03131; }
+
+/* Nodes */
+.sfd-node            { stroke-width: 0; }
+.sfd-node-intake     { fill: #3b5bdb; }
+.sfd-node-discovery  { fill: #7950f2; }
+.sfd-node-branch     { fill: #1098ad; }
+.sfd-node-merge      { fill: #0ca678; }
+.sfd-node-review     { fill: #f08c00; }
+.sfd-node-approval   { fill: #2f9e44; }
+.sfd-node-done       { fill: #495057; }
+
+.sfd-icon  { font-size: 11px; dominant-baseline: middle; pointer-events: none; }
 
 /* Labels */
-.sfd-box-label     { font-size: 11px; font-weight: 600; fill: var(--tx); }
-.sfd-box-label-sub { font-size: 10px; font-weight: 400; fill: var(--muted); }
+.sfd-label     { font-size: 10.5px; fill: var(--tx); font-weight: 600; }
+.sfd-label-sub { font-size: 9.5px;  fill: var(--muted); font-weight: 400; }
 
 /* Feedback labels */
-.sfd-fb-label { font-size: 10px; fill: var(--muted); font-weight: 600; }
+.sfd-fb-label         { font-size: 10px; font-weight: 700; }
+.sfd-fb-label-fail    { fill: #f08c00; }
+.sfd-fb-label-reject  { fill: #e03131; }
 </style>
