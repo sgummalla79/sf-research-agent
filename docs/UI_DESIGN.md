@@ -1,5 +1,26 @@
 # UI Design Document — Pragna
 
+## 0. Typography
+
+**Font family:** `Inter`, with `system-ui, -apple-system, sans-serif` as fallback. Inter is loaded from Google Fonts. The Martel serif is used only for the app name ("Pragna").
+
+**Base font size:** `15px` on `body`.
+
+| Context | Size | Weight | Line height |
+|---|---|---|---|
+| Message bubbles | `15px` | 400 | `1.7` |
+| Sidebar nav items (New Chat, Chats) | `14px` | 500 | — |
+| Sidebar conversation rows | `14px` | 400 | — |
+| Settings nav items | `14px` | 500 | — |
+| User menu items | `14px` | 400 | — |
+| Avatar name | `14px` | 600 | — |
+| Avatar email / secondary text | `13px` | 400 | — |
+| Section headers (PINNED, RECENT) | `10px` | 700 uppercase | — |
+| Privacy notice | `14px` | 400 | — |
+| App name "Pragna" | `22px` | 700 (Martel serif) | — |
+
+---
+
 ## 1. Layout Architecture
 
 The application shell uses a **column flex layout** with three layers:

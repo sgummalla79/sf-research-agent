@@ -283,12 +283,12 @@ function handlePin(c) {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 12px; margin: 2px 6px; border-radius: 8px;
   cursor: pointer; border: none; background: transparent;
-  color: var(--sb-tx); font-size: 13px; font-weight: 500;
+  color: var(--sb-tx); font-size: 14px; font-weight: 500;
   width: calc(100% - 12px); text-align: left;
   transition: background .12s;
 }
 .sb-action-row:hover { background: var(--sb-hover); }
-.sb-chats-btn { font-size: 14px; }
+.sb-chats-btn { font-size: 14px; font-weight: 500; }
 .sb-chats-btn.active { background: var(--sb-active); }
 .sba-icon  { display: flex; align-items: center; color: inherit; flex-shrink: 0; }
 .sba-label { }
@@ -368,7 +368,7 @@ function handlePin(c) {
 .um-item {
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 8px 10px; border: none; border-radius: 7px;
-  background: transparent; color: var(--text); font-size: 13px;
+  background: transparent; color: var(--text); font-size: 14px;
   cursor: pointer; text-align: left; transition: background .12s;
 }
 .um-item:hover   { background: var(--bg); }
