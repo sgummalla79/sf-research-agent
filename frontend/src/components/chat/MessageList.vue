@@ -18,9 +18,10 @@
         @open-document="$emit('open-document', $event)"
       />
 
-      <!-- Brand logo shown below last message when conversation is active -->
-      <div v-if="messages.length" class="ml-logo">
-        <SudarshanChakra :size="28" color="var(--pri)" />
+      <!-- Logo: always visible except while text is actively printing -->
+      <div v-if="messages.length && !(isStreaming && hasStreamingAgentMsg)" class="ml-thinking">
+        <SudarshanChakra :size="22" color="var(--pri)" :spin="isStreaming" />
+        <span v-if="isStreaming" class="ml-thinking-text">{{ thinkingHint }}</span>
       </div>
     </div>
   </div>
@@ -49,6 +50,19 @@ const lastAgentIndex = computed(() => {
     }
   }
   return -1
+})
+
+// True when there's already a streaming agent message bubble showing
+const hasStreamingAgentMsg = computed(() =>
+  props.messages.some(m => m.role === 'agent' && m.isStreaming)
+)
+
+// Short hint text from the last user message
+const thinkingHint = computed(() => {
+  const last = [...props.messages].reverse().find(m => m.role === 'user')
+  if (!last?.content) return 'Thinking…'
+  const text = last.content.trim()
+  return text.length > 72 ? text.slice(0, 72).trimEnd() + '…' : text
 })
 
 // Auto-scroll to bottom when messages change or streaming
@@ -84,6 +98,13 @@ watch(
 
 .empty-state { flex: 1; display: flex; align-items: center; justify-content: center; }
 .empty-hint  { font-size: 15px; color: var(--muted); }
-.ml-logo { display: flex; justify-content: flex-start; padding-top: 8px; margin-left: 8px; opacity: 1; }
+.ml-thinking {
+  display: flex; align-items: center; gap: 10px;
+  padding-top: 8px; margin-left: 8px;
+}
+.ml-thinking-text {
+  font-size: 16px; color: var(--muted);
+  font-style: italic;
+}
 .empty-hint kbd { display: inline-block; padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; font-family: monospace; background: var(--surface-2); }
 </style>
