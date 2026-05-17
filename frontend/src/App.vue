@@ -127,8 +127,6 @@ html.dark {
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 15px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   background: var(--bg);
   color: var(--text);
 }
