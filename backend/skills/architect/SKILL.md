@@ -21,36 +21,6 @@ agent_labels:
 
 intake → discovery → research → review → approval
 
-## Agent Flow
-
-```mermaid
-flowchart LR
-    A([📥 Intake\nDocument / Image]) --> B([🔍 Discovery\nQ&A])
-
-    B --> C([🔎 Web Search])
-    B --> D([🧠 Architecture\nReasoning])
-
-    C --> E([✍️ Writer])
-    D --> E
-
-    E --> F{📋 Review}
-
-    F -->|pass| G{✅ Approval}
-    F -->|fail ↺| C
-
-    G -->|approve| H([🏁 Done])
-    G -->|reject ↺| C
-
-    style A fill:#3b5bdb,color:#fff,stroke:#3b5bdb
-    style B fill:#7950f2,color:#fff,stroke:#7950f2
-    style C fill:#1098ad,color:#fff,stroke:#1098ad
-    style D fill:#1098ad,color:#fff,stroke:#1098ad
-    style E fill:#0ca678,color:#fff,stroke:#0ca678
-    style F fill:#f08c00,color:#fff,stroke:#f08c00
-    style G fill:#2f9e44,color:#fff,stroke:#2f9e44
-    style H fill:#495057,color:#fff,stroke:#495057
-```
-
 ## Stage: intake
 
 execution: intake
