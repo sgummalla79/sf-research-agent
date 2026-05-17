@@ -94,11 +94,11 @@ function saveRename() {
 .sb-row.active   { background: var(--sb-active); }
 
 .sb-row-title {
-  flex: 1; font-size: 13px; color: var(--sb-tx);
+  flex: 1; font-size: 16px; color: var(--sb-tx);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 .rename-input {
-  flex: 1; font-size: 13px; background: var(--surface-2);
+  flex: 1; font-size: 16px; background: var(--surface-2);
   border: 1px solid var(--border); border-radius: 5px;
   padding: 2px 6px; outline: none; min-width: 0; color: var(--sb-tx);
 }
@@ -129,7 +129,7 @@ function saveRename() {
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 8px 12px;
   background: none; border: none; cursor: pointer;
-  font-size: 13px; color: var(--text); text-align: left;
+  font-size: 16px; color: var(--text); text-align: left;
   transition: background .1s;
 }
 .ctx-item:hover { background: var(--hover); }

@@ -384,7 +384,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 10px 4px 8px; border-radius: 8px;
   background: var(--sbg); border: 1px solid var(--sbdr);
-  color: var(--stx); font-size: 12.5px; font-weight: 500; max-width: 320px;
+  color: var(--stx); font-size: 14px; font-weight: 500; max-width: 320px;
 }
 .cb-file-icon  { flex-shrink: 0; }
 .cb-file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -397,7 +397,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
 .cb-ta {
   width: 100%; box-sizing: border-box;
   background: transparent; border: none; outline: none; resize: none;
-  font-size: 15px; font-family: inherit; color: var(--tx); line-height: 1.55;
+  font-size: 18px; font-family: inherit; color: var(--tx); line-height: 1.55;
   padding: 2px; min-height: 44px; max-height: 220px;
 }
 .cb-ta::placeholder { color: var(--muted); }
@@ -427,7 +427,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 9px 14px;
   background: none; border: none; cursor: pointer;
-  font-size: 14px; color: var(--tx); text-align: left;
+  font-size: 14px; color: var(--tx); text-align: left; /* menu items stay 14px */
   border-radius: 8px;
   transition: background .1s;
 }
@@ -483,7 +483,7 @@ onUnmounted(() => document.removeEventListener('click', closeMenus))
   display: flex; align-items: center; gap: 5px;
   padding: 5px 9px; border-radius: 8px; border: 1.5px solid var(--bdr);
   background: transparent; color: var(--muted); cursor: pointer;
-  font-size: 12.5px; font-weight: 500; transition: all .15s;
+  font-size: 14px; font-weight: 500; transition: all .15s;
 }
 .cb-adaptive-btn:hover { color: var(--tx); background: var(--hover); border-color: var(--ifocus); }
 .cb-adaptive-btn.on    { color: var(--pri); border-color: var(--pri); background: var(--sbg); }

@@ -106,12 +106,13 @@
         <span v-else class="avatar-initials">{{ initials }}</span>
         <div v-if="sidebar.open && user" class="avatar-info">
           <span class="avatar-name">{{ user?.name || user?.email || 'Account' }}</span>
-          <span class="avatar-email">{{ user?.email }}</span>
         </div>
       </button>
 
       <Transition name="um-pop">
         <div v-if="userMenuOpen" class="user-menu" @click.stop>
+          <div v-if="user?.email" class="um-email">{{ user.email }}</div>
+          <div class="um-divider" />
           <button class="um-item" @click="openSettings('providers')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
               <circle cx="12" cy="12" r="3"/>
@@ -283,12 +284,12 @@ function handlePin(c) {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 12px; margin: 2px 6px; border-radius: 8px;
   cursor: pointer; border: none; background: transparent;
-  color: var(--sb-tx); font-size: 13px; font-weight: 500;
+  color: var(--sb-tx); font-size: 16px; font-weight: 500;
   width: calc(100% - 12px); text-align: left;
   transition: background .12s;
 }
 .sb-action-row:hover { background: var(--sb-hover); }
-.sb-chats-btn { font-size: 14px; }
+.sb-chats-btn { font-size: 16px; }
 .sb-chats-btn.active { background: var(--sb-active); }
 .sba-icon  { display: flex; align-items: center; color: inherit; flex-shrink: 0; }
 .sba-label { }
@@ -297,7 +298,7 @@ function handlePin(c) {
 .sb-list { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 6px 8px; }
 .sb-empty    { font-size: 12px; color: var(--sb-muted); padding: 8px 6px; }
 .sb-section-hdr {
-  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  font-size: 13px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .07em; color: var(--sb-muted); padding: 10px 8px 3px;
 }
 .sb-divider { height: 1px; background: rgba(128,128,128,0.15); margin: 6px 8px; }
@@ -342,8 +343,8 @@ function handlePin(c) {
   user-select: none;
 }
 .avatar-info  { display: flex; flex-direction: column; gap: 1px; min-width: 0; text-align: left; }
-.avatar-name  { font-size: 14px; font-weight: 600; color: var(--sb-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.avatar-email { font-size: 13px; color: var(--sb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avatar-name  { font-size: 16px; font-weight: 600; color: var(--sb-tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.avatar-email { font-size: 15px; color: var(--sb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── User menu popup ── */
 .user-menu {
@@ -362,13 +363,14 @@ function handlePin(c) {
   width: 220px;
 }
 
+.um-email { padding: 8px 10px; font-size: 16px; color: var(--pri-fg); background: var(--pri); border-radius: 7px; user-select: text; }
 .um-divider { height: 1px; background: rgba(128,128,128,0.15); margin: 4px 0; }
 .um-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); padding: 4px 8px 6px; }
 
 .um-item {
   display: flex; align-items: center; gap: 10px;
   width: 100%; padding: 8px 10px; border: none; border-radius: 7px;
-  background: transparent; color: var(--text); font-size: 13px;
+  background: transparent; color: var(--text); font-size: 16px;
   cursor: pointer; text-align: left; transition: background .12s;
 }
 .um-item:hover   { background: var(--bg); }

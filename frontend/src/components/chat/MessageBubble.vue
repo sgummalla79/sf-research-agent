@@ -89,12 +89,15 @@ function copyContent() {
 .message.user  { align-self: flex-end; align-items: flex-end; }
 .message.agent { align-self: flex-start; align-items: flex-start; }
 
-.bubble { padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; }
+.bubble { padding: 10px 14px; border-radius: 12px; font-size: 18px; line-height: 1.6; }
 .user  .bubble { background: var(--surface-2); color: var(--text); border-bottom-right-radius: 4px; }
 .agent .bubble { background: var(--bg); color: var(--text); border-bottom-left-radius: 4px; }
 
-.bubble-wrap { display: flex; flex-direction: column; gap: 4px; }
-.user .bubble-wrap { align-items: flex-end; }
+.bubble-wrap { display: flex; flex-direction: column; gap: 2px; }
+.agent .bubble-wrap { align-items: flex-start; }
+.user  .bubble-wrap { align-items: flex-end; }
+.agent .copy-btn { margin-left: 8px; }
+.user  .copy-btn { margin-right: 14px; }
 
 .copy-btn {
   display: flex; align-items: center; justify-content: center;

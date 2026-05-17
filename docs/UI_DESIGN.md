@@ -1,5 +1,23 @@
 # UI Design Document — Pragna
 
+## 0. Typography
+
+### Font family
+
+| Context | Font | Notes |
+|---|---|---|
+| All UI text | **Carlito** | Loaded from Google Fonts. Set on `body` — all components inherit. |
+| Brand name "Pragna" | **Martel** (serif) | Sidebar, login page, chat page header only. |
+| Code blocks, prompt editors, model IDs, `kbd` | `monospace` | System monospace — intentional for code/technical content. |
+
+**Rule:** No component should declare its own `font-family` unless it is one of the three cases above. Everything else inherits Carlito from `body`.
+
+### Font smoothing
+
+`-webkit-font-smoothing: antialiased` and `-moz-osx-font-smoothing: grayscale` are set globally on `body` for consistent sub-pixel rendering across platforms.
+
+---
+
 ## 1. Layout Architecture
 
 The application shell uses a **column flex layout** with three layers:

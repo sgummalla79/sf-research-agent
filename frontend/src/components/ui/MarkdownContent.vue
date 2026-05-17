@@ -30,7 +30,7 @@ const rendered = computed(() => {
 
 <style scoped>
 .prose {
-  font-size: 14px;
+  font-size: 18px;
   line-height: 1.7;
   color: inherit;
   word-break: break-word;

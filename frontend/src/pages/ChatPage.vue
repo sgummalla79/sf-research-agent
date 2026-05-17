@@ -164,14 +164,14 @@
             <div class="ub-cell">
               <span class="ub-name">{{ row.model }}</span>
               <span class="ub-tokens">↑ {{ fmtTokens(row.input_tokens) }} &nbsp;↓ {{ fmtTokens(row.output_tokens) }}</span>
-              <span class="ub-cost">{{ fmtCost(row.cost_usd) }}</span>
+              <span class="ub-cost">Approx. {{ fmtCost(row.cost_usd) }}</span>
             </div>
             <div class="ub-sep" />
           </template>
           <div class="ub-cell">
             <span class="ub-name">Session</span>
             <span class="ub-tokens">↑ {{ fmtTokens(conv.sessionUsage.input_tokens) }} &nbsp;↓ {{ fmtTokens(conv.sessionUsage.output_tokens) }}</span>
-            <span class="ub-cost">{{ fmtCost(conv.sessionUsage.cost_usd) }}</span>
+            <span class="ub-cost">Approx. {{ fmtCost(conv.sessionUsage.cost_usd) }}</span>
           </div>
         </StatusBar>
 
@@ -684,9 +684,9 @@ html.dark .cp-notice-err  { background: rgba(239,68,68,.08); color: #fca5a5; bor
   gap: 2px; padding: 6px 20px;
 }
 .ub-sep    { width: 1px; background: var(--border); flex-shrink: 0; margin: 6px 0; }
-.ub-name   { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); white-space: nowrap; }
-.ub-tokens { font-size: 11.5px; font-weight: 500; color: var(--text); white-space: nowrap; }
-.ub-cost   { font-size: 11.5px; font-weight: 600; color: var(--pri); white-space: nowrap; }
+.ub-name   { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); white-space: nowrap; }
+.ub-tokens { font-size: 12px; font-weight: 500; color: var(--text); white-space: nowrap; }
+.ub-cost   { font-size: 12px; font-weight: 600; color: var(--pri); white-space: nowrap; }
 
 /* ── Bottom ── */
 .cp-bottom {

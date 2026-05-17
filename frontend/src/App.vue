@@ -125,7 +125,8 @@ html.dark {
 }
 
 body {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Carlito', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
   background: var(--bg);
   color: var(--text);
 }
