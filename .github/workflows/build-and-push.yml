@@ -67,7 +67,7 @@ jobs:
 
       - name: Run unit + e2e tests
         working-directory: backend
-        run: pytest tests/unit/ tests/e2e/ -q --tb=short -m "not live"
+        run: pytest tests/unit/ tests/e2e/ -v -s --tb=long -m "not live" --log-cli-level=INFO
 
   # ── Frontend tests ─────────────────────────────────────────────────────────
   test-frontend:
