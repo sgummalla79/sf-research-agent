@@ -197,6 +197,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { marked } from 'marked'
+import { API_BASE } from '../api/config.js'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -292,7 +293,7 @@ const centerEl   = ref(null)
 onMounted(async () => {
   document.addEventListener('keydown', onKeydown)
   try {
-    const res = await fetch('/openapi.json')
+    const res = await fetch(`${API_BASE}/openapi.json`)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     spec.value = await res.json()
   } catch (e) {

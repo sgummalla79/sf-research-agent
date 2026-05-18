@@ -7,6 +7,7 @@
 
 import { ref, readonly } from 'vue'
 import { useFetch } from './useFetch'
+import { API } from '../api/endpoints.js'
 
 export function useConversations() {
   const { apiFetch } = useFetch()
@@ -92,7 +93,7 @@ export function useConversations() {
    * of parsed SSE events so the caller can handle tokens, errors, done.
    */
   async function* sendChatMessage(conversationId, text, { chatProvider, chatModel } = {}) {
-    const response = await fetch(`/api/conversations/${conversationId}/message`, {
+    const response = await fetch(API.conversationMsg(conversationId), {
       method:      'POST',
       credentials: 'include',
       headers:     { 'Content-Type': 'application/json' },
