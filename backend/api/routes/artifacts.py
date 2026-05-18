@@ -11,7 +11,16 @@ from utils.auth import AuthUser, get_current_user
 router = APIRouter()
 
 
-@router.get("/api/artifacts/{artifact_id}")
+@router.get(
+    "/api/artifacts/{artifact_id}",
+    tags=["Artifacts"],
+    summary="Get artifact content by ID",
+    responses={
+        200: {"description": "Full artifact content and metadata"},
+        403: {"description": "Forbidden — artifact belongs to another user"},
+        404: {"description": "Artifact not found"},
+    },
+)
 async def get_artifact(
     artifact_id:  str,
     request:      Request,
@@ -39,7 +48,12 @@ async def get_artifact(
     }
 
 
-@router.get("/api/executions/{execution_id}/artifacts")
+@router.get(
+    "/api/executions/{execution_id}/artifacts",
+    tags=["Artifacts"],
+    summary="List all artifacts for an execution",
+    responses={200: {"description": "Artifact summaries for the execution"}},
+)
 async def list_artifacts(
     execution_id: str,
     request:      Request,

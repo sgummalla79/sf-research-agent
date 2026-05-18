@@ -26,7 +26,18 @@ ALL_ACCEPTED        = DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS
 router = APIRouter(prefix="/api/uploads")
 
 
-@router.post("")
+@router.post(
+    "",
+    tags=["Uploads"],
+    summary="Upload a document or image for pipeline intake",
+    description="Documents: text is extracted immediately. Images: stored for vision processing at pipeline time. Returns fields to pass directly to the skill invoke endpoint.",
+    responses={
+        200: {"description": "Upload result with source_type and file paths"},
+        413: {"description": "File exceeds size limit"},
+        415: {"description": "Unsupported file type"},
+        422: {"description": "Text extraction failed"},
+    },
+)
 async def upload_file(
     request:      Request,
     file:         UploadFile = File(...),

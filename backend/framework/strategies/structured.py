@@ -76,7 +76,13 @@ class StructuredStrategy(ExecutionStrategy):
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=human_content),
             ])
-            result  = raw["parsed"]
+            result = raw["parsed"]
+            if result is None:
+                parsing_error = raw.get("parsing_error")
+                raise ValueError(
+                    f"The model returned a response that could not be parsed. "
+                    f"Please try again. (detail: {parsing_error})"
+                )
             urec    = usage_record(
                 stage.id,
                 agent_model(stage.agent_key, state.session_agent_config),

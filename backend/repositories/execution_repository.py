@@ -64,6 +64,18 @@ class ExecutionRepository(BaseRepository):
             (status, now, execution_id),
         )
 
+    async def get_latest_for_conversation(self, conversation_id: str) -> Optional[Execution]:
+        """Return the most recent execution for any skill in a conversation."""
+        row = await self._fetchone(
+            "SELECT cse.id, cse.conversation_skill_id, cse.status, cse.started_at, cse.completed_at"
+            " FROM conversation_skill_executions cse"
+            " JOIN conversation_skills cs ON cs.id = cse.conversation_skill_id"
+            " WHERE cs.conversation_id = %s"
+            " ORDER BY cse.started_at DESC LIMIT 1",
+            (conversation_id,),
+        )
+        return self._row_to_exec(row) if row else None
+
     async def get_running(self, conversation_id: str) -> Optional[Execution]:
         """Return the running execution for any skill in a conversation, if any."""
         row = await self._fetchone(

@@ -4,7 +4,7 @@
     <span class="doc-card-icon">📄</span>
     <div class="doc-card-body">
       <p class="doc-card-title">Architecture Document<span v-if="docVersion"> v{{ docVersion }}</span></p>
-      <p class="doc-card-sub">Ready for review</p>
+      <p class="doc-card-sub">Approved — tap to view</p>
     </div>
     <button class="doc-card-btn" @click="$emit('view', artifactId)">View →</button>
   </div>

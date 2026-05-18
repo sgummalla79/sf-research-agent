@@ -77,7 +77,12 @@ async def _fetch_and_seed_models(
 
 # ── List providers ─────────────────────────────────────────────────────────────
 
-@router.get("")
+@router.get(
+    "",
+    tags=["Providers"],
+    summary="List all providers with connection status",
+    responses={200: {"description": "All provider entries with connected/isactive flags"}},
+)
 async def list_providers(request: Request, current_user: AuthUser = Depends(get_current_user)):
     db           = request.app.state.db
     key_statuses = await db.users.get_llm_provider_key_statuses(current_user.sub)
@@ -113,7 +118,12 @@ async def list_providers(request: Request, current_user: AuthUser = Depends(get_
 
 # ── AWS Bedrock (literal routes — before /{provider_id}) ──────────────────────
 
-@router.post("/bedrock/connect")
+@router.post(
+    "/bedrock/connect",
+    tags=["Providers"],
+    summary="Connect AWS Bedrock",
+    responses={200: {"description": "Bedrock credentials saved and catalog models seeded"}},
+)
 async def connect_bedrock(
     body:         BedrockConnectRequest,
     request:      Request,
@@ -130,7 +140,12 @@ async def connect_bedrock(
     return {"ok": True, "provider": "bedrock", "models_seeded": len(models)}
 
 
-@router.patch("/bedrock/toggle")
+@router.patch(
+    "/bedrock/toggle",
+    tags=["Providers"],
+    summary="Toggle AWS Bedrock active/inactive",
+    responses={200: {"description": "Bedrock active state toggled"}},
+)
 async def toggle_bedrock(
     request:      Request,
     current_user: AuthUser = Depends(get_current_user),
@@ -148,7 +163,12 @@ async def toggle_bedrock(
     return {"ok": True, "provider": "bedrock", "isactive": new_isactive}
 
 
-@router.delete("/bedrock")
+@router.delete(
+    "/bedrock",
+    tags=["Providers"],
+    summary="Disconnect AWS Bedrock",
+    responses={200: {"description": "Bedrock credentials and models removed"}},
+)
 async def disconnect_bedrock(
     request:      Request,
     current_user: AuthUser = Depends(get_current_user),
@@ -162,7 +182,12 @@ async def disconnect_bedrock(
 
 # ── model-info (literal — before /{provider_id}) ──────────────────────────────
 
-@router.get("/model-info")
+@router.get(
+    "/model-info",
+    tags=["Providers"],
+    summary="Get metadata for a specific model",
+    responses={200: {"description": "Model metadata (context window, capabilities, etc.)"}},
+)
 async def model_info(
     provider: str,
     model:    str,
@@ -176,7 +201,15 @@ async def model_info(
 
 # ── Regular providers ─────────────────────────────────────────────────────────
 
-@router.post("/{provider_id}/connect")
+@router.post(
+    "/{provider_id}/connect",
+    tags=["Providers"],
+    summary="Connect a provider with API key",
+    responses={
+        200: {"description": "API key saved and models seeded"},
+        404: {"description": "Unknown provider"},
+    },
+)
 async def connect_provider(
     provider_id:  str,
     body:         ConnectRequest,
@@ -195,7 +228,15 @@ async def connect_provider(
     return {"ok": True, "provider": provider_id, "models_seeded": count, "fetch_error": err}
 
 
-@router.patch("/{provider_id}/toggle")
+@router.patch(
+    "/{provider_id}/toggle",
+    tags=["Providers"],
+    summary="Toggle provider active/inactive",
+    responses={
+        200: {"description": "Provider active state toggled"},
+        404: {"description": "No key stored for provider"},
+    },
+)
 async def toggle_provider(
     provider_id:  str,
     request:      Request,
@@ -212,7 +253,12 @@ async def toggle_provider(
     return {"ok": True, "provider": provider_id, "isactive": new_isactive}
 
 
-@router.delete("/{provider_id}")
+@router.delete(
+    "/{provider_id}",
+    tags=["Providers"],
+    summary="Disconnect provider and delete its models",
+    responses={200: {"description": "Provider key and models removed"}},
+)
 async def disconnect_provider(
     provider_id:  str,
     request:      Request,
@@ -226,7 +272,12 @@ async def disconnect_provider(
 
 # ── Per-provider model management ─────────────────────────────────────────────
 
-@router.get("/{provider_id}/models")
+@router.get(
+    "/{provider_id}/models",
+    tags=["Providers"],
+    summary="List models for a provider",
+    responses={200: {"description": "All models for the provider with active status"}},
+)
 async def list_provider_models(
     provider_id:  str,
     request:      Request,
@@ -243,7 +294,15 @@ async def list_provider_models(
     }
 
 
-@router.patch("/{provider_id}/models/{model_id:path}")
+@router.patch(
+    "/{provider_id}/models/{model_id:path}",
+    tags=["Providers"],
+    summary="Toggle a model active/inactive",
+    responses={
+        200: {"description": "Model active state toggled"},
+        404: {"description": "Model not found"},
+    },
+)
 async def toggle_model(
     provider_id:  str,
     model_id:     str,
@@ -261,7 +320,16 @@ class RenameModelRequest(BaseModel):
     display_name: str
 
 
-@router.put("/{provider_id}/models/{model_id:path}/display-name")
+@router.put(
+    "/{provider_id}/models/{model_id:path}/display-name",
+    tags=["Providers"],
+    summary="Update model display name",
+    responses={
+        200: {"description": "Display name updated"},
+        404: {"description": "Model not found"},
+        422: {"description": "display_name cannot be empty"},
+    },
+)
 async def rename_model(
     provider_id:  str,
     model_id:     str,
@@ -278,7 +346,16 @@ async def rename_model(
     return {"ok": True, "provider": provider_id, "model_id": model_id, "display_name": body.display_name.strip()}
 
 
-@router.post("/{provider_id}/refresh")
+@router.post(
+    "/{provider_id}/refresh",
+    tags=["Providers"],
+    summary="Re-fetch and re-seed models from provider API",
+    responses={
+        200: {"description": "Models refreshed from provider API"},
+        404: {"description": "Provider not connected"},
+        422: {"description": "Cannot refresh — provider key not found or decrypt failed"},
+    },
+)
 async def refresh_provider_models(
     provider_id:  str,
     request:      Request,

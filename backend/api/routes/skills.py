@@ -19,7 +19,12 @@ log    = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/skills")
 
 
-@router.get("")
+@router.get(
+    "",
+    tags=["Skills"],
+    summary="List all available skills with install status",
+    responses={200: {"description": "All skills with installed flag and pipeline stages"}},
+)
 async def list_skills(request: Request, current_user: AuthUser = Depends(get_current_user)):
     db             = request.app.state.db
     skill_registry = request.app.state.skill_registry
@@ -57,7 +62,12 @@ class ClassifyChoiceRequest(BaseModel):
     skills:   list[SkillChoiceItem]
 
 
-@router.post("/classify-choice")
+@router.post(
+    "/classify-choice",
+    tags=["Skills"],
+    summary="LLM-classify which skill the user chose from a list",
+    responses={200: {"description": "Matched skill_id or 'none'"}},
+)
 async def classify_skill_choice(
     body:         ClassifyChoiceRequest,
     request:      Request,
@@ -105,7 +115,15 @@ class _BriefValidation(BaseModel):
     message: str   # user-facing guidance when not valid; empty when valid
 
 
-@router.post("/{skill_id}/validate-brief")
+@router.post(
+    "/{skill_id}/validate-brief",
+    tags=["Skills"],
+    summary="Validate brief relevance and sufficiency for a skill",
+    responses={
+        200: {"description": "{valid, reason, message}"},
+        404: {"description": "Skill not found"},
+    },
+)
 async def validate_brief(
     skill_id:     str,
     body:         ValidateBriefRequest,
@@ -168,7 +186,15 @@ async def validate_brief(
 
 # ── Install / uninstall ────────────────────────────────────────────────────────
 
-@router.post("/{skill_id}")
+@router.post(
+    "/{skill_id}",
+    tags=["Skills"],
+    summary="Install a skill for the current user",
+    responses={
+        200: {"description": "Skill installed (or already installed)"},
+        404: {"description": "Skill not found"},
+    },
+)
 async def install_skill(
     skill_id:     str,
     request:      Request,
@@ -192,7 +218,15 @@ async def install_skill(
     return {"ok": True, "skill": skill_id, "status": "installed", "agents": len(agents)}
 
 
-@router.delete("/{skill_id}")
+@router.delete(
+    "/{skill_id}",
+    tags=["Skills"],
+    summary="Uninstall a skill",
+    responses={
+        200: {"description": "Skill uninstalled"},
+        404: {"description": "Skill not found"},
+    },
+)
 async def uninstall_skill(
     skill_id:     str,
     request:      Request,
@@ -209,7 +243,12 @@ async def uninstall_skill(
 
 # ── Suggest agent config ───────────────────────────────────────────────────────
 
-@router.get("/{skill_id}/suggest-config")
+@router.get(
+    "/{skill_id}/suggest-config",
+    tags=["Skills"],
+    summary="Smart-pick provider/model for each agent in a skill",
+    responses={200: {"description": "Suggested provider/model per agent key"}},
+)
 async def suggest_agent_config(
     skill_id:     str,
     request:      Request,

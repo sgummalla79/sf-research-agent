@@ -88,7 +88,15 @@ _connections_cache:      list  = []
 _connections_expires_at: float = 0.0
 
 
-@router.get("/connections")
+@router.get(
+    "/connections",
+    tags=["Auth"],
+    summary="List Auth0 social login connections",
+    responses={
+        200: {"description": "List of enabled social connections"},
+        502: {"description": "Auth0 Management API unreachable"},
+    },
+)
 async def list_connections():
     global _connections_cache, _connections_expires_at
 
@@ -134,7 +142,12 @@ async def list_connections():
 
 # ── Initiate — redirect to Auth0 /authorize ────────────────────────────────────
 
-@router.get("/initiate")
+@router.get(
+    "/initiate",
+    tags=["Auth"],
+    summary="Redirect to Auth0 authorize",
+    responses={302: {"description": "Redirect to Auth0 /authorize"}},
+)
 async def initiate(connection: str = ""):
     params = {
         "response_type": "code",
@@ -152,7 +165,12 @@ async def initiate(connection: str = ""):
 
 # ── Callback — exchange code, set cookie, redirect to SPA ─────────────────────
 
-@router.get("/callback")
+@router.get(
+    "/callback",
+    tags=["Auth"],
+    summary="Auth0 OAuth callback — set session cookie",
+    responses={302: {"description": "Redirect to SPA with session cookie set"}},
+)
 async def callback(code: str, request: Request, error: str = ""):
     if error:
         return RedirectResponse(f"{FRONTEND_URL}/login?error={error}")
@@ -211,7 +229,15 @@ class LoginRequest(BaseModel):
     connection: str = "Username-Password-Authentication"
 
 
-@router.post("/token")
+@router.post(
+    "/token",
+    tags=["Auth"],
+    summary="Email/password login",
+    responses={
+        200: {"description": "Authenticated user JSON with session cookie"},
+        401: {"description": "Bad credentials"},
+    },
+)
 async def login_with_password(body: LoginRequest, request: Request):
     async with httpx.AsyncClient() as client:
         resp = await client.post(
@@ -263,7 +289,12 @@ async def login_with_password(body: LoginRequest, request: Request):
 
 # ── Logout ────────────────────────────────────────────────────────────────────
 
-@router.post("/logout")
+@router.post(
+    "/logout",
+    tags=["Auth"],
+    summary="Clear session cookie",
+    responses={200: {"description": "Session cookie cleared"}},
+)
 async def logout():
     response = JSONResponse({"ok": True})
     response.delete_cookie(_COOKIE_NAME)
@@ -272,7 +303,15 @@ async def logout():
 
 # ── Me (bootstrap) ────────────────────────────────────────────────────────────
 
-@router.get("/me")
+@router.get(
+    "/me",
+    tags=["Auth"],
+    summary="Get current authenticated user",
+    responses={
+        200: {"description": "Current user object"},
+        401: {"description": "Not authenticated"},
+    },
+)
 async def me(current_user: AuthUser = Depends(get_current_user)):
     return {
         "sub":     current_user.sub,

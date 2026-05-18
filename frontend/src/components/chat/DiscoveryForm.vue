@@ -68,10 +68,10 @@ function submit() {
 </script>
 
 <style scoped>
-.discovery-form { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.df-count  { font-size: 12px; font-weight: 600; color: var(--pri); letter-spacing: .03em; text-transform: uppercase; }
+.discovery-form { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.df-count  { font-size: 14px; font-weight: 600; color: var(--pri); letter-spacing: .03em; text-transform: uppercase; }
 .df-row    { display: flex; gap: 8px; align-items: flex-end; }
-.df-ta     { flex: 1; width: 100%; resize: vertical; min-height: 60px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-family: inherit; box-sizing: border-box; }
+.df-ta     { flex: 1; width: 100%; resize: vertical; min-height: 64px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 18px; font-family: inherit; line-height: 1.55; box-sizing: border-box; }
 .df-ta:focus { outline: none; border-color: var(--pri); }
 
 .df-scroll {
@@ -87,7 +87,7 @@ function submit() {
 .df-scroll::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
 .df-item  { display: flex; flex-direction: column; gap: 6px; }
-.df-label { font-size: 13px; font-weight: 500; color: var(--text); display: flex; flex-direction: column; gap: 2px; }
-.df-num   { font-size: 11px; font-weight: 700; color: var(--pri); opacity: .7; }
+.df-label { font-size: 18px; font-weight: 500; color: var(--text); line-height: 1.6; display: flex; flex-direction: column; gap: 4px; }
+.df-num   { font-size: 13px; font-weight: 700; color: var(--pri); opacity: .7; }
 .df-footer { display: flex; justify-content: flex-end; }
 </style>

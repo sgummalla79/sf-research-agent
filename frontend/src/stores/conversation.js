@@ -54,6 +54,8 @@ export const useConversationStore = defineStore('conversation', () => {
   const isStreaming       = ref(false)   // true for chat SSE + pipeline SSE
   const isHalted          = ref(false)
   const isInvalidInput    = ref(false)
+  const executionDone     = ref(false)   // true once a 'done' SSE fires — execution is closed
+  const latestArtifactId  = ref(null)    // most recent artifact from research stage
 
   // ── Interrupts ─────────────────────────────────────────────────────────────
   const pendingQuestions    = ref([])
@@ -114,6 +116,8 @@ export const useConversationStore = defineStore('conversation', () => {
     isStreaming.value          = false
     isHalted.value             = false
     isInvalidInput.value       = false
+    executionDone.value        = false
+    latestArtifactId.value     = null
     pendingQuestions.value     = []
     pendingConfirmation.value  = null
     error.value                = null
@@ -147,15 +151,8 @@ export const useConversationStore = defineStore('conversation', () => {
     switch (event.type) {
 
       case 'stage_start': {
-        currentStage.value = event.stage
-        if (['research', 'review', 'approval'].includes(event.stage)) {
-          const typeMap = { research: 'preparing', review: 'reviewing', approval: 'approving' }
-          const m = _addMessage('agent', '', event.stage, typeMap[event.stage])
-          m.isStreaming = true
-          currentMsgHolder.msg = m
-        } else {
-          currentMsgHolder.msg = null
-        }
+        currentStage.value   = event.stage
+        currentMsgHolder.msg = null
         break
       }
 
@@ -177,39 +174,32 @@ export const useConversationStore = defineStore('conversation', () => {
       }
 
       case 'document_ready': {
-        if (currentMsgHolder.msg) {
-          currentMsgHolder.msg.isStreaming = false
-          currentMsgHolder.msg.type        = 'document'
-          currentMsgHolder.msg.content     = ''
-          currentMsgHolder.msg.artifactId  = event.artifact_id || null
-          currentMsgHolder.msg.docVersion  = event.version
-          currentMsgHolder.msg             = null
-        }
+        if (currentMsgHolder.msg) { currentMsgHolder.msg.isStreaming = false; currentMsgHolder.msg = null }
+        latestArtifactId.value = event.artifact_id || null
+        _addMessage('agent', `Document v${event.version} submitted for review.`, 'research')
         currentStage.value = null
         break
       }
 
       case 'review_complete': {
-        if (currentMsgHolder.msg) {
-          currentMsgHolder.msg.isStreaming    = false
-          currentMsgHolder.msg.type           = 'review_result'
-          currentMsgHolder.msg.reviewPassed   = event.passed
-          currentMsgHolder.msg.reviewFeedback = event.feedback
-          currentMsgHolder.msg.criticalIssues = event.critical_issues || []
-          currentMsgHolder.msg                = null
-        }
+        if (currentMsgHolder.msg) { currentMsgHolder.msg.isStreaming = false; currentMsgHolder.msg = null }
+        const issues = event.critical_issues || []
+        const reviewText = event.feedback + (issues.length ? '\n\n**Critical issues:**\n' + issues.map(i => `- ${i}`).join('\n') : '')
+        _addMessage('agent', reviewText, 'review')
         currentStage.value = null
         break
       }
 
       case 'approval_complete': {
-        if (currentMsgHolder.msg) {
-          currentMsgHolder.msg.isStreaming      = false
-          currentMsgHolder.msg.type             = 'approval_result'
-          currentMsgHolder.msg.approvalStatus   = event.status
-          currentMsgHolder.msg.approvalComments = event.comments
-          currentMsgHolder.msg.requiredChanges  = event.required_changes || []
-          currentMsgHolder.msg                  = null
+        if (currentMsgHolder.msg) { currentMsgHolder.msg.isStreaming = false; currentMsgHolder.msg = null }
+        const changes = event.required_changes || []
+        const approvalText = event.comments + (changes.length ? '\n\n**Required changes:**\n' + changes.map(c => `- ${c}`).join('\n') : '')
+        _addMessage('agent', approvalText, 'approval')
+        if (event.status === 'approved' && (event.artifact_id || latestArtifactId.value)) {
+          _addMessage('agent', '', 'research', 'document', {
+            artifactId: event.artifact_id || latestArtifactId.value,
+            docVersion: event.document_version || null,
+          })
         }
         currentStage.value = null
         break
@@ -236,8 +226,13 @@ export const useConversationStore = defineStore('conversation', () => {
         if (currentMsgHolder.msg) { currentMsgHolder.msg.isStreaming = false; currentMsgHolder.msg = null }
         currentStage.value      = null
         isPipelineRunning.value = false
-        if (event.status === 'halted')             isHalted.value       = true
-        else if (event.status === 'invalid_input') isInvalidInput.value = true
+        executionDone.value     = true
+        if (event.status === 'halted') {
+          isHalted.value = true
+        } else if (event.status === 'invalid_input') {
+          isInvalidInput.value = true
+          saveMessage('agent', "Your input doesn't appear to be architecture-related. Please describe a technical system or architecture challenge you'd like to explore.", 'error')
+        }
         break
       }
 
@@ -248,9 +243,9 @@ export const useConversationStore = defineStore('conversation', () => {
 
       case 'error': {
         if (currentMsgHolder.msg) { currentMsgHolder.msg.isStreaming = false; currentMsgHolder.msg = null }
-        error.value             = _friendlyError(event.message)
         isPipelineRunning.value = false
         isStreaming.value       = false
+        _addMessage('agent', _friendlyError(event.message), null, 'error')
         break
       }
 
@@ -265,12 +260,18 @@ export const useConversationStore = defineStore('conversation', () => {
   }
 
   async function _consumeStream(response) {
-    isStreaming.value = true
-    const holder      = { msg: null }
+    isStreaming.value       = true
+    isPipelineRunning.value = isPipelineRunning.value  // keep existing state
+    const holder = { msg: null }
     try {
       for await (const event of readSSE(response.body)) {
         _handleEvent(event, holder)
       }
+    } catch (err) {
+      // Network / stream error — not an SSE error event, so _handleEvent never ran
+      if (holder.msg) { holder.msg.isStreaming = false; holder.msg = null }
+      isPipelineRunning.value = false
+      await saveMessage('agent', 'A network error occurred. Please check your connection and try again.', 'error')
     } finally {
       isStreaming.value = false
       if (holder.msg) holder.msg.isStreaming = false
@@ -313,7 +314,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}))
-      error.value = _friendlyError(err.detail) || 'Message failed.'
+      saveMessage('agent', _friendlyError(err.detail) || 'Message failed.', 'error')
       return
     }
 
@@ -322,8 +323,14 @@ export const useConversationStore = defineStore('conversation', () => {
 
   // ── Skill invocation ───────────────────────────────────────────────────────
 
-  function addLocalMessage(role, content) {
-    _addMessage(role, content, null, 'text')
+  async function saveMessage(role, content, type = 'chat') {
+    _addMessage(role, content, null, type)
+    if (conversationId.value) {
+      await apiFetch(`/api/conversations/${conversationId.value}/messages`, {
+        method: 'POST',
+        body:   JSON.stringify({ role, content, message_type: type }),
+      }).catch(() => {})
+    }
   }
 
   async function invokeSkill(skillId, brief = '', opts = {}) {
@@ -331,6 +338,7 @@ export const useConversationStore = defineStore('conversation', () => {
     providerConflict.value = null
     isHalted.value         = false
     isInvalidInput.value   = false
+    executionDone.value    = false
 
     await _ensureConversation(opts.chatProvider, opts.chatModel)
 
@@ -347,7 +355,7 @@ export const useConversationStore = defineStore('conversation', () => {
         providerConflict.value = { detail: err.detail.message, canSmartPick: true, agents: err.detail.agents }
         return
       }
-      error.value = err.detail || 'Could not add skill.'
+      saveMessage('agent', _friendlyError(err.detail) || 'Could not add the skill. Please try again.', 'error')
       return
     }
 
@@ -386,7 +394,7 @@ export const useConversationStore = defineStore('conversation', () => {
         isPipelineRunning.value = false
         return
       }
-      error.value             = err.detail || 'Could not invoke skill.'
+      saveMessage('agent', _friendlyError(err.detail) || 'Could not start the skill pipeline. Please try again.', 'error')
       isPipelineRunning.value = false
       return
     }
@@ -402,12 +410,12 @@ export const useConversationStore = defineStore('conversation', () => {
     const formData = new FormData()
     formData.append('file', file)
 
-    _addMessage('user', `Uploaded: ${file.name}`)
+    await saveMessage('user', `Uploaded: ${file.name}`)
 
     const uploadRes = await apiFetch('/api/uploads', { method: 'POST', body: formData })
     if (!uploadRes.ok) {
       const err = await uploadRes.json().catch(() => ({ detail: 'Upload failed' }))
-      error.value = err.detail || 'Upload failed.'
+      saveMessage('agent', _friendlyError(err.detail) || 'File upload failed. Please check the file and try again.', 'error')
       return
     }
 
@@ -437,7 +445,8 @@ export const useConversationStore = defineStore('conversation', () => {
   async function confirmUnderstanding(correction = '') {
     if (!executionId.value) return
     pendingConfirmation.value = null
-    _addMessage('user', correction.trim() ? `Correction: ${correction.trim()}` : 'Confirmed — looks right.')
+    const confirmText = correction.trim() || 'Confirmed — looks right.'
+    _addMessage('user', confirmText)
 
     const response = await apiFetch(`/api/executions/${executionId.value}/reply`, {
       method: 'POST',
@@ -452,6 +461,7 @@ export const useConversationStore = defineStore('conversation', () => {
     if (!executionId.value || isStreaming.value) return
     error.value            = null
     providerConflict.value = null
+    executionDone.value    = false
     messages.value         = messages.value.filter(m => !m.isStreaming)
 
     const response = await apiFetch(`/api/executions/${executionId.value}/retry`, { method: 'POST' })
@@ -461,7 +471,7 @@ export const useConversationStore = defineStore('conversation', () => {
         providerConflict.value = { detail: data.detail, canSmartPick: data.can_smart_pick }
         return
       }
-      error.value = data.detail || 'Retry failed.'
+      saveMessage('agent', _friendlyError(data.detail) || 'Could not retry. Please try again.', 'error')
       return
     }
     isPipelineRunning.value = true
@@ -475,7 +485,7 @@ export const useConversationStore = defineStore('conversation', () => {
     conversationId.value = convId
 
     const res  = await apiFetch(`/api/conversations/${convId}`)
-    if (!res.ok) { error.value = 'Conversation not found.'; return }
+    if (!res.ok) { saveMessage('agent', 'This conversation could not be loaded. It may have been deleted.', 'error'); return }
 
     const data = await res.json()
 
@@ -494,20 +504,37 @@ export const useConversationStore = defineStore('conversation', () => {
         continue
       }
 
-      // Determine stage from execution_id presence + message_type
-      const stage = m.message_type === 'stage_summary' ? 'research'
-                  : m.message_type === 'question'       ? 'discovery'
-                  : null
-      _addMessage(role, m.content || '', stage, 'text')
+      // Map DB message_type → frontend type
+      const stage   = m.message_type === 'stage_summary' ? 'research'
+                    : m.message_type === 'question'       ? 'discovery'
+                    : null
+      const msgType = m.message_type === 'error' ? 'error' : 'text'
+      _addMessage(role, m.content || '', stage, msgType)
+    }
+
+    // Restore retry eligibility using the execution status from the backend.
+    // 'error' status means the pipeline halted due to an exception → retryable.
+    // Any other terminal status (completed, halted) → not retryable.
+    const execStatus = data.latest_execution_status
+    if (execStatus === 'error') {
+      const rawMessages  = data.messages || []
+      const lastErrorMsg = [...rawMessages].reverse().find(m =>
+        m.message_type === 'error' && m.message_state === 'visible'
+      )
+      const execId = lastErrorMsg?.execution_id ||
+        [...rawMessages].reverse().find(m => m.execution_id)?.execution_id
+      if (execId) {
+        executionId.value   = execId
+        executionDone.value = false
+      } else {
+        executionDone.value = true
+      }
+    } else {
+      executionDone.value = true
     }
 
     // Load token usage for this conversation
     _refreshUsage()
-
-    // Detect pending interrupt from skills
-    // (If a skill was active when restored, the execution table has running status)
-    // For now, rely on frontend state — the pipeline will be resumable via /retry
-    // if the user had a mid-run session.
   }
 
   return {
@@ -515,7 +542,7 @@ export const useConversationStore = defineStore('conversation', () => {
     conversationId, executionId, conversationSkillId, conversationTitle, lockedProvider,
     messages, currentStage,
     isPipelineRunning, isStreaming,
-    isHalted, isInvalidInput,
+    isHalted, isInvalidInput, executionDone,
     pendingQuestions, pendingConfirmation,
     error, providerConflict,
     sessionUsage,
@@ -523,7 +550,7 @@ export const useConversationStore = defineStore('conversation', () => {
     hasActiveConversation, isInputLocked,
     // Actions
     reset,
-    addLocalMessage,
+    saveMessage,
     sendMessage,
     invokeSkill,
     uploadAndInvoke,

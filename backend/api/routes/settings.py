@@ -13,7 +13,12 @@ from utils.auth import AuthUser, get_current_user
 router = APIRouter(prefix="/api/settings")
 
 
-@router.get("/theme")
+@router.get(
+    "/theme",
+    tags=["Settings"],
+    summary="Get current theme preference",
+    responses={200: {"description": "Current theme name"}},
+)
 async def get_theme(request: Request, current_user: AuthUser = Depends(get_current_user)):
     db    = request.app.state.db
     theme = await db.users.get_config(current_user.sub, "theme")
@@ -24,7 +29,12 @@ class ThemeRequest(BaseModel):
     theme: str
 
 
-@router.post("/theme")
+@router.post(
+    "/theme",
+    tags=["Settings"],
+    summary="Save theme preference",
+    responses={200: {"description": "Theme saved"}},
+)
 async def save_theme(
     body:         ThemeRequest,
     request:      Request,

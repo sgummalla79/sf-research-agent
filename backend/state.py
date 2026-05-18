@@ -17,10 +17,10 @@ class DiscoveryQuestion(BaseModel):
 
 
 class DiscoveryOutput(BaseModel):
-    next_questions:     list[str]
-    updated_questions:  list[DiscoveryQuestion]
-    discovery_complete: bool
-    reasoning:          str
+    next_questions:     list[str]             = Field(default_factory=list)
+    updated_questions:  list[DiscoveryQuestion] = Field(default_factory=list)
+    discovery_complete: bool                  = False
+    reasoning:          str                   = ""
 
 
 # ── Review ────────────────────────────────────────────────────────────────────

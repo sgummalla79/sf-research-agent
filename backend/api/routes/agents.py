@@ -32,7 +32,12 @@ class UpdateModelRequest(BaseModel):
     model:    Optional[str] = None
 
 
-@router.get("/{skill_id}/agents")
+@router.get(
+    "/{skill_id}/agents",
+    tags=["Agents"],
+    summary="List agents and their published/draft prompt versions",
+    responses={200: {"description": "All agents with published and draft version info"}},
+)
 async def list_agents(
     skill_id:     str,
     request:      Request,
@@ -86,7 +91,15 @@ async def list_agents(
     return {"skill_id": skill_id, "agents": result, "has_draft": has_draft}
 
 
-@router.put("/{skill_id}/agents/{agent_key}/draft")
+@router.put(
+    "/{skill_id}/agents/{agent_key}/draft",
+    tags=["Agents"],
+    summary="Save or update an agent prompt draft",
+    responses={
+        200: {"description": "Draft saved with version number"},
+        404: {"description": "Skill or agent not found"},
+    },
+)
 async def save_draft(
     skill_id:     str,
     agent_key:    str,
@@ -109,7 +122,15 @@ async def save_draft(
     return {"ok": True, "agent_key": agent_key, "version": version.version}
 
 
-@router.delete("/{skill_id}/agents/{agent_key}/draft")
+@router.delete(
+    "/{skill_id}/agents/{agent_key}/draft",
+    tags=["Agents"],
+    summary="Discard agent prompt draft",
+    responses={
+        200: {"description": "Draft discarded"},
+        404: {"description": "Skill or agent not found"},
+    },
+)
 async def discard_draft(
     skill_id:     str,
     agent_key:    str,
@@ -128,7 +149,16 @@ async def discard_draft(
     return {"ok": True}
 
 
-@router.post("/{skill_id}/agents/{agent_key}/publish")
+@router.post(
+    "/{skill_id}/agents/{agent_key}/publish",
+    tags=["Agents"],
+    summary="Publish agent draft",
+    responses={
+        200: {"description": "Draft published as new version"},
+        400: {"description": "No draft to publish"},
+        404: {"description": "Skill or agent not found"},
+    },
+)
 async def publish_agent(
     skill_id:     str,
     agent_key:    str,
@@ -150,7 +180,15 @@ async def publish_agent(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.patch("/{skill_id}/agents/{agent_key}/model")
+@router.patch(
+    "/{skill_id}/agents/{agent_key}/model",
+    tags=["Agents"],
+    summary="Set default provider/model for an agent",
+    responses={
+        200: {"description": "Default model updated"},
+        404: {"description": "Skill, agent, or user agent not found"},
+    },
+)
 async def update_agent_model(
     skill_id:     str,
     agent_key:    str,
@@ -175,7 +213,16 @@ async def update_agent_model(
     return {"ok": True, "agent_key": agent_key, "provider": body.provider, "model": body.model}
 
 
-@router.post("/{skill_id}/publish")
+@router.post(
+    "/{skill_id}/publish",
+    tags=["Agents"],
+    summary="Publish all agent drafts for a skill atomically",
+    responses={
+        200: {"description": "All drafts published"},
+        400: {"description": "No unpublished drafts to publish"},
+        404: {"description": "Skill not found"},
+    },
+)
 async def publish_all(
     skill_id:     str,
     request:      Request,

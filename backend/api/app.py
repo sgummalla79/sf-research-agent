@@ -142,7 +142,49 @@ async def lifespan(app: FastAPI):
     logger.info("Pragna shutting down")
 
 
-app = FastAPI(title="Pragna", lifespan=lifespan)
+app = FastAPI(
+    title="Pragna API",
+    version="1.0.0",
+    description="""
+## Pragna — Multi-Agent AI Platform
+
+Pragna runs structured AI pipelines ("skills") to produce Architecture Recommendation Documents and supports free-form chat.
+
+### Authentication
+All `/api/*` endpoints require a valid session cookie (set via `/auth/callback` or `/auth/token`).
+Auth routes (`/auth/*`) are public.
+
+### SSE Streaming
+Pipeline and chat endpoints return `text/event-stream`. Each event is a JSON object:
+`data: {"type": "<event_type>", ...}`.
+
+### Key Concepts
+- **Skill** — a named multi-stage agent pipeline (e.g. `architect`)
+- **Execution** — a single run of a skill pipeline, keyed by a UUID that doubles as the LangGraph thread_id
+- **Artifact** — the document produced by the research stage of a skill pipeline
+- **Conversation** — a chat session that may contain one or more skill executions
+""",
+    openapi_tags=[
+        {"name": "Health",         "description": "Service health and version info"},
+        {"name": "Auth",           "description": "Auth0 OAuth flow, session management"},
+        {"name": "Conversations",  "description": "Create and manage chat conversations"},
+        {"name": "Chat",           "description": "Free-form chat SSE streaming"},
+        {"name": "Skills",         "description": "Skill discovery, install, validate, and agent config"},
+        {"name": "Agents",         "description": "Agent prompt versioning and model assignment"},
+        {"name": "Executions",     "description": "Start, reply, retry, and audit skill pipeline runs"},
+        {"name": "Artifacts",      "description": "Access documents produced by skill pipelines"},
+        {"name": "Providers",      "description": "LLM provider connection and model management"},
+        {"name": "Models",         "description": "Active model list for UI dropdowns"},
+        {"name": "Uploads",        "description": "File upload (documents and images) for pipeline intake"},
+        {"name": "Usage",          "description": "Token usage and cost tracking"},
+        {"name": "Settings",       "description": "User preferences (theme, etc.)"},
+    ],
+    lifespan=lifespan,
+    swagger_ui_parameters={
+        "supportedSubmitMethods": [],   # disables "Try it out" on every endpoint
+        "defaultModelsExpandDepth": -1, # hides the Schemas section by default
+    },
+)
 
 _ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(

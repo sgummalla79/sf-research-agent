@@ -24,6 +24,12 @@ const routes = [
     name:      'chats',
     component: () => import('../pages/ChatsPage.vue'),
   },
+  {
+    path:      '/docs',
+    name:      'docs',
+    component: () => import('../pages/DocsPage.vue'),
+    meta:      { public: true },
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

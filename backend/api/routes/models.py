@@ -10,7 +10,12 @@ from utils.auth import AuthUser, get_current_user
 router = APIRouter(prefix="/api/models")
 
 
-@router.get("/active")
+@router.get(
+    "/active",
+    tags=["Models"],
+    summary="All active models across connected providers",
+    responses={200: {"description": "Active models grouped with provider metadata"}},
+)
 async def active_models(
     request:      Request,
     current_user: AuthUser = Depends(get_current_user),

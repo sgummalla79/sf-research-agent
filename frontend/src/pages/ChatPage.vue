@@ -6,19 +6,7 @@
 
     <div class="chat-page">
 
-      <!-- ── Progress strip (animates while a stage is running) ────────────── -->
-      <div class="progress-strip" :class="[conv.currentStage, { visible: !!conv.currentStage }]">
-        <span class="p-dot" />
-        <span class="p-text">{{ stageLabels[conv.currentStage] }} is working…</span>
-      </div>
 
-      <!-- ── Active skill bar ──────────────────────────────────────────────── -->
-      <div v-if="conv.isPipelineRunning && activeSkill" class="session-flow-bar">
-        <img v-if="skillIconUrl(activeSkill.id)" :src="skillIconUrl(activeSkill.id)" class="sfb-icon-svg" :alt="activeSkill.name" />
-        <span v-else class="sfb-icon">{{ activeSkill.icon }}</span>
-        <span class="sfb-name">{{ activeSkill.name }}</span>
-        <span class="sfb-label">active</span>
-      </div>
 
       <!-- ── EMPTY STATE — greeting + input centered together ───────────────── -->
       <div v-if="isEmpty" class="cp-centered">
@@ -70,7 +58,13 @@
         <MessageList
           :messages="conv.messages"
           :is-streaming="conv.isStreaming"
+          :is-pipeline-running="conv.isPipelineRunning"
+          :current-stage="conv.currentStage"
+          :stage-label="stageLabels[conv.currentStage]"
+          :execution-id="conv.executionId"
+          :execution-done="conv.executionDone"
           @open-document="openDoc"
+          @retry="conv.retryExecution"
         />
 
         <!-- Bottom: interrupts + palette + input + inline notices -->
@@ -123,17 +117,6 @@
           <div v-if="conv.isHalted" class="cp-notice cp-notice-warn">
             <svg class="cp-notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             <span>Session halted after maximum revisions.</span>
-          </div>
-          <div v-if="conv.isInvalidInput" class="cp-notice cp-notice-err">
-            <svg class="cp-notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-            <span>Input doesn't appear to be architecture-related.</span>
-          </div>
-          <div v-if="conv.error" class="cp-notice cp-notice-err">
-            <svg class="cp-notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <span>{{ conv.error }}</span>
-            <div v-if="conv.executionId" class="cp-notice-actions">
-              <button class="cp-notice-btn" @click="conv.retryExecution">↺ Retry</button>
-            </div>
           </div>
 
           <ChatInput
@@ -426,8 +409,8 @@ async function runSkill(skillId, originalText, brief, opts) {
       if (vRes.ok) {
         const { valid, message } = await vRes.json()
         if (!valid) {
-          conv.addLocalMessage('user', originalText)
-          conv.addLocalMessage('agent', message)
+          conv.saveMessage('user', originalText)
+          conv.saveMessage('agent', message)
           chatInputRef.value?.setText(originalText)
           return
         }
@@ -474,11 +457,11 @@ async function onSubmit(text, opts) {
 async function promptSkillSelection(foundSkills, originalText, opts) {
   const brief = buildBrief(originalText)
   // Add user message and assistant prompt locally
-  conv.addLocalMessage('user', originalText)
+  conv.saveMessage('user', originalText)
   const skillLines = foundSkills.map((s, i) =>
     `**${i + 1}. /${s.id}** — ${s.name}\n${s.description || ''}`
   ).join('\n\n')
-  conv.addLocalMessage('agent',
+  conv.saveMessage('agent',
     `I found ${foundSkills.length} skills in your message:\n\n${skillLines}\n\nWhich one would you like to run? (or say "none" to just chat)`
   )
   pendingSkillSelection.value = { skills: foundSkills, brief, originalText }
@@ -497,7 +480,7 @@ async function resolvePendingSelection(text, opts) {
   })
   const { skill_id } = await res.json()
 
-  conv.addLocalMessage('user', text)
+  conv.saveMessage('user', text)
 
   if (skill_id && skill_id !== 'none') {
     await runSkill(skill_id, originalText, brief, opts)

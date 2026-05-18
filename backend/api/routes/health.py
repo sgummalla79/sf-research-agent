@@ -13,7 +13,12 @@ def _read_version() -> str:
     return os.getenv("APP_VERSION", "")
 
 
-@router.get("/api/about")
+@router.get(
+    "/api/about",
+    tags=["Health"],
+    summary="App version and upload limits",
+    responses={200: {"description": "Version string and upload configuration"}},
+)
 async def about():
     from config import MAX_FILE_SIZE_MB, ALLOWED_IMAGE_EXTS, ALLOWED_DOC_EXTS
     return {
@@ -26,7 +31,12 @@ async def about():
     }
 
 
-@router.get("/health")
+@router.get(
+    "/health",
+    tags=["Health"],
+    summary="Service health check",
+    responses={200: {"description": "DB and compiled skill graph status"}},
+)
 async def health(request: Request):
     db     = request.app.state.db
     graphs = request.app.state.graphs or {}

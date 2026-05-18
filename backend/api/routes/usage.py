@@ -11,7 +11,15 @@ from utils.auth import AuthUser, get_current_user
 router = APIRouter(prefix="/api")
 
 
-@router.get("/conversations/{conversation_id}/usage")
+@router.get(
+    "/conversations/{conversation_id}/usage",
+    tags=["Usage"],
+    summary="Token usage and cost for a conversation",
+    responses={
+        200: {"description": "Token totals and per-model breakdown"},
+        404: {"description": "Conversation not found"},
+    },
+)
 async def conversation_usage(
     conversation_id: str,
     request:         Request,
@@ -34,7 +42,12 @@ async def conversation_usage(
     }
 
 
-@router.get("/usage/summary")
+@router.get(
+    "/usage/summary",
+    tags=["Usage"],
+    summary="Aggregate token usage across all user conversations",
+    responses={200: {"description": "Summed token counts and cost across all conversations"}},
+)
 async def usage_summary(
     request:      Request,
     current_user: AuthUser = Depends(get_current_user),

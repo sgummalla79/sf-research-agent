@@ -87,7 +87,12 @@ class UpdateModelConfigRequest(BaseModel):
 
 # ── Conversation CRUD ─────────────────────────────────────────────────────────
 
-@router.post("")
+@router.post(
+    "",
+    tags=["Conversations"],
+    summary="Create a new conversation",
+    responses={200: {"description": "Created conversation ID and metadata"}},
+)
 async def create_conversation(
     body:         CreateConversationRequest,
     request:      Request,
@@ -103,7 +108,12 @@ async def create_conversation(
     return {"id": conv.id, "title": conv.title, "created_at": conv.created_at}
 
 
-@router.get("")
+@router.get(
+    "",
+    tags=["Conversations"],
+    summary="List user's conversations (pinned + recent)",
+    responses={200: {"description": "Pinned and recent conversation lists"}},
+)
 async def list_conversations(
     request:      Request,
     current_user: AuthUser = Depends(get_current_user),
@@ -132,7 +142,15 @@ async def list_conversations(
     return {"pinned": pinned, "recent": recent}
 
 
-@router.get("/{conversation_id}")
+@router.get(
+    "/{conversation_id}",
+    tags=["Conversations"],
+    summary="Get conversation with messages and skills",
+    responses={
+        200: {"description": "Conversation detail with messages and skill snapshots"},
+        404: {"description": "Conversation not found"},
+    },
+)
 async def get_conversation(
     conversation_id: str,
     request:         Request,
@@ -143,8 +161,9 @@ async def get_conversation(
     if not conv or conv.user_id != current_user.sub:
         raise HTTPException(status_code=404, detail="Conversation not found.")
 
-    messages = await db.messages.list_for_conversation(conversation_id, visible_only=False)
-    skills   = await db.conversations.get_skills_for_conversation(conversation_id)
+    messages       = await db.messages.list_for_conversation(conversation_id, visible_only=False)
+    skills         = await db.conversations.get_skills_for_conversation(conversation_id)
+    latest_exec    = await db.executions.get_latest_for_conversation(conversation_id)
 
     return {
         "id":            conv.id,
@@ -153,6 +172,7 @@ async def get_conversation(
         "chat_model":    conv.chat_model,
         "created_at":    conv.created_at,
         "last_modified": conv.last_modified,
+        "latest_execution_status": latest_exec.status if latest_exec else None,
         "messages": [
             {
                 "id":            m.id,
@@ -173,7 +193,15 @@ async def get_conversation(
     }
 
 
-@router.patch("/{conversation_id}")
+@router.patch(
+    "/{conversation_id}",
+    tags=["Conversations"],
+    summary="Rename conversation",
+    responses={
+        200: {"description": "Rename successful"},
+        404: {"description": "Conversation not found"},
+    },
+)
 async def rename_conversation(
     conversation_id: str,
     body:            RenameRequest,
@@ -188,7 +216,15 @@ async def rename_conversation(
     return {"ok": True}
 
 
-@router.delete("/{conversation_id}")
+@router.delete(
+    "/{conversation_id}",
+    tags=["Conversations"],
+    summary="Delete conversation",
+    responses={
+        200: {"description": "Conversation deleted"},
+        404: {"description": "Conversation not found"},
+    },
+)
 async def delete_conversation(
     conversation_id: str,
     request:         Request,
@@ -202,9 +238,52 @@ async def delete_conversation(
     return {"ok": True}
 
 
+# ── Save a system/error message directly ─────────────────────────────────────
+
+@router.post(
+    "/{conversation_id}/messages",
+    tags=["Conversations"],
+    summary="Persist a message for audit",
+    responses={
+        200: {"description": "Saved message ID"},
+        404: {"description": "Conversation not found"},
+    },
+)
+async def save_message(
+    conversation_id: str,
+    body:            dict,
+    request:         Request,
+    current_user:    AuthUser = Depends(get_current_user),
+):
+    """Persist a local agent message (error, system note) to the DB."""
+    db   = request.app.state.db
+    conv = await db.conversations.get_by_id(conversation_id)
+    if not conv or conv.user_id != current_user.sub:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    role = body.get("role", "assistant")
+    if role == "agent":
+        role = "assistant"   # DB uses 'assistant'; frontend uses 'agent' internally
+    msg = await db.messages.create(
+        conversation_id = conversation_id,
+        role            = role,
+        content         = body.get("content", ""),
+        message_type    = body.get("message_type", "chat"),
+        message_state   = "visible",
+    )
+    return {"id": msg.id}
+
+
 # ── Regular chat message (SSE) ────────────────────────────────────────────────
 
-@router.post("/{conversation_id}/message")
+@router.post(
+    "/{conversation_id}/message",
+    tags=["Chat"],
+    summary="Send a chat message (SSE stream)",
+    responses={
+        200: {"description": "Server-Sent Events stream", "content": {"text/event-stream": {}}},
+        404: {"description": "Conversation not found"},
+    },
+)
 async def send_message(
     conversation_id: str,
     body:            ChatMessageRequest,
@@ -318,7 +397,18 @@ async def send_message(
 
 # ── Skill snapshot management ─────────────────────────────────────────────────
 
-@router.post("/{conversation_id}/skills")
+@router.post(
+    "/{conversation_id}/skills",
+    tags=["Conversations"],
+    summary="Add a skill snapshot to a conversation",
+    responses={
+        200: {"description": "Skill snapshot created"},
+        400: {"description": "Skill not installed"},
+        404: {"description": "Conversation or skill not found"},
+        409: {"description": "Skill already added"},
+        422: {"description": "Validation error"},
+    },
+)
 async def add_skill(
     conversation_id: str,
     body:            AddSkillRequest,
@@ -361,7 +451,15 @@ async def add_skill(
     }
 
 
-@router.delete("/{conversation_id}/skills/{conversation_skill_id}")
+@router.delete(
+    "/{conversation_id}/skills/{conversation_skill_id}",
+    tags=["Conversations"],
+    summary="Remove skill snapshot",
+    responses={
+        200: {"description": "Skill snapshot removed"},
+        404: {"description": "Conversation not found"},
+    },
+)
 async def remove_skill(
     conversation_id:       str,
     conversation_skill_id: str,
@@ -377,7 +475,15 @@ async def remove_skill(
     return {"ok": True}
 
 
-@router.get("/{conversation_id}/skills/{conversation_skill_id}/config")
+@router.get(
+    "/{conversation_id}/skills/{conversation_skill_id}/config",
+    tags=["Conversations"],
+    summary="View skill agent model config",
+    responses={
+        200: {"description": "Agent model config for this skill snapshot"},
+        404: {"description": "Conversation not found"},
+    },
+)
 async def get_skill_config(
     conversation_id:       str,
     conversation_skill_id: str,
@@ -406,7 +512,15 @@ async def get_skill_config(
     }
 
 
-@router.patch("/{conversation_id}/skills/{conversation_skill_id}/config")
+@router.patch(
+    "/{conversation_id}/skills/{conversation_skill_id}/config",
+    tags=["Conversations"],
+    summary="Update skill agent model overrides",
+    responses={
+        200: {"description": "Model config updated"},
+        404: {"description": "Conversation not found"},
+    },
+)
 async def update_skill_config(
     conversation_id:       str,
     conversation_skill_id: str,

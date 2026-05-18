@@ -1,6 +1,6 @@
 <!-- Single message — routes to correct sub-component based on type -->
 <template>
-  <div class="message" :class="msg.role">
+  <div v-if="!['preparing','reviewing','approving'].includes(msg.type)" class="message" :class="msg.role">
 
     <!-- Document card -->
     <DocumentCard
@@ -10,53 +10,77 @@
       @view="$emit('open-document', msg.artifactId)"
     />
 
-    <!-- Stage status spinners -->
-    <StatusCard
-      v-else-if="['preparing','reviewing','approving'].includes(msg.type)"
-      :stage="msg.type"
-      :content="msg.content"
-    />
-
-    <!-- Review result -->
-    <VerdictCard
-      v-else-if="msg.type === 'review_result'"
-      type="review"
-      :passed="msg.reviewPassed"
-      :feedback="msg.reviewFeedback"
-      :issues="msg.criticalIssues"
-    />
-
-    <!-- Approval result -->
-    <VerdictCard
-      v-else-if="msg.type === 'approval_result'"
-      type="approval"
-      :passed="msg.approvalStatus === 'approved'"
-      :feedback="msg.approvalComments"
-      :issues="msg.requiredChanges"
-    />
-
-    <!-- Text bubble (regular chat + discovery + stage summaries) -->
-    <template v-else>
+    <!-- User message — speech bubble -->
+    <template v-else-if="msg.role === 'user'">
       <div class="bubble-wrap" @mouseenter="hovered = true" @mouseleave="hovered = false">
         <div class="bubble">
           <MarkdownContent :text="msg.content" />
           <span v-if="msg.isStreaming" class="cursor" />
         </div>
-        <button
-          v-if="!msg.isStreaming"
-          class="copy-btn"
-          :class="{ copied, visible: hovered || copied || (props.isLatest && msg.role === 'agent') }"
-          @click="copyContent"
-          title="Copy"
-        >
-          <svg v-if="!copied" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
-        </button>
+        <div class="bubble-actions">
+          <button
+            v-if="!msg.isStreaming"
+            class="copy-btn"
+            :class="{ copied, visible: hovered || copied }"
+            @click="copyContent"
+            title="Copy"
+          >
+            <svg v-if="!copied" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </button>
+          <button
+            v-if="props.showRetry"
+            class="copy-btn"
+            :class="{ visible: hovered }"
+            @click="$emit('retry')"
+            title="Retry"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+              <polyline points="1 4 1 10 7 10"/>
+              <path d="M3.51 15a9 9 0 1 0 .49-4.5"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- Agent / error — flat, no bubble -->
+    <template v-else>
+      <div class="agent-wrap" @mouseenter="hovered = true" @mouseleave="hovered = false">
+        <div class="agent-row">
+          <span v-if="msg.type === 'error'" class="msg-icon msg-icon-error" title="Error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="17" height="17">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </span>
+          <div class="agent-content" :class="{ 'agent-error': msg.type === 'error' }">
+            <MarkdownContent :text="msg.content" />
+            <span v-if="msg.isStreaming" class="cursor" />
+          </div>
+        </div>
+        <div class="bubble-actions">
+          <button
+            v-if="!msg.isStreaming"
+            class="copy-btn"
+            :class="{ copied, visible: hovered || copied || props.isLatest }"
+            @click="copyContent"
+            title="Copy"
+          >
+            <svg v-if="!copied" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+            <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </button>
+        </div>
       </div>
     </template>
 
@@ -66,15 +90,14 @@
 <script setup>
 import { ref } from 'vue'
 import DocumentCard    from './DocumentCard.vue'
-import StatusCard      from './StatusCard.vue'
-import VerdictCard     from './VerdictCard.vue'
 import MarkdownContent from '../ui/MarkdownContent.vue'
 
 const props = defineProps({
-  msg:      { type: Object,  required: true },
-  isLatest: { type: Boolean, default: false },
+  msg:       { type: Object,  required: true },
+  isLatest:  { type: Boolean, default: false },
+  showRetry: { type: Boolean, default: false },
 })
-defineEmits(['open-document'])
+defineEmits(['open-document', 'retry'])
 
 const copied  = ref(false)
 const hovered = ref(false)
@@ -92,15 +115,21 @@ function copyContent() {
 .message.user  { align-self: flex-end; align-items: flex-end; }
 .message.agent { align-self: flex-start; align-items: flex-start; }
 
-.bubble { padding: 10px 14px; border-radius: 12px; font-size: 18px; line-height: 1.6; }
-.user  .bubble { background: var(--surface-2); color: var(--text); border-bottom-right-radius: 4px; }
-.agent .bubble { background: var(--bg); color: var(--text); border-bottom-left-radius: 4px; }
+/* User bubble */
+.bubble { padding: 10px 14px; border-radius: 12px; border-bottom-right-radius: 4px; font-size: 18px; line-height: 1.6; background: var(--surface-2); color: var(--text); }
 
-.bubble-wrap { display: flex; flex-direction: column; gap: 2px; }
-.agent .bubble-wrap { align-items: flex-start; }
-.user  .bubble-wrap { align-items: flex-end; }
-.agent .copy-btn { margin-left: 14px; }
-.user  .copy-btn { margin-right: 0; }
+.bubble-wrap { display: flex; flex-direction: column; gap: 2px; align-items: flex-end; }
+
+/* Agent flat content — no bubble */
+.agent-wrap    { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.agent-row     { display: flex; align-items: flex-start; gap: 10px; }
+.agent-content { font-size: 18px; line-height: 1.7; color: var(--text); }
+.agent-error   { color: var(--fail-tx); }
+
+.msg-icon            { flex-shrink: 0; margin-top: 3px; display: flex; align-items: center; }
+.msg-icon-error      { color: var(--fail-tx); }
+
+.bubble-actions { display: flex; align-items: center; gap: 4px; }
 
 .copy-btn {
   display: flex; align-items: center; justify-content: center;

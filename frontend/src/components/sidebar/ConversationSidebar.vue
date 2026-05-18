@@ -150,6 +150,17 @@
           </div>
 
           <div class="um-divider" />
+          <a class="um-item" href="/docs" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            API Documentation
+          </a>
+          <div class="um-divider" />
           <div class="um-about-row">
             <span class="um-about-app">Pragna</span>
             <span class="um-about-ver">{{ appVersion ? `v${appVersion}` : '' }}</span>
@@ -373,6 +384,7 @@ function handlePin(c) {
   width: 100%; padding: 8px 10px; border: none; border-radius: 7px;
   background: transparent; color: var(--text); font-size: 16px;
   cursor: pointer; text-align: left; transition: background .12s;
+  text-decoration: none;
 }
 .um-item:hover   { background: var(--bg); }
 .um-signout      { color: var(--text); }
