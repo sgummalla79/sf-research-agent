@@ -1,17 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pragna-ui
+  name: pragna-ui-green
   namespace: pragna
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: pragna-ui
+      slot: green
   template:
     metadata:
       labels:
         app: pragna-ui
+        slot: green
     spec:
       imagePullSecrets:
         - name: ghcr-pull-secret

@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pragna-ui-blue
+  namespace: pragna
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pragna-ui
+      slot: blue
+  template:
+    metadata:
+      labels:
+        app: pragna-ui
+        slot: blue
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: pragna-ui
+          image: ghcr.io/sgummalla79/pragna-ui:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"

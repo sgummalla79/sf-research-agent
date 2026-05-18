@@ -1,0 +1,220 @@
+name: Deploy — Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type'
+        required: false
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+
+env:
+  OWNER: ${{ github.repository_owner }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+
+  # ── Tests ───────────────────────────────────────────────────────────────────
+  test:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Run tests
+        working-directory: frontend
+        run: npm test
+
+  # ── Version bump & build ────────────────────────────────────────────────────
+  build:
+    name: Build production image
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    outputs:
+      version: ${{ steps.version.outputs.new }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Bump version
+        id: version
+        run: |
+          current=$(cat VERSION | tr -d '[:space:]')
+          major=$(echo $current | cut -d. -f1)
+          minor=$(echo $current | cut -d. -f2)
+          patch=$(echo $current | cut -d. -f3)
+
+          # Auto-push always does patch; manual dispatch uses the chosen bump type
+          BUMP="${{ inputs.bump || 'patch' }}"
+          case "$BUMP" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+
+          new="$major.$minor.$patch"
+          echo "$new" > VERSION
+          echo "new=$new" >> $GITHUB_OUTPUT
+          echo "previous=$current" >> $GITHUB_OUTPUT
+          echo "Bumped $current → $new"
+
+      - name: Generate release notes
+        run: |
+          version="${{ steps.version.outputs.new }}"
+          previous="${{ steps.version.outputs.previous }}"
+          date=$(date -u +"%Y-%m-%d")
+
+          last_bump=$(git log --oneline | grep -m1 "chore: bump version to ${previous}" | awk '{print $1}')
+
+          if [ -z "$last_bump" ]; then
+            commits=$(git log --no-merges --format="%s" -100)
+          else
+            commits=$(git log --no-merges --format="%s" "${last_bump}..HEAD")
+          fi
+
+          features=$(echo "$commits" | grep -E "^feat:"         | sed 's/^feat: /- /'     || true)
+          fixes=$(echo "$commits"    | grep -E "^(fix|hotfix):" | sed 's/^\(fix\|hotfix\): /- /' || true)
+          docs=$(echo "$commits"     | grep -E "^docs:"         | sed 's/^docs: /- /'     || true)
+          refactor=$(echo "$commits" | grep -E "^refactor:"     | sed 's/^refactor: /- /' || true)
+
+          {
+            echo "# v${version} — ${date}"
+            echo ""
+            if [ -n "$features" ];  then echo "## Features";      echo "$features";  echo ""; fi
+            if [ -n "$fixes" ];     then echo "## Bug Fixes";     echo "$fixes";     echo ""; fi
+            if [ -n "$refactor" ];  then echo "## Refactoring";   echo "$refactor";  echo ""; fi
+            if [ -n "$docs" ];      then echo "## Documentation"; echo "$docs";      echo ""; fi
+            if [ -z "$features" ] && [ -z "$fixes" ] && [ -z "$refactor" ] && [ -z "$docs" ]; then
+              echo "No notable changes."; echo ""
+            fi
+          } > "release-notes/v${version}.md"
+
+          cat "release-notes/v${version}.md"
+
+      - name: Commit version bump and release notes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION release-notes/
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new }}"
+          git push
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.ui
+          push: true
+          no-cache: true
+          tags: |
+            ghcr.io/${{ env.OWNER }}/pragna-ui:${{ steps.version.outputs.new }}
+            ghcr.io/${{ env.OWNER }}/pragna-ui:latest
+
+  # ── Blue-green deploy ───────────────────────────────────────────────────────
+  deploy:
+    name: Blue-green deploy to production
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+
+            NS="pragna"
+            IMAGE="ghcr.io/${{ github.repository_owner }}/pragna-ui:${{ needs.build.outputs.version }}"
+            HEALTH_URL="https://pragna.sgummallaworks.com/"
+
+            # Detect active slot
+            ACTIVE=$(kubectl get service pragna-ui -n "$NS" \
+              -o jsonpath='{.spec.selector.slot}' 2>/dev/null || echo "blue")
+            [ "$ACTIVE" = "blue" ] && INACTIVE="green" || INACTIVE="blue"
+
+            echo "=== Production blue-green deploy ==="
+            echo "    Version    : ${{ needs.build.outputs.version }}"
+            echo "    Image      : ${IMAGE}"
+            echo "    Active slot: ${ACTIVE}"
+            echo "    Target slot: ${INACTIVE}"
+
+            # Deploy to inactive slot
+            kubectl set image deployment/pragna-ui-${INACTIVE} \
+              pragna-ui="${IMAGE}" -n "$NS"
+            kubectl rollout status deployment/pragna-ui-${INACTIVE} \
+              -n "$NS" --timeout=120s
+
+            # Cut over
+            kubectl patch service pragna-ui -n "$NS" \
+              -p "{\"spec\":{\"selector\":{\"app\":\"pragna-ui\",\"slot\":\"${INACTIVE}\"}}}"
+
+            # Health check
+            HEALTHY=false
+            for i in $(seq 1 12); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+              if [ "$STATUS" = "200" ]; then
+                echo "✓ Production healthy (attempt $i)"
+                HEALTHY=true
+                break
+              fi
+              echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
+              sleep 10
+            done
+
+            # Rollback on failure
+            if [ "$HEALTHY" = "false" ]; then
+              echo "Health check failed — rolling back to ${ACTIVE}"
+              kubectl patch service pragna-ui -n "$NS" \
+                -p "{\"spec\":{\"selector\":{\"app\":\"pragna-ui\",\"slot\":\"${ACTIVE}\"}}}"
+              exit 1
+            fi
+
+            echo "=== Production deploy complete: v${{ needs.build.outputs.version }} (slot: ${INACTIVE}) ==="
+            kubectl get pods -n "$NS"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Production deploy: v${{ needs.build.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "URL: https://pragna.sgummallaworks.com" >> $GITHUB_STEP_SUMMARY

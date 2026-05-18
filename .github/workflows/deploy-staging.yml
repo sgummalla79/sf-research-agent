@@ -1,0 +1,148 @@
+name: Deploy — Staging
+
+on:
+  push:
+    branches:
+      - staging
+  workflow_dispatch:
+
+env:
+  OWNER: ${{ github.repository_owner }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+
+  # ── Tests ───────────────────────────────────────────────────────────────────
+  test:
+    name: Frontend tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: staging
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Run tests
+        working-directory: frontend
+        run: npm test
+
+  # ── Build & push image ──────────────────────────────────────────────────────
+  build:
+    name: Build staging image
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.tag.outputs.value }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: staging
+
+      - name: Compute image tag
+        id: tag
+        run: echo "value=staging-${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.ui
+          push: true
+          no-cache: true
+          tags: |
+            ghcr.io/${{ env.OWNER }}/pragna-ui:staging
+            ghcr.io/${{ env.OWNER }}/pragna-ui:${{ steps.tag.outputs.value }}
+
+  # ── Blue-green deploy ───────────────────────────────────────────────────────
+  deploy:
+    name: Blue-green deploy to staging
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: root
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+
+            NS="pragna-staging"
+            IMAGE="ghcr.io/${{ github.repository_owner }}/pragna-ui:${{ needs.build.outputs.tag }}"
+            HEALTH_URL="https://pragna-staging.sgummallaworks.com/"
+
+            # Detect active slot
+            ACTIVE=$(kubectl get service pragna-ui -n "$NS" \
+              -o jsonpath='{.spec.selector.slot}' 2>/dev/null || echo "blue")
+            [ "$ACTIVE" = "blue" ] && INACTIVE="green" || INACTIVE="blue"
+
+            echo "=== Staging blue-green deploy ==="
+            echo "    Image      : ${IMAGE}"
+            echo "    Active slot: ${ACTIVE}"
+            echo "    Target slot: ${INACTIVE}"
+
+            # Deploy to inactive slot
+            kubectl set image deployment/pragna-ui-${INACTIVE} \
+              pragna-ui="${IMAGE}" -n "$NS"
+            kubectl rollout status deployment/pragna-ui-${INACTIVE} \
+              -n "$NS" --timeout=120s
+
+            # Cut over
+            kubectl patch service pragna-ui -n "$NS" \
+              -p "{\"spec\":{\"selector\":{\"app\":\"pragna-ui\",\"slot\":\"${INACTIVE}\"}}}"
+
+            # Health check
+            HEALTHY=false
+            for i in $(seq 1 12); do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+              if [ "$STATUS" = "200" ]; then
+                echo "✓ Staging healthy (attempt $i)"
+                HEALTHY=true
+                break
+              fi
+              echo "Attempt $i: HTTP $STATUS — retrying in 10s..."
+              sleep 10
+            done
+
+            # Rollback on failure
+            if [ "$HEALTHY" = "false" ]; then
+              echo "Health check failed — rolling back to ${ACTIVE}"
+              kubectl patch service pragna-ui -n "$NS" \
+                -p "{\"spec\":{\"selector\":{\"app\":\"pragna-ui\",\"slot\":\"${ACTIVE}\"}}}"
+              exit 1
+            fi
+
+            echo "=== Staging deploy complete: ${{ needs.build.outputs.tag }} (slot: ${INACTIVE}) ==="
+            kubectl get pods -n "$NS"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Staging deploy: \`${{ needs.build.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "URL: https://pragna-staging.sgummallaworks.com" >> $GITHUB_STEP_SUMMARY
