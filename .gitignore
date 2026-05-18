@@ -1,43 +1,16 @@
-# ── Python ────────────────────────────────────────────────
-.venv/
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.egg-info/
-dist/
-build/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-htmlcov/
-.coverage
+# ── Node ──────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
 
 # ── Environment & secrets (NEVER commit) ──────────────────
-# .env          — committed (APP_ENV selector only)
-# .env.dev      — committed (dev concrete values)
-# .env.test     — committed (test concrete values)
-# .env.staging  — NEVER commit (real staging secrets)
-# .env.prod     — NEVER commit (real prod secrets)
 .env.staging
 .env.prod
 .env.production
 .env.local
 .env.*.local
-
-# ── Runtime data ──────────────────────────────────────────
-# SQLite database (root or backend/)
-data/
-backend/data/
-# User-uploaded files (root or backend/)
-uploads/
-backend/uploads/
-
-# ── Vue / Node ────────────────────────────────────────────
-node_modules/
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
+.env
 
 # ── OS ────────────────────────────────────────────────────
 .DS_Store
@@ -57,9 +30,10 @@ Desktop.ini
 # ── Logs ──────────────────────────────────────────────────
 *.log
 logs/
+
+# ── k8s secrets (never commit) ────────────────────────────
 k8s/pragna/secret.yaml
 k8s/pragna-staging/secret.yaml
 
 # ── Local dev scripts (personal, not shared) ──────────────
 scripts/local-db.sh
-.env
