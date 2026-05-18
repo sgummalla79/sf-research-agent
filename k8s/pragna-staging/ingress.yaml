@@ -36,6 +36,10 @@ metadata:
     traefik.ingress.kubernetes.io/router.middlewares: pragna-staging-api-prefix@kubernetescrd
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - pragna-staging.sgummallaworks.com
+      secretName: pragna-staging-tls
   rules:
     - host: pragna-staging.sgummallaworks.com
       http:
