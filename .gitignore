@@ -1,16 +1,15 @@
 # ── Node ──────────────────────────────────────────────────
 node_modules/
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
+dist/
+.vite/
 
 # ── Environment & secrets (NEVER commit) ──────────────────
+.env
 .env.staging
 .env.prod
 .env.production
 .env.local
 .env.*.local
-.env
 
 # ── OS ────────────────────────────────────────────────────
 .DS_Store
@@ -30,10 +29,6 @@ Desktop.ini
 # ── Logs ──────────────────────────────────────────────────
 *.log
 logs/
-
-# ── k8s secrets (never commit) ────────────────────────────
-k8s/pragna/secret.yaml
-k8s/pragna-staging/secret.yaml
 
 # ── Local dev scripts (personal, not shared) ──────────────
 scripts/local-db.sh
