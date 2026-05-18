@@ -184,7 +184,7 @@ import { useDocumentPanel }     from '../composables/useDocumentPanel'
 import { useTheme }             from '../composables/useTheme'
 import { useDarkMode }          from '../composables/useDarkMode'
 import { useAuth }              from '../composables/useAuth'
-import { apiFetch }             from '../composables/useFetch'
+import { Api } from '../api/service.js'
 import { useAppStore }          from '../stores/app'
 
 import AppLayout        from '../components/AppLayout.vue'
@@ -305,8 +305,7 @@ const isEmpty = computed(() =>
 
 async function loadSkills() {
   try {
-    const res  = await apiFetch('/api/skills')
-    const data = await res.json()
+    const data = await Api.getSkills()
     skills.value = (data.skills || []).filter(s => s.installed)
   } catch (_) {}
 }
@@ -314,9 +313,7 @@ async function loadSkills() {
 
 async function loadChatModels() {
   try {
-    const res  = await apiFetch('/api/models/active')
-    if (!res.ok) return
-    const data   = await res.json()
+    const data = await Api.getActiveModels()
     chatModels.value = (data.models || []).map((m, i) => ({
       model:        m.model_id,
       display:      m.display_name,
@@ -402,18 +399,12 @@ async function runSkill(skillId, originalText, brief, opts) {
   // pipeline will ask for one via confirm_understanding interrupt.
   if (brief.trim()) {
     try {
-      const vRes = await apiFetch(`/api/skills/${skillId}/validate-brief`, {
-        method: 'POST',
-        body:   JSON.stringify({ brief }),
-      })
-      if (vRes.ok) {
-        const { valid, message } = await vRes.json()
-        if (!valid) {
-          conv.saveMessage('user', originalText)
-          conv.saveMessage('agent', message)
-          chatInputRef.value?.setText(originalText)
-          return
-        }
+      const { valid, message } = await Api.validateBrief(skillId, { brief })
+      if (!valid) {
+        conv.saveMessage('user', originalText)
+        conv.saveMessage('agent', message)
+        chatInputRef.value?.setText(originalText)
+        return
       }
     } catch (_) {
       // Network error — proceed and let the pipeline handle it
@@ -471,14 +462,10 @@ async function resolvePendingSelection(text, opts) {
   const { skills: pendingSkills, brief, originalText } = pendingSkillSelection.value
   pendingSkillSelection.value = null
 
-  const res  = await apiFetch('/api/skills/classify-choice', {
-    method: 'POST',
-    body:   JSON.stringify({
-      response: text,
-      skills:   pendingSkills.map(s => ({ id: s.id, name: s.name, description: s.description || '' })),
-    }),
+  const { skill_id } = await Api.classifyChoice({
+    response: text,
+    skills:   pendingSkills.map(s => ({ id: s.id, name: s.name, description: s.description || '' })),
   })
-  const { skill_id } = await res.json()
 
   conv.saveMessage('user', text)
 
@@ -516,16 +503,10 @@ async function onConfirmUnderstanding(correction) {
   const textToValidate = correction.trim()
   if (textToValidate && activeSkillId.value) {
     try {
-      const vRes = await apiFetch(`/api/skills/${activeSkillId.value}/validate-brief`, {
-        method: 'POST',
-        body:   JSON.stringify({ brief: textToValidate }),
-      })
-      if (vRes.ok) {
-        const { valid, message } = await vRes.json()
-        if (!valid) {
-          confirmError.value = message
-          return
-        }
+      const { valid, message } = await Api.validateBrief(activeSkillId.value, { brief: textToValidate })
+      if (!valid) {
+        confirmError.value = message
+        return
       }
     } catch (_) {}
   }

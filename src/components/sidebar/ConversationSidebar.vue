@@ -189,7 +189,7 @@ import { useAppStore }      from '../../stores/app'
 import { useAuth }          from '../../composables/useAuth'
 import { THEMES, useTheme } from '../../composables/useTheme'
 import { useDarkMode }      from '../../composables/useDarkMode'
-import { apiFetch }         from '../../composables/useFetch'
+import { Api } from '../../api/service.js'
 import ConversationRow      from './ConversationRow.vue'
 import SudarshanChakra      from '../SudarshanChakra.vue'
 import StatusBar            from '../ui/StatusBar.vue'
@@ -240,8 +240,8 @@ function closeMenus() { userMenuOpen.value = false }
 onMounted(async () => {
   document.addEventListener('click', closeMenus)
   try {
-    const res = await apiFetch('/api/about')
-    if (res.ok) appVersion.value = (await res.json()).version || ''
+    const data = await Api.about()
+    appVersion.value = data.version || ''
   } catch (_) {}
 })
 onUnmounted(() => document.removeEventListener('click', closeMenus))

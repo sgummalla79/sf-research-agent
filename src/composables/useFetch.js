@@ -1,7 +1,6 @@
 /**
- * Authenticated fetch — credentials:'include' sends the httpOnly session
- * cookie automatically. No Authorization header needed.
- * On 401, redirect to /login.
+ * useFetch — internal HTTP utility. Do NOT import this outside of api/service.js.
+ * All API calls must go through Api (src/api/service.js).
  */
 
 import { API_BASE } from '../api/config.js'
@@ -23,4 +22,24 @@ export async function apiFetch(url, options = {}) {
   }
 
   return res
+}
+
+export async function* _readSSEStream(body) {
+  const reader  = body.getReader()
+  const decoder = new TextDecoder()
+  let   buffer  = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop()
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue
+      try { yield JSON.parse(line.slice(6)) } catch { /* skip malformed */ }
+    }
+  }
 }

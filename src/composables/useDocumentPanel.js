@@ -1,12 +1,9 @@
 /**
  * useDocumentPanel — document viewer logic.
- *
- * Extracted from the old ChatWindow.vue / useAgentChat.js.
- * Manages: open/close, fetch by artifactId, download MD, trigger PDF.
  */
 
 import { reactive } from 'vue'
-import { apiFetch } from './useFetch'
+import { Api } from '../api/service.js'
 
 export function useDocumentPanel() {
   const panel = reactive({
@@ -25,8 +22,7 @@ export function useDocumentPanel() {
     panel.version    = version ?? 0
 
     try {
-      const res  = await apiFetch(`/api/artifacts/${artifactId}`)
-      const data = await res.json()
+      const data    = await Api.getArtifact(artifactId)
       panel.content = data.content || ''
       panel.version = data.version ?? version ?? 0
     } catch (_) {

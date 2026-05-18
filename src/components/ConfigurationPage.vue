@@ -134,7 +134,7 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
-import { apiFetch }         from '../composables/useFetch.js'
+import { Api } from '../api/service.js'
 import AgentPromptsSettings from './settings/AgentPromptsSettings.vue'
 import SkillDirectory       from './SkillDirectory.vue'
 import ConfirmDialog        from './ui/ConfirmDialog.vue'
@@ -162,8 +162,7 @@ const activeSkill = computed(() => skills.value.find(s => s.id === sel.value?.sk
 async function fetchSkills() {
   loading.value = true
   try {
-    const res  = await apiFetch('/api/skills')
-    const data = await res.json()
+    const data = await Api.getSkills()
     skills.value = (data.skills || []).filter(s => s.installed)
     if (skills.value.length && !sel.value) {
       const first = skills.value[0]
@@ -180,8 +179,7 @@ async function fetchSkills() {
 
 async function loadAgents(skill) {
   try {
-    const res  = await apiFetch(`/api/skills/${skill.skill_key}/agents`)
-    const data = await res.json()
+    const data   = await Api.getSkillAgents(skill.skill_key)
     const agents = data.agents || []
     skillAgents[skill.id]   = agents
     skillHasDraft[skill.id] = agents.some(a => !!a.draft)
@@ -195,15 +193,10 @@ async function publishSkill(skillKey) {
   publishing.value = true
   publishMsg.value = null
   try {
-    const res  = await apiFetch(`/api/skills/${skillKey}/publish`, { method: 'POST' })
-    const data = await res.json()
-    if (res.ok) {
-      publishMsg.value = { type: 'ok', text: `Published ${data.count} agent${data.count !== 1 ? 's' : ''}.` }
-      const skill = skills.value.find(s => s.skill_key === skillKey)
-      if (skill) await loadAgents(skill)
-    } else {
-      publishMsg.value = { type: 'err', text: data.detail || 'Publish failed.' }
-    }
+    const data = await Api.publishSkill(skillKey)
+    publishMsg.value = { type: 'ok', text: `Published ${data.count} agent${data.count !== 1 ? 's' : ''}.` }
+    const skill = skills.value.find(s => s.skill_key === skillKey)
+    if (skill) await loadAgents(skill)
   } catch (_) {
     publishMsg.value = { type: 'err', text: 'Network error.' }
   } finally {
@@ -247,7 +240,7 @@ function confirmUninstall(skill) { uninstallTarget.value = skill }
 async function executeUninstall() {
   const skill = uninstallTarget.value
   uninstallTarget.value = null
-  await apiFetch(`/api/skills/${skill.skill_key}`, { method: 'DELETE' })
+  await Api.uninstallSkill(skill.skill_key)
   if (sel.value?.skillId === skill.id) sel.value = null
   await fetchSkills()
 }

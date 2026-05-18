@@ -53,7 +53,7 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
-import { apiFetch }     from '../composables/useFetch.js'
+import { Api } from '../api/service.js'
 import { useSkillIcon } from '../composables/useSkillIcon.js'
 
 const { skillIconUrl } = useSkillIcon()
@@ -73,8 +73,7 @@ const filtered = computed(() => {
 
 async function load() {
   try {
-    const res  = await apiFetch('/api/skills')
-    const data = await res.json()
+    const data = await Api.getSkills()
     skills.value = data.skills || []
   } catch (_) {}
 }
@@ -83,10 +82,10 @@ async function toggle(skill) {
   busy[skill.id] = true
   try {
     if (skill.installed) {
-      await apiFetch(`/api/skills/${skill.skill_key}`, { method: 'DELETE' })
+      await Api.uninstallSkill(skill.skill_key)
       skill.installed = false
     } else {
-      await apiFetch(`/api/skills/${skill.skill_key}`, { method: 'POST' })
+      await Api.installSkill(skill.skill_key)
       skill.installed = true
     }
     emit('changed')

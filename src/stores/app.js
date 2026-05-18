@@ -8,7 +8,7 @@
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { apiFetch } from '../composables/useFetch'
+import { Api } from '../api/service.js'
 
 export const useAppStore = defineStore('app', () => {
   const view        = ref('chat')
@@ -22,11 +22,8 @@ export const useAppStore = defineStore('app', () => {
 
   async function loadAbout() {
     try {
-      const res = await apiFetch('/api/about')
-      if (res.ok) {
-        const data = await res.json()
-        if (data.upload) uploadConfig.value = data.upload
-      }
+      const data = await Api.about()
+      if (data.upload) uploadConfig.value = data.upload
     } catch (_) {}
   }
 

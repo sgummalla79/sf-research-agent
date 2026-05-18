@@ -163,7 +163,7 @@
 </template>
 
 <script setup>
-import { apiFetch } from '../../composables/useFetch.js'
+import { Api } from '../../api/service.js'
 import { ref, reactive, computed, nextTick, onMounted } from 'vue'
 import { useProvidersStore } from '../../stores/providers'
 
@@ -221,10 +221,9 @@ const editInputEl   = ref(null)
 async function load() {
   loading.value = true
   try {
-    const res = await apiFetch('/api/providers')
-    if (res.ok) {
-      const data = await res.json()
-      providers.value = data.providers || []
+    const data = await Api.getProviders()
+    providers.value = data.providers || []
+    {
       for (const p of providers.value) {
         errors[p.id]        = errors[p.id]        ?? ''
         connecting[p.id]    = connecting[p.id]    ?? false
@@ -256,8 +255,8 @@ function closeModal() { modal.value = null; modalModels.value = [] }
 async function loadModalModels(pid) {
   modelsLoading[pid] = true
   try {
-    const res = await apiFetch(`/api/providers/${pid}/models`)
-    if (res.ok) modalModels.value = (await res.json()).models || []
+    const data = await Api.getProviderModels(pid).catch(() => null)
+    if (data) modalModels.value = data.models || []
   } finally {
     modelsLoading[pid] = false
   }
@@ -277,41 +276,32 @@ function cancelEdit() {
 async function saveModelName(pid, m) {
   const name = editingName.value.trim()
   if (!name || name === m.display_name) { cancelEdit(); return }
-  const res = await apiFetch(
-    `/api/providers/${pid}/models/${encodeURIComponent(m.model_id)}/display-name`,
-    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ display_name: name }) }
-  )
-  if (res.ok) {
+  try {
+    await Api.updateModelDisplayName(pid, m.model_id, name)
     m.display_name = name
     provStore.markUpdated()
-  }
+  } catch (_) {}
   cancelEdit()
 }
 
 async function toggleModel(pid, modelId) {
-  const res = await apiFetch(`/api/providers/${pid}/models/${encodeURIComponent(modelId)}`, { method: 'PATCH' })
-  if (res.ok) {
-    const data = await res.json()
+  try {
+    const data = await Api.updateModel(pid, modelId, {})
     const m = modalModels.value.find(x => x.model_id === modelId)
     if (m) m.isactive = data.isactive
     provStore.markUpdated()
-  }
+  } catch (_) {}
 }
 
 async function refreshModels(pid) {
   refreshing[pid] = true
   errors[pid] = ''
   try {
-    const res  = await apiFetch(`/api/providers/${pid}/refresh`, { method: 'POST' })
-    const data = await res.json()
-    if (res.ok) {
-      await loadModalModels(pid)
-      provStore.markUpdated()
-      if (data.fetch_error) {
-        errors[pid] = `Could not fetch models: ${_friendlyFetchError(data.fetch_error)}`
-      }
-    } else {
-      errors[pid] = data.detail || 'Refresh failed.'
+    const data = await Api.refreshProvider(pid)
+    await loadModalModels(pid)
+    provStore.markUpdated()
+    if (data.fetch_error) {
+      errors[pid] = `Could not fetch models: ${_friendlyFetchError(data.fetch_error)}`
     }
   } catch (_) {
     errors[pid] = 'Network error.'
@@ -336,23 +326,9 @@ async function connect(pid) {
   errors[pid]     = ''
   connecting[pid] = true
   try {
-    let res
-    if (pid === 'bedrock') {
-      res = await apiFetch('/api/providers/bedrock/connect', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          bedrock_url:   keyInputs['bedrock_url'].trim(),
-          bedrock_token: keyInputs['bedrock_token'].trim(),
-        }),
-      })
-    } else {
-      res = await apiFetch(`/api/providers/${pid}/connect`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ api_key: keyInputs[pid].trim() }),
-      })
-    }
+    const res = pid === 'bedrock'
+      ? await Api.connectBedrock({ bedrock_url: keyInputs['bedrock_url'].trim(), bedrock_token: keyInputs['bedrock_token'].trim() })
+      : await Api.connectProvider(pid, { api_key: keyInputs[pid].trim() })
     const data = await res.json()
     if (res.ok) {
       for (const f of (TILE_FIELDS[pid] || [])) keyInputs[f.key] = ''
@@ -376,8 +352,7 @@ async function connect(pid) {
 async function disconnect(pid) {
   disconnecting[pid] = true
   try {
-    const url = pid === 'bedrock' ? '/api/providers/bedrock' : `/api/providers/${pid}`
-    const res = await apiFetch(url, { method: 'DELETE' })
+    const res = pid === 'bedrock' ? await Api.deleteBedrock() : await Api.deleteProvider(pid)
     if (res.ok) {
       await load()
       provStore.markUpdated()
@@ -392,8 +367,7 @@ async function disconnect(pid) {
 async function toggle(pid) {
   toggling[pid] = true
   try {
-    const url = pid === 'bedrock' ? '/api/providers/bedrock/toggle' : `/api/providers/${pid}/toggle`
-    const res = await apiFetch(url, { method: 'PATCH' })
+    const res = pid === 'bedrock' ? await Api.toggleBedrock() : await Api.toggleProvider(pid)
     if (res.ok) {
       const data = await res.json()
       const p = providers.value.find(x => x.id === pid)

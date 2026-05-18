@@ -12,7 +12,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, reactive, computed } from 'vue'
-import { apiFetch } from '../composables/useFetch'
+import { Api } from '../api/service.js'
 
 const DEFAULT_SKILL = 'architect'
 
@@ -134,9 +134,7 @@ export const useConversationStore = defineStore('conversation', () => {
   async function _refreshUsage() {
     if (!conversationId.value) return
     try {
-      const res  = await apiFetch(`/api/conversations/${conversationId.value}/usage`)
-      if (!res.ok) return
-      const data = await res.json()
+      const data = await Api.getConversationUsage(conversationId.value)
       sessionUsage.input_tokens  = data.totals?.input_tokens  ?? 0
       sessionUsage.output_tokens = data.totals?.output_tokens ?? 0
       sessionUsage.cost_usd      = data.totals?.cost_usd      ?? 0
@@ -283,12 +281,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
   async function _ensureConversation(chatProvider, chatModel) {
     if (conversationId.value) return conversationId.value
-
-    const res  = await apiFetch('/api/conversations', {
-      method: 'POST',
-      body:   JSON.stringify({ chat_provider: chatProvider, chat_model: chatModel }),
-    })
-    const data = await res.json()
+    const data = await Api.createConversation({ chat_provider: chatProvider, chat_model: chatModel })
     conversationId.value = data.id
     lockedProvider.value = chatProvider
     return data.id
@@ -303,13 +296,10 @@ export const useConversationStore = defineStore('conversation', () => {
     await _ensureConversation(opts.chatProvider, opts.chatModel)
     _addMessage('user', text)
 
-    const response = await apiFetch(`/api/conversations/${conversationId.value}/message`, {
-      method: 'POST',
-      body:   JSON.stringify({
-        text,
-        chat_provider: opts.chatProvider,
-        chat_model:    opts.chatModel,
-      }),
+    const response = await Api.sendMessage(conversationId.value, {
+      text,
+      chat_provider: opts.chatProvider,
+      chat_model:    opts.chatModel,
     })
 
     if (!response.ok) {
@@ -326,10 +316,7 @@ export const useConversationStore = defineStore('conversation', () => {
   async function saveMessage(role, content, type = 'chat') {
     _addMessage(role, content, null, type)
     if (conversationId.value) {
-      await apiFetch(`/api/conversations/${conversationId.value}/messages`, {
-        method: 'POST',
-        body:   JSON.stringify({ role, content, message_type: type }),
-      }).catch(() => {})
+      await Api.addMessage(conversationId.value, { role, content, message_type: type }).catch(() => {})
     }
   }
 
@@ -343,10 +330,7 @@ export const useConversationStore = defineStore('conversation', () => {
     await _ensureConversation(opts.chatProvider, opts.chatModel)
 
     // Add skill to conversation (creates snapshot) — idempotent via UI tracking
-    const addRes  = await apiFetch(`/api/conversations/${conversationId.value}/skills`, {
-      method: 'POST',
-      body:   JSON.stringify({ skill_id: skillId }),
-    })
+    const addRes  = await Api.addSkill(conversationId.value, skillId)
 
     if (!addRes.ok) {
       const err = await addRes.json().catch(() => ({}))
@@ -369,20 +353,14 @@ export const useConversationStore = defineStore('conversation', () => {
     isPipelineRunning.value = true
     currentStage.value      = null
 
-    const invokeRes = await apiFetch(
-      `/api/conversations/${conversationId.value}/skills/${conversationSkillId.value}/invoke`,
-      {
-        method: 'POST',
-        body:   JSON.stringify({
-          brief:            brief,
-          original_message: opts.originalMessage || '',
-          source_type:      opts.sourceType || 'brief',
-          uploaded_file_path:  opts.uploadedFilePath  || '',
-          uploaded_image_path: opts.uploadedImagePath || '',
-          raw_document_text:   opts.rawDocumentText   || '',
-        }),
-      }
-    )
+    const invokeRes = await Api.invokeSkill(conversationId.value, conversationSkillId.value, {
+      brief:               brief,
+      original_message:    opts.originalMessage    || '',
+      source_type:         opts.sourceType         || 'brief',
+      uploaded_file_path:  opts.uploadedFilePath   || '',
+      uploaded_image_path: opts.uploadedImagePath  || '',
+      raw_document_text:   opts.rawDocumentText    || '',
+    })
 
     const eid = invokeRes.headers.get('X-Execution-Id')
     if (eid) executionId.value = eid
@@ -412,7 +390,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
     await saveMessage('user', `Uploaded: ${file.name}`)
 
-    const uploadRes = await apiFetch('/api/uploads', { method: 'POST', body: formData })
+    const uploadRes = await Api.upload(formData)
     if (!uploadRes.ok) {
       const err = await uploadRes.json().catch(() => ({ detail: 'Upload failed' }))
       saveMessage('agent', _friendlyError(err.detail) || 'File upload failed. Please check the file and try again.', 'error')
@@ -435,10 +413,7 @@ export const useConversationStore = defineStore('conversation', () => {
       : qs.map((q, i) => `**Q${i + 1}:** ${q}\n**A:** ${answers[i] || '—'}`).join('\n\n')
     _addMessage('user', userText)
 
-    const response = await apiFetch(`/api/executions/${executionId.value}/reply`, {
-      method: 'POST',
-      body:   JSON.stringify({ answers }),
-    })
+    const response = await Api.reply(executionId.value, { answers })
     await _consumeStream(response)
   }
 
@@ -448,10 +423,7 @@ export const useConversationStore = defineStore('conversation', () => {
     const confirmText = correction.trim() || 'Confirmed — looks right.'
     _addMessage('user', confirmText)
 
-    const response = await apiFetch(`/api/executions/${executionId.value}/reply`, {
-      method: 'POST',
-      body:   JSON.stringify({ answers: [correction.trim()] }),
-    })
+    const response = await Api.reply(executionId.value, { answers: [correction.trim()] })
     await _consumeStream(response)
   }
 
@@ -464,7 +436,7 @@ export const useConversationStore = defineStore('conversation', () => {
     executionDone.value    = false
     messages.value         = messages.value.filter(m => !m.isStreaming)
 
-    const response = await apiFetch(`/api/executions/${executionId.value}/retry`, { method: 'POST' })
+    const response = await Api.retry(executionId.value)
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
       if (response.status === 409) {
@@ -484,10 +456,13 @@ export const useConversationStore = defineStore('conversation', () => {
     reset()
     conversationId.value = convId
 
-    const res  = await apiFetch(`/api/conversations/${convId}`)
-    if (!res.ok) { saveMessage('agent', 'This conversation could not be loaded. It may have been deleted.', 'error'); return }
-
-    const data = await res.json()
+    let data
+    try {
+      data = await Api.getConversation(convId)
+    } catch {
+      saveMessage('agent', 'This conversation could not be loaded. It may have been deleted.', 'error')
+      return
+    }
 
     lockedProvider.value = data.chat_provider || null
 

@@ -119,7 +119,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { apiFetch }     from '../../composables/useFetch.js'
+import { Api } from '../../api/service.js'
 import ConfirmDialog    from '../ui/ConfirmDialog.vue'
 import ModelMenu        from '../ui/ModelMenu.vue'
 
@@ -227,22 +227,17 @@ function keyFromModelConfig(provider, model) {
 async function loadAll() {
   loadingSkills.value = true
   try {
-    const [modelsRes, skillsRes] = await Promise.all([
-      apiFetch('/api/models/active'),
-      apiFetch('/api/skills'),
+    const [modelsData, skillsData] = await Promise.all([
+      Api.getActiveModels(),
+      Api.getSkills(),
     ])
-    if (modelsRes.ok) {
-      activeModels.value = (await modelsRes.json()).models || []
-    }
-    if (!skillsRes.ok) return
-    const skillsData = await skillsRes.json()
+    activeModels.value = modelsData.models || []
 
     const result = []
     for (const sk of (skillsData.skills || [])) {
       if (!sk.installed) continue
-      const agentsRes = await apiFetch(`/api/skills/${sk.skill_key}/agents`)
-      if (!agentsRes.ok) continue
-      const agentsData = await agentsRes.json()
+      let agentsData
+      try { agentsData = await Api.getSkillAgents(sk.skill_key) } catch { continue }
       result.push({
         skillKey: sk.skill_key,
         name:     sk.name,
@@ -278,9 +273,8 @@ async function refreshCurrentSkill() {
   if (!activeSkillKey.value) return
   const sk = allSkills.value.find(s => s.skillKey === activeSkillKey.value)
   if (!sk) return
-  const res  = await apiFetch(`/api/skills/${activeSkillKey.value}/agents`)
-  if (!res.ok) return
-  const data = await res.json()
+  const data = await Api.getSkillAgents(activeSkillKey.value).catch(() => null)
+  if (!data) return
   sk.agents  = data.agents || []
 
   // Re-sync selected agent
@@ -323,14 +317,7 @@ async function saveDraft() {
     if (val === '__global__') { body.provider = null; body.model = null }
     else { [body.provider, body.model] = val.split('::') }
 
-    const draftRes = await apiFetch(`/api/skills/${sk}/agents/${ak}/draft`, {
-      method: 'PUT',
-      body:   JSON.stringify(body),
-    })
-    if (!draftRes.ok) {
-      saveMsg.value = { type: 'err', text: 'Draft save failed.' }
-      return
-    }
+    await Api.saveDraft(sk, ak, body.content)
 
     savedModelKey.value = selectedModelKey.value
     dirty.value         = false
@@ -349,10 +336,7 @@ async function doDiscardDraft() {
   if (!selected.value?.has_draft) return
   saving.value = true
   try {
-    await apiFetch(
-      `/api/skills/${activeSkillKey.value}/agents/${selected.value.agent_key}/draft`,
-      { method: 'DELETE' }
-    )
+    await Api.deleteDraft(activeSkillKey.value, selected.value.agent_key)
     emit('draft-saved')
     await refreshCurrentSkill()
   } finally {
@@ -374,17 +358,13 @@ async function publishAgent() {
       const body = { content: editorContent.value }
       if (val === '__global__') { body.provider = null; body.model = null }
       else { [body.provider, body.model] = val.split('::') }
-      await apiFetch(`/api/skills/${sk}/agents/${ak}/draft`, {
-        method: 'PUT', body: JSON.stringify(body),
-      })
+      await Api.saveDraft(sk, ak, body.content)
       savedModelKey.value = selectedModelKey.value
     }
 
     // Publish — backend copies provider/model from the draft into user_agents
     if (selected.value.draft || modelChanged.value) {
-      const res  = await apiFetch(`/api/skills/${sk}/agents/${ak}/publish`, { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) { saveMsg.value = { type: 'err', text: data.detail || 'Publish failed.' }; return }
+      await Api.publishAgent(sk, ak)
     }
 
     saveMsg.value = { type: 'ok', text: 'Published successfully.' }

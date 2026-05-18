@@ -48,7 +48,7 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
-import { apiFetch }     from '../../composables/useFetch'
+import { Api } from '../../api/service.js'
 import SkillDirectory   from '../SkillDirectory.vue'
 import { useSkillIcon } from '../../composables/useSkillIcon.js'
 
@@ -64,8 +64,7 @@ const installedSkills = computed(() => skills.value.filter(s => s.installed))
 async function load() {
   loading.value = true
   try {
-    const res  = await apiFetch('/api/skills')
-    const data = await res.json()
+    const data = await Api.getSkills()
     skills.value = data.skills || []
   } catch (_) {
   } finally {
@@ -76,7 +75,7 @@ async function load() {
 async function uninstall(skill) {
   busy[skill.id] = true
   try {
-    await apiFetch(`/api/skills/${skill.skill_key}`, { method: 'DELETE' })
+    await Api.uninstallSkill(skill.skill_key)
     skill.installed = false
   } catch (_) {
   } finally {

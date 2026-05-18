@@ -7,9 +7,7 @@
  */
 
 import { ref, computed } from 'vue'
-import { API } from '../api/endpoints.js'
-import { API_BASE } from '../api/config.js'
-import { apiFetch } from './useFetch.js'
+import { Api } from '../api/service.js'
 
 const _user    = ref(JSON.parse(sessionStorage.getItem('ta_user') || 'null'))
 const _loading = ref(false)
@@ -22,15 +20,10 @@ const authError       = computed(() => _error.value)
 
 async function fetchUser() {
   try {
-    const res = await apiFetch(API.me)
-    if (res.ok) {
-      const data = await res.json()
-      _user.value = data
-      sessionStorage.setItem('ta_user', JSON.stringify(data))
-    } else {
-      _user.value = null
-      sessionStorage.removeItem('ta_user')
-    }
+    const data = await Api.me()
+    _user.value = data
+    if (data) sessionStorage.setItem('ta_user', JSON.stringify(data))
+    else       sessionStorage.removeItem('ta_user')
   } catch {
     _user.value = null
   }
@@ -40,25 +33,14 @@ async function loginWithPassword(email, password, connection = 'Username-Passwor
   _loading.value = true
   _error.value   = ''
   try {
-    const res = await apiFetch(API.token, {
-      method: 'POST',
-      body:   JSON.stringify({ email, password, connection }),
-    })
-
-    let data = {}
-    try { data = await res.json() } catch { /* non-JSON body */ }
-
-    if (!res.ok) {
-      _error.value = data.detail || 'Invalid email or password.'
-      return false
-    }
+    const data = await Api.login(email, password, connection)
     _user.value = data.user
     sessionStorage.setItem('ta_user', JSON.stringify(data.user))
     return true
   } catch (e) {
     _error.value = e?.message?.includes('fetch')
       ? 'Cannot reach the server. Make sure the API is running.'
-      : 'Something went wrong. Please try again.'
+      : (e?.message || 'Invalid email or password.')
     return false
   } finally {
     _loading.value = false
@@ -66,27 +48,15 @@ async function loginWithPassword(email, password, connection = 'Username-Passwor
 }
 
 function loginWithSocial(connectionName) {
-  const url = connectionName
-    ? `${API_BASE}/auth/initiate?connection=${encodeURIComponent(connectionName)}`
-    : `${API_BASE}/auth/initiate`
-  window.location.href = url
+  Api.initiateLogin(connectionName)
 }
 
 async function logout() {
-  await apiFetch(API.logout, { method: 'POST' })
+  await Api.logout()
   _user.value = null
   sessionStorage.removeItem('ta_user')
 }
 
 export function useAuth() {
-  return {
-    isAuthenticated,
-    user,
-    loading,
-    authError,
-    fetchUser,
-    loginWithPassword,
-    loginWithSocial,
-    logout,
-  }
+  return { isAuthenticated, user, loading, authError, fetchUser, loginWithPassword, loginWithSocial, logout }
 }

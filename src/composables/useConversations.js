@@ -1,26 +1,20 @@
 /**
- * useConversations — conversation CRUD and regular chat messaging.
- *
- * Replaces the session management in useAgentChat.js.
- * Regular chat messages stream via SSE from /api/conversations/{id}/message.
+ * useConversations — conversation CRUD and regular chat messaging via SSE.
  */
 
 import { ref, readonly } from 'vue'
-import { apiFetch } from './useFetch.js'
-import { API } from '../api/endpoints.js'
+import { Api } from '../api/service.js'
+import { _readSSEStream } from './useFetch.js'
 
 export function useConversations() {
-
   const conversations = ref([])
   const loading       = ref(false)
   const error         = ref(null)
 
-  // ── CRUD ────────────────────────────────────────────────────────────────────
-
   async function listConversations() {
     loading.value = true
     try {
-      const data       = await apiFetch('/api/conversations')
+      const data = await Api.getConversations()
       conversations.value = data.conversations || []
       return conversations.value
     } catch (e) {
@@ -32,82 +26,52 @@ export function useConversations() {
   }
 
   async function createConversation({ title, chatProvider, chatModel } = {}) {
-    const data = await apiFetch('/api/conversations', {
-      method: 'POST',
-      body:   JSON.stringify({
-        title,
-        chat_provider: chatProvider,
-        chat_model:    chatModel,
-      }),
-    })
-    return data
+    return Api.createConversation({ title, chat_provider: chatProvider, chat_model: chatModel })
   }
 
   async function getConversation(conversationId) {
-    return apiFetch(`/api/conversations/${conversationId}`)
+    return Api.getConversation(conversationId)
   }
 
   async function renameConversation(conversationId, title) {
-    return apiFetch(`/api/conversations/${conversationId}`, {
-      method: 'PATCH',
-      body:   JSON.stringify({ title }),
-    })
+    return Api.renameConversation(conversationId, title)
   }
 
   async function deleteConversation(conversationId) {
-    await apiFetch(`/api/conversations/${conversationId}`, { method: 'DELETE' })
+    await Api.deleteConversation(conversationId)
     conversations.value = conversations.value.filter(c => c.id !== conversationId)
   }
 
-  // ── Skills in a conversation ─────────────────────────────────────────────────
-
   async function addSkillToConversation(conversationId, skillId) {
-    return apiFetch(`/api/conversations/${conversationId}/skills`, {
-      method: 'POST',
-      body:   JSON.stringify({ skill_id: skillId }),
-    })
+    return Api.addSkill(conversationId, skillId)
   }
 
   async function removeSkillFromConversation(conversationId, conversationSkillId) {
-    return apiFetch(`/api/conversations/${conversationId}/skills/${conversationSkillId}`, {
-      method: 'DELETE',
-    })
+    return Api.removeSkill(conversationId, conversationSkillId)
   }
 
   async function getSkillConfig(conversationId, conversationSkillId) {
-    return apiFetch(`/api/conversations/${conversationId}/skills/${conversationSkillId}/config`)
+    return Api.getSkillConfig(conversationId, conversationSkillId)
   }
 
   async function updateSkillConfig(conversationId, conversationSkillId, agents) {
-    return apiFetch(`/api/conversations/${conversationId}/skills/${conversationSkillId}/config`, {
-      method: 'PATCH',
-      body:   JSON.stringify({ agents }),
-    })
+    return Api.saveSkillConfig(conversationId, conversationSkillId, agents)
   }
 
-  // ── Regular chat SSE ─────────────────────────────────────────────────────────
-
-  /**
-   * Send a regular (non-pipeline) chat message. Returns an async generator
-   * of parsed SSE events so the caller can handle tokens, errors, done.
-   */
   async function* sendChatMessage(conversationId, text, { chatProvider, chatModel } = {}) {
-    const response = await apiFetch(API.conversationMsg(conversationId), {
-      method: 'POST',
-      body:   JSON.stringify({ text, chat_provider: chatProvider, chat_model: chatModel }),
+    const response = await Api.sendMessage(conversationId, {
+      text,
+      chat_provider: chatProvider,
+      chat_model:    chatModel,
     })
-
-    if (!response.ok) {
-      throw new Error(`Chat message failed: ${response.status}`)
-    }
-
+    if (!response.ok) throw new Error(`Chat message failed: ${response.status}`)
     yield* _readSSEStream(response.body)
   }
 
   return {
-    conversations:          readonly(conversations),
-    loading:                readonly(loading),
-    error:                  readonly(error),
+    conversations: readonly(conversations),
+    loading:       readonly(loading),
+    error:         readonly(error),
     listConversations,
     createConversation,
     getConversation,
@@ -118,31 +82,5 @@ export function useConversations() {
     getSkillConfig,
     updateSkillConfig,
     sendChatMessage,
-  }
-}
-
-// ── Shared SSE reader ─────────────────────────────────────────────────────────
-
-export async function* _readSSEStream(body) {
-  const reader  = body.getReader()
-  const decoder = new TextDecoder()
-  let   buffer  = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-    const lines = buffer.split('\n')
-    buffer = lines.pop()   // keep incomplete line in buffer
-
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue
-      try {
-        yield JSON.parse(line.slice(6))
-      } catch {
-        // skip malformed lines
-      }
-    }
   }
 }

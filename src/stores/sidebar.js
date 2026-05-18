@@ -8,7 +8,7 @@
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { apiFetch } from '../composables/useFetch'
+import { Api } from '../api/service.js'
 
 export const useSidebarStore = defineStore('sidebar', () => {
   const open    = ref(true)
@@ -19,10 +19,9 @@ export const useSidebarStore = defineStore('sidebar', () => {
   async function load() {
     loading.value = true
     try {
-      const res  = await apiFetch('/api/conversations')
-      const data = await res.json()
-      pinned.value = data.pinned  || []
-      recent.value = data.recent  || []
+      const data   = await Api.getConversations()
+      pinned.value = data.pinned || []
+      recent.value = data.recent || []
     } catch (_) {
     } finally {
       loading.value = false
@@ -30,26 +29,23 @@ export const useSidebarStore = defineStore('sidebar', () => {
   }
 
   async function pin(conversationId) {
-    await apiFetch(`/api/conversations/${conversationId}/pin`, { method: 'POST' })
+    await Api.pinConversation(conversationId)
     await load()
   }
 
   async function unpin(conversationId) {
-    await apiFetch(`/api/conversations/${conversationId}/pin`, { method: 'DELETE' })
+    await Api.unpinConversation(conversationId)
     await load()
   }
 
   async function remove(conversationId) {
-    await apiFetch(`/api/conversations/${conversationId}`, { method: 'DELETE' })
+    await Api.deleteConversation(conversationId)
     await load()
   }
 
   async function rename(conversationId, title) {
     if (!title.trim()) return
-    await apiFetch(`/api/conversations/${conversationId}`, {
-      method: 'PATCH',
-      body:   JSON.stringify({ title: title.trim() }),
-    })
+    await Api.renameConversation(conversationId, title.trim())
     await load()
   }
 

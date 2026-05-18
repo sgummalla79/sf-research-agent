@@ -10,7 +10,7 @@
  */
 
 import { ref } from 'vue'
-import { apiFetch } from './useFetch.js'
+import { Api } from '../api/service.js'
 
 export const THEMES = [
   { id: 'default', label: 'Gold',     light: '#b85c2a', dark: '#c97040' },
@@ -112,29 +112,13 @@ function _updateFavicon(color) {
 // ── Persistence ───────────────────────────────────────────────────────────────
 
 async function loadTheme(isDark, el = null) {
-  try {
-    const res = await apiFetch('/api/settings/theme')
-    if (res.ok) {
-      const data = await res.json()
-      applyTheme(data.theme || 'default', isDark, el)
-    }
-  } catch (_) {
-    applyTheme('default', isDark, el)
-  }
+  const themeId = await Api.getTheme()
+  applyTheme(themeId || 'default', isDark, el)
 }
 
 async function saveTheme(themeId, isDark, el = null) {
   applyTheme(themeId, isDark, el)
-  try {
-    const res = await apiFetch('/api/settings/theme', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ theme: themeId }),
-    })
-    if (!res.ok) console.error('[theme] save failed:', res.status, await res.text().catch(() => ''))
-  } catch (e) {
-    console.error('[theme] save error:', e)
-  }
+  await Api.saveTheme(themeId)
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────

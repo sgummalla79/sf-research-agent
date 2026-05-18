@@ -82,7 +82,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { apiFetch } from '../../composables/useFetch'
+import { Api } from '../../api/service.js'
 import { useProvidersStore } from '../../stores/providers'
 import ModelMenu from '../ui/ModelMenu.vue'
 
@@ -143,29 +143,21 @@ function onModelPick(skillKey, agentKey, val) {
 async function load() {
   loading.value = true
   try {
-    const [skillsRes, modelsRes] = await Promise.all([
-      apiFetch('/api/skills'),
-      apiFetch('/api/models/active'),
+    const [skillsData, modelsData] = await Promise.all([
+      Api.getSkills(),
+      Api.getActiveModels(),
     ])
 
-    if (modelsRes.ok) {
-      const data = await modelsRes.json()
-      activeModels.value = (data.models || []).map(m => ({
-        ...m,
-        provider_name: m.provider_name || m.provider,
-      }))
-    }
+    activeModels.value = (modelsData.models || []).map(m => ({
+      ...m,
+      provider_name: m.provider_name || m.provider,
+    }))
 
-    // Fetch agents for each installed skill
-    if (skillsRes.ok) {
-      const data    = await skillsRes.json()
-      const result  = []
-
-      for (const sk of (data.skills || [])) {
-        if (!sk.installed) continue
-        const agentsRes  = await apiFetch(`/api/skills/${sk.skill_key}/agents`)
-        if (!agentsRes.ok) continue
-        const agentsData = await agentsRes.json()
+    const result = []
+    for (const sk of (skillsData.skills || [])) {
+      if (!sk.installed) continue
+      let agentsData
+      try { agentsData = await Api.getSkillAgents(sk.skill_key) } catch { continue }
 
         // Populate selections from current user config
         for (const agent of (agentsData.agents || [])) {
@@ -178,15 +170,13 @@ async function load() {
         }
 
         result.push({
-          skillKey: sk.skill_key,
-          name:     sk.name,
-          icon:     sk.icon || '⚡',
-          agents:   agentsData.agents || [],
-        })
-      }
-
-      skillAgents.value = result
+        skillKey: sk.skill_key,
+        name:     sk.name,
+        icon:     sk.icon || '⚡',
+        agents:   agentsData.agents || [],
+      })
     }
+    skillAgents.value = result
   } finally {
     loading.value = false
   }
@@ -205,12 +195,7 @@ function clearSkill(skillKey) {
 // ── Suggest ────────────────────────────────────────────────────────────────────
 async function suggestSkill(skillKey, agents) {
   try {
-    const res = await apiFetch(`/api/skills/${skillKey}/suggest-config`)
-    if (!res.ok) {
-      saveMsgs[skillKey] = { type: 'err', text: 'No connected providers. Add API keys in Providers first.' }
-      return
-    }
-    const { suggestions } = await res.json()
+    const { suggestions } = await Api.suggestConfig(skillKey)
     let suggested = 0
     for (const agent of agents) {
       const pick = suggestions[agent.agent_key]
@@ -239,13 +224,10 @@ async function saveSkill(sk) {
     if (!val || !val.includes('::')) continue
 
     const [provider, model] = val.split('::')
-    const res = await apiFetch(`/api/skills/${sk.skillKey}/agents/${agent.agent_key}/model`, {
-      method: 'PATCH',
-      body:   JSON.stringify({ provider, model }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      errors.push(err.detail || `Failed for ${agent.agent_key}`)
+    try {
+      await Api.updateAgentModel(sk.skillKey, agent.agent_key, { provider, model })
+    } catch (e) {
+      errors.push(e.message || `Failed for ${agent.agent_key}`)
     }
   }
 

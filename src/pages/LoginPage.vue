@@ -166,9 +166,7 @@ const loadingConnections = ref(true)
 
 async function fetchConnections() {
   try {
-    const res  = await apiFetch('/auth/connections')
-    const data = await res.json()
-    connections.value = data.connections || []
+    connections.value = await Api.connections()
   } catch {
     connections.value = []
   } finally {

@@ -7,15 +7,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useDocumentPanel } from '../../../composables/useDocumentPanel'
 
-vi.mock('../../../composables/useFetch', () => ({
-  apiFetch: vi.fn(),
+vi.mock('../../../api/service.js', () => ({
+  Api: { getArtifact: vi.fn() },
 }))
 
-import { apiFetch } from '../../../composables/useFetch'
-
-function makeJsonResponse(data) {
-  return { ok: true, json: vi.fn().mockResolvedValue(data) }
-}
+import { Api } from '../../../api/service.js'
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -36,7 +32,7 @@ describe('initial state', () => {
 
 describe('open()', () => {
   it('sets open=true and fetches artifact content', async () => {
-    apiFetch.mockResolvedValue(makeJsonResponse({ content: '# Doc', version: 2 }))
+    Api.getArtifact.mockResolvedValue({ content: '# Doc', version: 2 })
     const { panel, open } = useDocumentPanel()
     await open('art-1')
 
@@ -45,22 +41,22 @@ describe('open()', () => {
     expect(panel.version).toBe(2)
     expect(panel.loading).toBe(false)
     expect(panel.artifactId).toBe('art-1')
-    expect(apiFetch).toHaveBeenCalledWith('/api/artifacts/art-1')
+    expect(Api.getArtifact).toHaveBeenCalledWith('art-1')
   })
 
   it('shows loading=true while fetching', async () => {
     let resolve
-    apiFetch.mockReturnValue(new Promise(r => { resolve = r }))
+    Api.getArtifact.mockReturnValue(new Promise(r => { resolve = r }))
     const { panel, open } = useDocumentPanel()
     const p = open('art-1')
     expect(panel.loading).toBe(true)
-    resolve(makeJsonResponse({ content: 'doc', version: 1 }))
+    resolve({ content: 'doc', version: 1 })
     await p
     expect(panel.loading).toBe(false)
   })
 
   it('shows error message when fetch fails', async () => {
-    apiFetch.mockRejectedValue(new Error('network'))
+    Api.getArtifact.mockRejectedValue(new Error('network'))
     const { panel, open } = useDocumentPanel()
     await open('bad-id')
     expect(panel.open).toBe(true)
@@ -69,14 +65,14 @@ describe('open()', () => {
   })
 
   it('uses version from API response when present', async () => {
-    apiFetch.mockResolvedValue(makeJsonResponse({ content: 'doc', version: 5 }))
+    Api.getArtifact.mockResolvedValue({ content: 'doc', version: 5 })
     const { panel, open } = useDocumentPanel()
     await open('art-v5', 1)
     expect(panel.version).toBe(5)
   })
 
   it('falls back to passed version when response omits it', async () => {
-    apiFetch.mockResolvedValue(makeJsonResponse({ content: 'doc' }))
+    Api.getArtifact.mockResolvedValue({ content: 'doc' })
     const { panel, open } = useDocumentPanel()
     await open('art-fallback', 3)
     expect(panel.version).toBe(3)
@@ -87,7 +83,7 @@ describe('open()', () => {
 
 describe('close()', () => {
   it('sets open=false', async () => {
-    apiFetch.mockResolvedValue(makeJsonResponse({ content: '# Doc', version: 1 }))
+    Api.getArtifact.mockResolvedValue({ content: '# Doc', version: 1 })
     const { panel, open, close } = useDocumentPanel()
     await open('art-1')
     expect(panel.open).toBe(true)
@@ -105,7 +101,7 @@ describe('downloadMD()', () => {
   })
 
   it('creates blob URL, clicks anchor, and revokes URL', async () => {
-    apiFetch.mockResolvedValue(makeJsonResponse({ content: '# Doc', version: 1 }))
+    Api.getArtifact.mockResolvedValue({ content: '# Doc', version: 1 })
     const { open, downloadMD } = useDocumentPanel()
     await open('art-dl', 1)
 
@@ -133,7 +129,7 @@ describe('downloadPDF()', () => {
   })
 
   it('does nothing when renderFn is null', async () => {
-    apiFetch.mockResolvedValue(makeJsonResponse({ content: 'doc', version: 1 }))
+    Api.getArtifact.mockResolvedValue({ content: 'doc', version: 1 })
     const { open, downloadPDF } = useDocumentPanel()
     await open('art-1', 1)
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
@@ -142,7 +138,7 @@ describe('downloadPDF()', () => {
   })
 
   it('opens window, writes HTML, and calls print', async () => {
-    apiFetch.mockResolvedValue(makeJsonResponse({ content: '# Doc', version: 1 }))
+    Api.getArtifact.mockResolvedValue({ content: '# Doc', version: 1 })
     const { open, downloadPDF } = useDocumentPanel()
     await open('art-pdf', 1)
 

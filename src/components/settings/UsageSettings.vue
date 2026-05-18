@@ -49,7 +49,7 @@
 </template>
 
 <script setup>
-import { apiFetch } from '../../composables/useFetch.js'
+import { Api } from '../../api/service.js'
 import { ref, onMounted } from 'vue'
 
 const loading = ref(true)
@@ -69,11 +69,9 @@ function fmtCost(c) {
 
 onMounted(async () => {
   try {
-    const res  = await apiFetch('/api/usage/summary')
-    if (res.ok) {
-      const data = await res.json()
-      totals.value = data.totals || totals.value
-    } else {
+    const data = await Api.getUsageSummary()
+    totals.value = data.totals || totals.value
+    if (!data.totals) {
       error.value = 'Could not load usage data.'
     }
   } catch (_) {
