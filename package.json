@@ -1,21 +1,28 @@
 {
-  "name": "sf-research-agent",
+  "name": "pragna-ui",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "node scripts/dev.js",
-    "dev:mac": "node scripts/dev.js",
-    "dev:win": "node scripts/dev.js",
-    "dev:frontend:mac": "node scripts/preflight-frontend.js && cd frontend && npm install --silent && npm run dev",
-    "dev:frontend:win": "node scripts/preflight-frontend.js && cd frontend && npm install --silent && npm run dev",
-    "build:mac": "cd frontend && npm run build",
-    "build:win": "cd frontend && npm run build",
-    "stop:mac": "npm run stop:frontend:mac",
-    "stop:win": "npm run stop:frontend:win",
-    "stop:frontend:mac": "lsof -ti:5173 | xargs kill -9 2>/dev/null || true",
-    "stop:frontend:win": "powershell -Command \"Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
-    "test": "cd frontend && npm run test"
+    "build": "vite build",
+    "preview": "vite preview",
+    "stop": "lsof -ti:5173 | xargs kill -9 2>/dev/null || true",
+    "stop:win": "powershell -Command \"Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "marked": "^12.0.0",
+    "pinia": "^3.0.4",
+    "vue": "^3.4.0",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@pinia/testing": "^1.0.3",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "@vue/test-utils": "^2.4.10",
+    "happy-dom": "^20.9.0",
+    "vite": "^5.0.0",
+    "vitest": "^4.1.6"
   }
 }
