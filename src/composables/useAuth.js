@@ -1,14 +1,14 @@
 /**
- * Auth composable — cookie-based sessions, mirrors sgummalla_works pattern.
+ * Auth composable — cookie-based sessions.
  *
  * The backend sets an httpOnly session cookie after login.
  * The browser sends it automatically on every fetch with credentials:'include'.
  * No token ever lives in localStorage or JavaScript memory.
- *
- * Bootstrap: call fetchUser() on app mount to restore session from /auth/me.
  */
 
 import { ref, computed } from 'vue'
+import { API } from '../api/endpoints.js'
+import { API_BASE } from '../api/config.js'
 
 const _user    = ref(JSON.parse(sessionStorage.getItem('ta_user') || 'null'))
 const _loading = ref(false)
@@ -19,11 +19,9 @@ const user            = computed(() => _user.value)
 const loading         = computed(() => _loading.value)
 const authError       = computed(() => _error.value)
 
-// ── Bootstrap — call once on mount to restore session from cookie ─────────────
-
 async function fetchUser() {
   try {
-    const res = await fetch('/auth/me', { credentials: 'include' })
+    const res = await fetch(API.me, { credentials: 'include' })
     if (res.ok) {
       const data = await res.json()
       _user.value = data
@@ -37,13 +35,11 @@ async function fetchUser() {
   }
 }
 
-// ── Email / password ──────────────────────────────────────────────────────────
-
 async function loginWithPassword(email, password, connection = 'Username-Password-Authentication') {
   _loading.value = true
   _error.value   = ''
   try {
-    const res = await fetch('/auth/token', {
+    const res = await fetch(API.token, {
       method:      'POST',
       credentials: 'include',
       headers:     { 'Content-Type': 'application/json' },
@@ -62,7 +58,7 @@ async function loginWithPassword(email, password, connection = 'Username-Passwor
     return true
   } catch (e) {
     _error.value = e?.message?.includes('fetch')
-      ? 'Cannot reach the server. Make sure the backend is running.'
+      ? 'Cannot reach the server. Make sure the API is running.'
       : 'Something went wrong. Please try again.'
     return false
   } finally {
@@ -70,19 +66,15 @@ async function loginWithPassword(email, password, connection = 'Username-Passwor
   }
 }
 
-// ── Social login — redirect through backend, which handles Auth0 flow ─────────
-
 function loginWithSocial(connectionName) {
   const url = connectionName
-    ? `/auth/initiate?connection=${encodeURIComponent(connectionName)}`
-    : '/auth/initiate'
+    ? `${API_BASE}/auth/initiate?connection=${encodeURIComponent(connectionName)}`
+    : `${API_BASE}/auth/initiate`
   window.location.href = url
 }
 
-// ── Logout ────────────────────────────────────────────────────────────────────
-
 async function logout() {
-  await fetch('/auth/logout', { method: 'POST', credentials: 'include' })
+  await fetch(API.logout, { method: 'POST', credentials: 'include' })
   _user.value = null
   sessionStorage.removeItem('ta_user')
 }

@@ -1,34 +1,11 @@
 :80 {
-    # Proxy /api/* to external API — SSE requires flush_interval -1 and long timeout
-    handle /api/* {
-        rewrite * /pragna{uri}
-        reverse_proxy {env.API_HOST}:443 {
-            header_up Host {env.API_HOST}
-            flush_interval -1
-            transport http {
-                tls
-                read_timeout 300s
-            }
-        }
-    }
-
-    # Proxy /auth/* to external API
-    handle /auth/* {
-        rewrite * /pragna{uri}
-        reverse_proxy {env.API_HOST}:443 {
-            header_up Host {env.API_HOST}
-            transport http {
-                tls
-            }
-        }
-    }
-
-    # Serve the Vue SPA
     root * /usr/share/caddy
 
+    # index.html must never be cached — it references hashed JS/CSS filenames
     @html path *.html /
     header @html Cache-Control "no-cache, no-store, must-revalidate"
 
+    # Hashed assets can be cached forever
     @assets path /assets/*
     header @assets Cache-Control "public, max-age=31536000, immutable"
 
