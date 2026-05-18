@@ -4,6 +4,8 @@
  * On 401, redirect to /login.
  */
 
+import { API_BASE } from '../api/config.js'
+
 export async function apiFetch(url, options = {}) {
   const headers = { ...(options.headers || {}) }
 
@@ -11,7 +13,9 @@ export async function apiFetch(url, options = {}) {
     headers['Content-Type'] = 'application/json'
   }
 
-  const res = await fetch(url, { ...options, headers, credentials: 'include' })
+  const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`
+
+  const res = await fetch(fullUrl, { ...options, headers, credentials: 'include' })
 
   if (res.status === 401) {
     window.location.href = '/login'

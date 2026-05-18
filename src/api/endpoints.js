@@ -1,46 +1,44 @@
-import { API_BASE } from './config.js'
-
 export const API = {
   // ── Auth ──────────────────────────────────────────────────────────────────
-  me:       `${API_BASE}/auth/me`,
-  initiate: `${API_BASE}/auth/initiate`,
-  token:    `${API_BASE}/auth/token`,
-  logout:   `${API_BASE}/auth/logout`,
+  me:       '/auth/me',
+  initiate: '/auth/initiate',
+  token:    '/auth/token',
+  logout:   '/auth/logout',
 
   // ── Providers ─────────────────────────────────────────────────────────────
-  providers:                  `${API_BASE}/api/providers`,
-  providerConnect:  (id)   => `${API_BASE}/api/providers/${id}/connect`,
-  providerRefresh:  (id)   => `${API_BASE}/api/providers/${id}/refresh`,
-  providerDelete:   (id)   => `${API_BASE}/api/providers/${id}`,
+  providers:                  '/api/providers',
+  providerConnect:  (id)   => `/api/providers/${id}/connect`,
+  providerRefresh:  (id)   => `/api/providers/${id}/refresh`,
+  providerDelete:   (id)   => `/api/providers/${id}`,
 
   // ── Skills ────────────────────────────────────────────────────────────────
-  skills:                     `${API_BASE}/api/skills`,
-  skillInstall:     (id)   => `${API_BASE}/api/skills/${id}`,
-  skillUninstall:   (id)   => `${API_BASE}/api/skills/${id}`,
-  skillAgents:      (id)   => `${API_BASE}/api/skills/${id}/agents`,
-  agentDraft:   (sid, ak) => `${API_BASE}/api/skills/${sid}/agents/${ak}/draft`,
-  agentPublish: (sid, ak) => `${API_BASE}/api/skills/${sid}/agents/${ak}/publish`,
-  skillPublish:     (id)   => `${API_BASE}/api/skills/${id}/publish`,
+  skills:                     '/api/skills',
+  skillInstall:     (id)   => `/api/skills/${id}`,
+  skillUninstall:   (id)   => `/api/skills/${id}`,
+  skillAgents:      (id)   => `/api/skills/${id}/agents`,
+  agentDraft:   (sid, ak) => `/api/skills/${sid}/agents/${ak}/draft`,
+  agentPublish: (sid, ak) => `/api/skills/${sid}/agents/${ak}/publish`,
+  skillPublish:     (id)   => `/api/skills/${id}/publish`,
 
   // ── Conversations ─────────────────────────────────────────────────────────
-  conversations:              `${API_BASE}/api/conversations`,
-  conversation:     (id)   => `${API_BASE}/api/conversations/${id}`,
-  conversationMsg:  (id)   => `${API_BASE}/api/conversations/${id}/message`,
-  conversationSkills:(id)  => `${API_BASE}/api/conversations/${id}/skills`,
-  conversationSkill:(id,sid)=> `${API_BASE}/api/conversations/${id}/skills/${sid}`,
-  skillConfig: (id, sid)   => `${API_BASE}/api/conversations/${id}/skills/${sid}/config`,
-  skillInvoke: (id, sid)   => `${API_BASE}/api/conversations/${id}/skills/${sid}/invoke`,
+  conversations:              '/api/conversations',
+  conversation:     (id)   => `/api/conversations/${id}`,
+  conversationMsg:  (id)   => `/api/conversations/${id}/message`,
+  conversationSkills:(id)  => `/api/conversations/${id}/skills`,
+  conversationSkill:(id,sid)=> `/api/conversations/${id}/skills/${sid}`,
+  skillConfig: (id, sid)   => `/api/conversations/${id}/skills/${sid}/config`,
+  skillInvoke: (id, sid)   => `/api/conversations/${id}/skills/${sid}/invoke`,
 
   // ── Executions ────────────────────────────────────────────────────────────
-  executionReply:   (eid)  => `${API_BASE}/api/executions/${eid}/reply`,
-  executionRetry:   (eid)  => `${API_BASE}/api/executions/${eid}/retry`,
-  executionStages:  (eid)  => `${API_BASE}/api/executions/${eid}/stages`,
-  executionArtifacts:(eid) => `${API_BASE}/api/executions/${eid}/artifacts`,
+  executionReply:   (eid)  => `/api/executions/${eid}/reply`,
+  executionRetry:   (eid)  => `/api/executions/${eid}/retry`,
+  executionStages:  (eid)  => `/api/executions/${eid}/stages`,
+  executionArtifacts:(eid) => `/api/executions/${eid}/artifacts`,
 
   // ── Artifacts ─────────────────────────────────────────────────────────────
-  artifact:         (id)   => `${API_BASE}/api/artifacts/${id}`,
+  artifact:         (id)   => `/api/artifacts/${id}`,
 
   // ── Usage ─────────────────────────────────────────────────────────────────
-  conversationUsage:(id)   => `${API_BASE}/api/conversations/${id}/usage`,
-  usageSummary:             `${API_BASE}/api/usage/summary`,
+  conversationUsage:(id)   => `/api/conversations/${id}/usage`,
+  usageSummary:             '/api/usage/summary',
 }

@@ -9,6 +9,7 @@
 import { ref, computed } from 'vue'
 import { API } from '../api/endpoints.js'
 import { API_BASE } from '../api/config.js'
+import { apiFetch } from './useFetch.js'
 
 const _user    = ref(JSON.parse(sessionStorage.getItem('ta_user') || 'null'))
 const _loading = ref(false)
@@ -21,7 +22,7 @@ const authError       = computed(() => _error.value)
 
 async function fetchUser() {
   try {
-    const res = await fetch(API.me, { credentials: 'include' })
+    const res = await apiFetch(API.me)
     if (res.ok) {
       const data = await res.json()
       _user.value = data
@@ -39,11 +40,9 @@ async function loginWithPassword(email, password, connection = 'Username-Passwor
   _loading.value = true
   _error.value   = ''
   try {
-    const res = await fetch(API.token, {
-      method:      'POST',
-      credentials: 'include',
-      headers:     { 'Content-Type': 'application/json' },
-      body:        JSON.stringify({ email, password, connection }),
+    const res = await apiFetch(API.token, {
+      method: 'POST',
+      body:   JSON.stringify({ email, password, connection }),
     })
 
     let data = {}
@@ -74,7 +73,7 @@ function loginWithSocial(connectionName) {
 }
 
 async function logout() {
-  await fetch(API.logout, { method: 'POST', credentials: 'include' })
+  await apiFetch(API.logout, { method: 'POST' })
   _user.value = null
   sessionStorage.removeItem('ta_user')
 }
