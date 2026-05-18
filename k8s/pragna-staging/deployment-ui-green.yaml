@@ -15,8 +15,6 @@ spec:
         app: pragna-ui
         slot: green
     spec:
-      imagePullSecrets:
-        - name: ghcr-pull-secret
       containers:
         - name: pragna-ui
           image: ghcr.io/sgummalla79/pragna-ui:latest
