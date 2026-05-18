@@ -21,6 +21,9 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 80
+          env:
+            - name: API_HOST
+              value: "api-staging.sgummallaworks.com"
           resources:
             requests:
               memory: "64Mi"

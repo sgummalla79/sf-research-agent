@@ -1,8 +1,7 @@
-# UI — serves the Vue SPA
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: pragna-staging-ui
+  name: pragna-staging
   namespace: pragna-staging
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -24,37 +23,3 @@ spec:
                 name: pragna-ui
                 port:
                   number: 80
----
-# API — proxies /api and /auth to external API, prepends /pragna
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: pragna-staging-api
-  namespace: pragna-staging
-  annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: pragna-staging-api-prefix@kubernetescrd
-spec:
-  ingressClassName: traefik
-  tls:
-    - hosts:
-        - pragna-staging.sgummallaworks.com
-      secretName: pragna-staging-tls
-  rules:
-    - host: pragna-staging.sgummallaworks.com
-      http:
-        paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: pragna-api-external
-                port:
-                  number: 443
-          - path: /auth
-            pathType: Prefix
-            backend:
-              service:
-                name: pragna-api-external
-                port:
-                  number: 443
