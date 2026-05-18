@@ -6,18 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-### Start the frontend
 ```bash
-pnpm dev          # starts frontend dev server on port 5173
-pnpm stop         # stop the process
-```
-
-### Frontend only
-```bash
-cd frontend
-npm install
-npm run dev       # port 5173, proxies /api and /auth to localhost:8000
-npm run build     # outputs to frontend/dist/
+npm install       # first time only
+npm run dev       # starts dev server on port 5173 (proxies /api and /auth to localhost:8000)
+npm run build     # outputs to dist/
+npm test          # run tests once
+npm run test:watch
 ```
 
 > The API must be running separately on port 8000. Start it from the `pragna-api` repo with `uvicorn api.app:app --reload --port 8000`.
@@ -26,18 +20,19 @@ npm run build     # outputs to frontend/dist/
 
 **Pragna** is a multi-agent AI platform. This repo is the Vue 3 SPA that communicates with the FastAPI backend via REST and SSE.
 
-### Frontend (`frontend/src/`)
+### Source (`src/`)
 
-**Single-page Vue 3 app.** `ChatWindow.vue` is the entire application shell (sidebar, chat area, settings, banners).
+**Single-page Vue 3 app.** Entry point is `src/main.js`, app shell is `src/components/AppLayout.vue`.
 
 **Composables:**
-- `useAgentChat.js` — All session state and SSE parsing. `_readStream()` handles all `stage_start / token / stage_end / question / done / error / provider_error` events
-- `useTheme.js` — 6 themes; injects `<style id="pragna-theme-vars">` into `<head>` with `!important` to override Vue scoped styles
 - `useAuth.js` — Auth0 session management
+- `useTheme.js` — 6 themes; injects `<style id="pragna-theme-vars">` into `<head>` with `!important` to override Vue scoped styles
+- `useConversations.js` — conversation list and session state
+- `useDocumentPanel.js` — document panel open/close state
 
-**API client** (`frontend/src/api/`): All endpoints are relative paths (`/api/*`, `/auth/*`). In dev, Vite proxies these to `localhost:8000`.
+**API client** (`src/api/`): All endpoints are relative paths (`/api/*`, `/auth/*`). In dev, Vite proxies these to `localhost:8000`.
 
-### SSE Event Types (emitted by API, consumed by `_handleEvent` in `useAgentChat.js`)
+### SSE Event Types (emitted by API, consumed in `src/pages/ChatPage.vue`)
 
 | Event | Payload |
 |---|---|
@@ -55,7 +50,8 @@ npm run build     # outputs to frontend/dist/
 
 ### Deployment
 
-- **CI/CD:** Push to `staging` branch auto-deploys UI. Manual `workflow_dispatch` for production.
+- **CI/CD:** Push to `staging` auto-deploys. Push to `main` auto-deploys to production (patch bump). Manual `workflow_dispatch` lets you choose bump type.
+- **Blue-green:** Each deploy switches between the `blue` and `green` k8s slots; rolls back automatically on health check failure.
 - **Image:** `ghcr.io/sgummalla79/pragna-ui` (Caddy serving Vue SPA)
-- **VERSION file:** Bumped automatically by the workflow; do not bump manually before triggering a build
+- **VERSION file:** Bumped automatically by the production workflow; do not bump manually.
 - **SSE requirement:** Caddy reverse-proxy has `flush_interval -1` and `read_timeout 300s` configured

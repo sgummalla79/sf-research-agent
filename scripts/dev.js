@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /**
- * Frontend dev runner.
- * Frees port 5173, then starts the Vue dev server.
+ * Dev runner — frees port 5173, then starts the Vue dev server.
  * The API runs separately — see sgummalla79/pragna-api.
  */
 
@@ -39,14 +38,14 @@ console.log(`  ✔  Platform: ${IS_WIN ? 'Windows' : 'macOS/Linux'}`)
 console.log('  ℹ  API (port 8000) runs separately — start it from pragna-api repo')
 console.log('───────────────────────────────────────────────────────────────\n')
 
-const frontend = IS_WIN
-  ? spawnLabeled('frontend', 'green', 'cmd', ['/C', 'cd frontend && npm install --silent && npm run dev'])
-  : spawnLabeled('frontend', 'green', 'sh', ['-c', 'cd frontend && npm install --silent && npm run dev'])
+const app = IS_WIN
+  ? spawnLabeled('ui', 'green', 'cmd', ['/C', 'npm install --silent && npm run dev'])
+  : spawnLabeled('ui', 'green', 'sh',  ['-c', 'npm install --silent && npm run dev'])
 
-process.on('SIGINT',  () => { frontend.kill('SIGTERM'); killPort(5173); process.exit(0) })
-process.on('SIGTERM', () => { frontend.kill('SIGTERM'); killPort(5173); process.exit(0) })
+process.on('SIGINT',  () => { app.kill('SIGTERM'); killPort(5173); process.exit(0) })
+process.on('SIGTERM', () => { app.kill('SIGTERM'); killPort(5173); process.exit(0) })
 
-frontend.on('exit', code => {
+app.on('exit', code => {
   killPort(5173)
   process.exit(code ?? 1)
 })

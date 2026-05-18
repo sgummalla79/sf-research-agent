@@ -1,50 +1,45 @@
 #!/usr/bin/env node
 /**
- * Pre-flight checks for the frontend.
- * Exits with code 1 (blocking the dev server from starting) if anything is wrong.
+ * Pre-flight checks before starting the dev server.
+ * Exits with code 1 if anything is wrong.
  */
 
 const fs   = require('fs')
 const path = require('path')
-const { createServer } = require('net')
 
-const ROOT     = path.resolve(__dirname, '..')
-const FRONTEND = path.join(ROOT, 'frontend')
+const ROOT = path.resolve(__dirname, '..')
 
 let ok = true
 
 function pass(msg) { console.log(`  ✔  ${msg}`) }
 function fail(msg) { console.error(`  ✘  ${msg}`); ok = false }
 
-console.log('\n── Frontend pre-flight ────────────────────────────────────────')
+console.log('\n── Pre-flight ─────────────────────────────────────────────────')
 
-// ── 1. frontend/package.json present ────────────────────────────────────────
-const pkgJson = path.join(FRONTEND, 'package.json')
-if (fs.existsSync(pkgJson)) {
-  pass('frontend/package.json found')
+// 1. package.json present
+if (fs.existsSync(path.join(ROOT, 'package.json'))) {
+  pass('package.json found')
 } else {
-  fail(`frontend/package.json missing at ${pkgJson}`)
+  fail(`package.json missing at ${ROOT}`)
 }
 
-// ── 2. node_modules installed ───────────────────────────────────────────────
-const nodeModules = path.join(FRONTEND, 'node_modules')
-if (fs.existsSync(nodeModules)) {
-  pass('frontend/node_modules present')
+// 2. node_modules installed
+if (fs.existsSync(path.join(ROOT, 'node_modules'))) {
+  pass('node_modules present')
 } else {
-  fail('frontend/node_modules not found. Run "npm run dev:frontend:win" or "npm run dev:frontend:mac" — it installs automatically.')
+  fail('node_modules not found — run npm install')
 }
 
-// ── 3. vite.config.js present ───────────────────────────────────────────────
-const viteCfg = path.join(FRONTEND, 'vite.config.js')
-if (fs.existsSync(viteCfg)) {
+// 3. vite.config.js present
+if (fs.existsSync(path.join(ROOT, 'vite.config.js'))) {
   pass('vite.config.js found')
 } else {
-  fail(`vite.config.js missing at ${viteCfg}`)
+  fail(`vite.config.js missing at ${ROOT}`)
 }
 
 console.log('───────────────────────────────────────────────────────────────')
 if (!ok) {
-  console.error('\n  Frontend pre-flight FAILED. Fix the issues above and retry.\n')
+  console.error('\n  Pre-flight FAILED. Fix the issues above and retry.\n')
   process.exit(1)
 }
-console.log('\n  Frontend pre-flight passed.\n')
+console.log('\n  Pre-flight passed.\n')

@@ -12,7 +12,6 @@ A multi-agent AI platform that produces formal Architecture Recommendation Docum
 |---|---|
 | Node.js | 18+ |
 | npm | 9+ |
-| pnpm | 8+ (optional, for root scripts) |
 
 ---
 
@@ -20,27 +19,17 @@ A multi-agent AI platform that produces formal Architecture Recommendation Docum
 
 The API must be running separately on port 8000. Start it from the `pragna-api` repo.
 
-**Start the frontend dev server:**
-
 ```bash
-pnpm dev
-# or
-cd frontend && npm install && npm run dev
+npm install       # first time only
+npm run dev       # http://localhost:5173 — proxies /api and /auth to localhost:8000
+npm run build     # outputs to dist/
+npm test
 ```
 
-Vite starts on **http://localhost:5173** and proxies `/api` and `/auth` to `localhost:8000`.
-
-**Stop:**
-
+**Stop the dev server:**
 ```bash
-pnpm stop
-```
-
-**Build for production:**
-
-```bash
-cd frontend && npm run build
-# outputs to frontend/dist/
+npm run stop      # macOS/Linux
+npm run stop:win  # Windows
 ```
 
 ---
@@ -48,42 +37,39 @@ cd frontend && npm run build
 ## Tests
 
 ```bash
-cd frontend
-npm install       # first time only
-npm run test      # run all tests once
+npm test          # run once
 npm run test:watch
 ```
 
 Tests live in:
-- `frontend/src/tests/unit/` — composable unit tests
-- `frontend/src/tests/component/` — Vue component tests
+- `src/tests/unit/` — composable and store unit tests
+- `src/tests/component/` — Vue component tests
 
 ---
 
 ## Production Deployment
 
-CI/CD is handled by `.github/workflows/build-and-push.yml`:
+CI/CD is handled by two workflows:
 
-- **Staging:** push to `staging` branch → auto-builds and deploys `pragna-ui` image
-- **Production:** manual `workflow_dispatch` → bumps `VERSION`, builds image, pushes to GHCR, rolls out via `kubectl set image`
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `deploy-staging.yml` | Push to `staging` or manual | Tests → builds `staging-{sha}` → blue-green deploy to `pragna-staging` |
+| `deploy-production.yml` | Push to `main` or manual | Tests → patch version bump → builds `{version}` → blue-green deploy to `pragna` |
+
+Manual dispatch on production lets you choose `patch / minor / major` bump.
 
 **Image:** `ghcr.io/sgummalla79/pragna-ui` (Caddy serving the Vue SPA)
 
-**Required GitHub secrets:**
+**Required GitHub secrets:** `VPS_HOST`, `VPS_SSH_KEY`
 
-| Secret | Value |
-|---|---|
-| `VPS_HOST` | Public IP or hostname of the K3s server |
-| `VPS_SSH_KEY` | Private SSH key with root access |
-
-**Manual rollout (without GitHub Actions):**
-
+**Manual rollout:**
 ```bash
 VERSION=1.2.3
-kubectl set image deployment/pragna-ui \
-  pragna-ui=ghcr.io/sgummalla79/pragna-ui:${VERSION} \
-  -n pragna
-kubectl rollout status deployment/pragna-ui -n pragna --timeout=120s
+kubectl set image deployment/pragna-ui-green \
+  pragna-ui=ghcr.io/sgummalla79/pragna-ui:${VERSION} -n pragna
+kubectl rollout status deployment/pragna-ui-green -n pragna --timeout=120s
+kubectl patch service pragna-ui -n pragna \
+  -p '{"spec":{"selector":{"app":"pragna-ui","slot":"green"}}}'
 ```
 
 ---
@@ -92,28 +78,29 @@ kubectl rollout status deployment/pragna-ui -n pragna --timeout=120s
 
 ```
 pragna-ui/
-├── frontend/
-│   └── src/
-│       ├── api/              # API client (relative paths, proxied in dev)
-│       ├── components/       # UI components
-│       ├── composables/
-│       │   ├── useAgentChat.js   # SSE stream handler, session state
-│       │   ├── useTheme.js       # 6 themes
-│       │   └── useAuth.js        # Auth0 session management
-│       ├── stores/           # Pinia stores
-│       ├── views/            # Page-level components
-│       └── tests/
-│           ├── unit/
-│           └── component/
+├── src/
+│   ├── api/              # API client (relative paths, proxied in dev)
+│   ├── assets/           # SVG logos
+│   ├── components/       # UI components
+│   ├── composables/      # useAuth, useTheme, useConversations, etc.
+│   ├── pages/            # ChatPage, ChatsPage, LoginPage, etc.
+│   ├── router/           # Vue Router config
+│   ├── stores/           # Pinia stores
+│   └── tests/
+│       ├── unit/
+│       └── component/
+├── public/               # Static assets (favicon, icons)
 ├── docker/
-│   ├── Dockerfile.ui         # Node build → Caddy serve
-│   ├── Caddyfile.ui          # Static SPA config
-│   └── Caddyfile.prod        # Prod reverse proxy config
+│   ├── Dockerfile.ui     # Node build → Caddy serve
+│   ├── Caddyfile.ui      # Static SPA config
+│   └── Caddyfile.prod    # Prod reverse proxy config
 ├── k8s/
-│   ├── pragna/               # Production k8s manifests
-│   └── pragna-staging/       # Staging k8s manifests
-├── scripts/                  # Dev runner
-├── .github/workflows/        # CI/CD
-├── VERSION                   # Bumped automatically by workflow
-└── CLAUDE.md
+│   ├── pragna/           # Production k8s manifests (blue + green)
+│   └── pragna-staging/   # Staging k8s manifests (blue + green)
+├── scripts/              # Dev runner, preflight checks
+├── .github/workflows/    # deploy-staging.yml, deploy-production.yml
+├── index.html
+├── vite.config.js
+├── package.json
+└── VERSION               # Bumped automatically by production workflow
 ```

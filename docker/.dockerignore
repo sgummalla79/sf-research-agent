@@ -1,6 +1,9 @@
 node_modules
-frontend/node_modules
 .git
-.env
-*.env
+k8s
 docs
+scripts
+release-notes
+dist
+*.env
+.env.*
