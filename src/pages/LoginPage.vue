@@ -89,7 +89,7 @@
 import { ref, h, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
-import { API_BASE } from '../api/config.js'
+import { apiFetch } from '../composables/useFetch.js'
 
 // ── Provider icon components ───────────────────────────────────────────────────
 
@@ -166,7 +166,7 @@ const loadingConnections = ref(true)
 
 async function fetchConnections() {
   try {
-    const res  = await fetch(`${API_BASE}/auth/connections`, { credentials: 'include' })
+    const res  = await apiFetch('/auth/connections')
     const data = await res.json()
     connections.value = data.connections || []
   } catch {

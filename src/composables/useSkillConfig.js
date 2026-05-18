@@ -6,10 +6,9 @@
  */
 
 import { ref, readonly } from 'vue'
-import { useFetch } from './useFetch'
+import { apiFetch } from './useFetch.js'
 
 export function useSkillConfig() {
-  const { apiFetch } = useFetch()
 
   const agents  = ref([])
   const loading = ref(false)

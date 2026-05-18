@@ -51,7 +51,7 @@
           <div class="dc-meta-row">
             <div class="dc-meta-card">
               <div class="dc-meta-label">Base URL</div>
-              <code class="dc-meta-code">http://localhost:8000</code>
+              <code class="dc-meta-code">{{ API_BASE || 'http://localhost:8000' }}</code>
             </div>
             <div class="dc-meta-card">
               <div class="dc-meta-label">Authentication</div>
@@ -220,7 +220,7 @@ const ERROR_CODES = [
 ]
 
 const QUICKSTART = `# 1. Authenticate — get a session cookie
-curl -X POST "http://localhost:8000/auth/token" \\
+curl -X POST "${API_BASE}/auth/token" \\
   -H "Content-Type: application/json" \\
   -d '{
     "email": "you@example.com",
@@ -229,7 +229,7 @@ curl -X POST "http://localhost:8000/auth/token" \\
 # Response sets: Set-Cookie: session=<token>; HttpOnly
 
 # 2. Create a conversation
-curl -X POST "http://localhost:8000/api/conversations" \\
+curl -X POST "${API_BASE}/api/conversations" \\
   -H "Cookie: session=<token>" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -239,7 +239,7 @@ curl -X POST "http://localhost:8000/api/conversations" \\
 # Response: { "id": "<conversation-id>", ... }
 
 # 3. Run the Architect skill (streams SSE)
-curl -X POST "http://localhost:8000/api/conversations/<id>/skills/<snapshot-id>/invoke" \\
+curl -X POST "${API_BASE}/api/conversations/<id>/skills/<snapshot-id>/invoke" \\
   -H "Cookie: session=<token>" \\
   -H "Content-Type: application/json" \\
   -d '{"brief": "Build a real-time order management system for 50k orders/day"}'`
@@ -297,7 +297,7 @@ onMounted(async () => {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     spec.value = await res.json()
   } catch (e) {
-    fetchError.value = `Could not load API spec (${e.message}). Make sure the backend is running on localhost:8000.`
+    fetchError.value = `Could not load API spec (${e.message}). Make sure the backend is reachable at ${API_BASE || 'localhost:8000'}.`
   } finally {
     loading.value = false
   }
@@ -434,7 +434,7 @@ function bodyEx(rb) {
 }
 
 function buildUrl(path, params) {
-  let url = `http://localhost:8000${path}`
+  let url = `${API_BASE}${path}`
   const q = (params || []).filter(p => p.in === 'query')
   if (q.length) url += '?' + q.map(p => `${p.name}=<${p.name}>`).join('&')
   return url
