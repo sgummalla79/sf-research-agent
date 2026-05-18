@@ -300,4 +300,5 @@ async def test_generic_error_emitted():
 
     errors = [e for e in events if e["type"] == "error"]
     assert len(errors) == 1
-    assert "internal error" in errors[0]["message"]
+    # Raw errors are converted to user-friendly messages by _friendly_error()
+    assert "try again" in errors[0]["message"].lower()

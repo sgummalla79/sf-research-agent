@@ -9,15 +9,9 @@ import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import MessageBubble from '../../../components/chat/MessageBubble.vue'
 
-// Stub heavy child components so tests focus on routing logic
+// Stub heavy child component so tests focus on routing logic
 vi.mock('../../../components/chat/DocumentCard.vue', () => ({
   default: { template: '<div class="stub-doc" />', props: ['artifactId', 'docVersion'] },
-}))
-vi.mock('../../../components/chat/StatusCard.vue', () => ({
-  default: { template: '<div class="stub-status" />', props: ['stage', 'content'] },
-}))
-vi.mock('../../../components/chat/VerdictCard.vue', () => ({
-  default: { template: '<div class="stub-verdict" />', props: ['type', 'passed', 'feedback', 'issues'] },
 }))
 
 function factory(msg) {
@@ -32,10 +26,11 @@ describe('text messages', () => {
     expect(w.classes()).toContain('user')
   })
 
-  it('renders agent bubble for agent role', () => {
+  it('renders agent message flat (no bubble) for agent role', () => {
     const w = factory({ role: 'agent', content: 'Hi there', type: 'text', isStreaming: false })
     expect(w.classes()).toContain('agent')
-    expect(w.find('.bubble').exists()).toBe(true)
+    expect(w.find('.agent-wrap').exists()).toBe(true)
+    expect(w.find('.bubble').exists()).toBe(false)
   })
 
   it('shows streaming cursor when isStreaming=true', () => {
@@ -48,11 +43,10 @@ describe('text messages', () => {
     expect(w.find('.cursor').exists()).toBe(false)
   })
 
-  it('renders agent bubble without stage label (stage-tag removed from UI)', () => {
+  it('renders agent message flat without stage label', () => {
     const w = factory({ role: 'agent', content: 'output', type: 'text', stage: 'research', isStreaming: false })
-    // stage-tag was removed during UI polish — agent messages just show content
     expect(w.find('.stage-tag').exists()).toBe(false)
-    expect(w.find('.bubble').exists()).toBe(true)
+    expect(w.find('.agent-wrap').exists()).toBe(true)
   })
 })
 
@@ -63,32 +57,35 @@ describe('document messages', () => {
   })
 })
 
-describe('status messages', () => {
-  it('renders StatusCard stub for type=preparing', () => {
+describe('legacy status message types (StatusCard removed)', () => {
+  it('suppresses rendering for type=preparing', () => {
     const w = factory({ role: 'agent', type: 'preparing', content: '', isStreaming: true })
-    expect(w.find('.stub-status').exists()).toBe(true)
+    // StatusCard removed — preparing messages render nothing
+    expect(w.find('.message').exists()).toBe(false)
   })
 
-  it('renders StatusCard stub for type=reviewing', () => {
+  it('suppresses rendering for type=reviewing', () => {
     const w = factory({ role: 'agent', type: 'reviewing', content: '', isStreaming: true })
-    expect(w.find('.stub-status').exists()).toBe(true)
+    expect(w.find('.message').exists()).toBe(false)
   })
 })
 
-describe('review / approval result messages', () => {
-  it('renders VerdictCard stub for type=review_result', () => {
+describe('review / approval result messages (VerdictCard removed)', () => {
+  it('renders review_result as flat agent message', () => {
     const w = factory({
       role: 'agent', type: 'review_result',
       reviewPassed: true, reviewFeedback: 'Good', criticalIssues: [], isStreaming: false,
     })
-    expect(w.find('.stub-verdict').exists()).toBe(true)
+    expect(w.find('.agent-wrap').exists()).toBe(true)
+    expect(w.find('.stub-verdict').exists()).toBe(false)
   })
 
-  it('renders VerdictCard stub for type=approval_result', () => {
+  it('renders approval_result as flat agent message', () => {
     const w = factory({
       role: 'agent', type: 'approval_result',
       approvalStatus: 'approved', approvalComments: 'Done', requiredChanges: [], isStreaming: false,
     })
-    expect(w.find('.stub-verdict').exists()).toBe(true)
+    expect(w.find('.agent-wrap').exists()).toBe(true)
+    expect(w.find('.stub-verdict').exists()).toBe(false)
   })
 })

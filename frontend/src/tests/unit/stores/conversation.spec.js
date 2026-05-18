@@ -164,40 +164,45 @@ describe('SSE event dispatch via sendMessage', () => {
     expect(store.executionId).toBe('exec-2')
   })
 
-  it('document_ready upgrades message type to document', async () => {
+  it('document_ready adds a plain text status message and stores artifact id', async () => {
     const store = await runStream([
       { type: 'stage_start',    stage: 'research' },
       { type: 'token',          content: 'Building…' },
       { type: 'document_ready', version: 3, artifact_id: 'art-1' },
       { type: 'done',           status: 'complete' },
     ])
-    const docMsg = store.messages.find(m => m.type === 'document')
-    expect(docMsg).toBeDefined()
-    expect(docMsg.artifactId).toBe('art-1')
-    expect(docMsg.docVersion).toBe(3)
+    // document_ready now adds a plain text message (no document card for intermediate versions)
+    const textMsg = store.messages.find(m => m.content?.includes('submitted for review'))
+    expect(textMsg).toBeDefined()
+    // latestArtifactId is tracked internally for use when approval completes
+    expect(store.messages.find(m => m.type === 'document')).toBeUndefined()
   })
 
-  it('review_complete upgrades message to review_result', async () => {
+  it('review_complete adds flat agent text with feedback', async () => {
     const store = await runStream([
       { type: 'stage_start',     stage: 'review' },
       { type: 'review_complete', passed: true, feedback: 'Looks good', critical_issues: [] },
       { type: 'done',            status: 'complete' },
     ])
-    const rev = store.messages.find(m => m.type === 'review_result')
+    // VerdictCard removed — review result is a plain text agent message
+    const rev = store.messages.find(m => m.role === 'agent' && m.content?.includes('Looks good'))
     expect(rev).toBeDefined()
-    expect(rev.reviewPassed).toBe(true)
-    expect(rev.reviewFeedback).toBe('Looks good')
+    expect(store.messages.find(m => m.type === 'review_result')).toBeUndefined()
   })
 
-  it('approval_complete upgrades message to approval_result', async () => {
+  it('approval_complete adds flat agent text and document card when approved', async () => {
     const store = await runStream([
       { type: 'stage_start',       stage: 'approval' },
-      { type: 'approval_complete', status: 'approved', comments: 'Great', required_changes: [] },
+      { type: 'approval_complete', status: 'approved', comments: 'Great', required_changes: [], artifact_id: 'art-2' },
       { type: 'done',              status: 'complete' },
     ])
-    const appr = store.messages.find(m => m.type === 'approval_result')
+    // VerdictCard removed — approval result is plain text
+    const appr = store.messages.find(m => m.role === 'agent' && m.content?.includes('Great'))
     expect(appr).toBeDefined()
-    expect(appr.approvalStatus).toBe('approved')
+    // Approved → DocumentCard added for final document viewing
+    const docCard = store.messages.find(m => m.type === 'document')
+    expect(docCard).toBeDefined()
+    expect(docCard.artifactId).toBe('art-2')
   })
 
   it('done event with complete clears pipeline and sets no error flags', async () => {
@@ -217,11 +222,13 @@ describe('SSE event dispatch via sendMessage', () => {
     expect(store.isHalted).toBe(true)
   })
 
-  it('error event sets error and clears pipeline', async () => {
+  it('error event adds error message and clears pipeline', async () => {
     const store = await runStream([
       { type: 'error', message: 'Something went wrong' },
     ])
-    expect(store.error).toBe('Something went wrong')
+    // error events are surfaced as agent messages with type='error', not store.error
+    const errMsg = store.messages.find(m => m.type === 'error' && m.role === 'agent')
+    expect(errMsg).toBeDefined()
     expect(store.isPipelineRunning).toBe(false)
   })
 
@@ -278,11 +285,15 @@ describe('restore()', () => {
     expect(store.messages[0].artifactId).toBe('art-99')
   })
 
-  it('sets error when API returns not-ok', async () => {
+  it('adds error message when API returns not-ok', async () => {
     const store = useConversationStore()
-    apiFetch.mockResolvedValueOnce({ ok: false, json: vi.fn().mockResolvedValue({}) })
+    apiFetch
+      .mockResolvedValueOnce({ ok: false, json: vi.fn().mockResolvedValue({}) })
+      .mockResolvedValueOnce({ ok: true,  json: vi.fn().mockResolvedValue({ id: 'msg-1' }) })
 
     await store.restore('bad-id')
-    expect(store.error).toBeTruthy()
+    // restore failure surfaces as an agent error message, not store.error
+    const errMsg = store.messages.find(m => m.type === 'error' && m.role === 'agent')
+    expect(errMsg).toBeDefined()
   })
 })
